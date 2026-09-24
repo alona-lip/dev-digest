@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Finding } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -170,6 +171,24 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Total spend on this PR in USD = SUM over every successful (status='done')
+  // run, not just the latest (list endpoint only; see `sumRunCosts`).
+  // Null = nothing to show ("—"): never reviewed, or every price is unknown.
+  cost_usd: z.number().nullish(),
+  // Severity breakdown of the LATEST review's findings (list endpoint only).
+  // Null/absent until the PR has been reviewed.
+  findings_by_severity: z
+    .object({
+      CRITICAL: z.number().int(),
+      WARNING: z.number().int(),
+      SUGGESTION: z.number().int(),
+    })
+    .nullish(),
+  // Read-only preview for the FINDINGS-column hover popover: ALL of the
+  // latest review's findings, severity-sorted, not capped — the popover is
+  // scrollable, same pattern as the PR-detail Timeline. Reuses the Finding
+  // schema — no new type.
+  findings_preview: z.array(Finding).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 
@@ -258,6 +277,9 @@ export type IndexStatus = z.infer<typeof IndexStatus>;
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),
+  /** Explicit multi-agent selection. Wins over `agentId`/`all` when present;
+   *  order is the user's pick order, and these run regardless of `enabled`. */
+  agentIds: z.array(z.string()).optional(),
   all: z.boolean().optional(),
 });
 export type RunRequest = z.infer<typeof RunRequest>;

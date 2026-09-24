@@ -7,7 +7,8 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities, sumRunCosts, SEVERITY_SORT_ORDER } from './status.js';
+import { findingRowToDto } from '../reviews/helpers.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,22 +112,80 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review SCORE + FINDINGS severity breakdown per PR for the list's
+    // score ring and FINDINGS column. Computed on read from reviews (no FK
+    // denorm); the list is small, so a couple of IN-queries + JS grouping is
+    // cheap. No LLM call — this is a plain SELECT + `Array.filter` tally.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
       }
+    }
+
+    // FINDINGS severity breakdown + read-only preview, keyed by review id.
+    // One IN-query over `findings` scoped to the latest-review ids above,
+    // grouped in JS — same shape as the score/cost derivations either side.
+    // The preview is NOT capped: it's the same scrollable-popover pattern as
+    // the PR-detail Timeline (client/src/components/severity/FindingsPopover),
+    // which shows every finding of a run — a review's finding count is small
+    // (tens, not thousands) and text-only, so sending it all is cheap, and a
+    // truncated "6 of 15" list defeats the point of a scrollable popover.
+    const latestReviewIds = [...latestReviewByPr.values()].map((rv) => rv.id);
+    const severityByReview = new Map<string, ReturnType<typeof rollupSeverities>>();
+    const previewByReview = new Map<string, PrMeta['findings_preview']>();
+    if (latestReviewIds.length > 0) {
+      const findingRows = await container.db
+        .select()
+        .from(t.findings)
+        .where(inArray(t.findings.reviewId, latestReviewIds));
+      const byReview = new Map<string, typeof findingRows>();
+      for (const f of findingRows) {
+        const bucket = byReview.get(f.reviewId);
+        if (bucket) bucket.push(f);
+        else byReview.set(f.reviewId, [f]);
+      }
+      for (const [reviewId, fRows] of byReview) {
+        severityByReview.set(reviewId, rollupSeverities(fRows));
+        previewByReview.set(
+          reviewId,
+          [...fRows]
+            .sort(
+              (a, b) =>
+                (SEVERITY_SORT_ORDER[a.severity] ?? 9) - (SEVERITY_SORT_ORDER[b.severity] ?? 9),
+            )
+            .map(findingRowToDto),
+        );
+      }
+    }
+
+    // TOTAL COST per PR for the list's cost column = the sum of EVERY
+    // successful run, not just the newest one — a PR reviewed three times has
+    // cost three times as much, and the list is where that adds up. Same
+    // read-time derivation as the score above (one IN-query + JS grouping, no
+    // FK denorm). Only status='done' counts; null vs 0 semantics live in
+    // `sumRunCosts` ("—" for unknown, never "$0.00").
+    const runCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      const byPr = new Map<string, { costUsd: number | null }[]>();
+      for (const run of runRows) {
+        if (!run.prId) continue;
+        const bucket = byPr.get(run.prId);
+        if (bucket) bucket.push(run);
+        else byPr.set(run.prId, [run]);
+      }
+      for (const [prId, runs] of byPr) runCostByPr.set(prId, sumRunCosts(runs));
     }
 
     const now = Date.now();
@@ -153,6 +212,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: runCostByPr.get(r.id) ?? null,
+        // A reviewed PR with zero findings still gets a zeroed breakdown (not
+        // null) — null means "never reviewed", {0,0,0} means "reviewed, clean".
+        findings_by_severity: review
+          ? (severityByReview.get(review.id) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 })
+          : null,
+        findings_preview: review ? (previewByReview.get(review.id) ?? []) : null,
       };
     });
   });

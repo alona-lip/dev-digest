@@ -31,13 +31,29 @@
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
+  "severity": {
+    "critical": "Critical",
+    "warning": "Warning",
+    "suggestion": "Suggestion",
+    "filterAria": "Show only {severity} findings",
+    "filterGroupAria": "Filter findings by severity",
+    "popoverTitle": "{count} FINDINGS IN THIS RUN",
+    "confidence": "{pct}% conf"
+  },
   "runReview": {
-    "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+    "pickAgents": "PICK AGENTS TO RUN",
+    "selectAll": "Select all",
+    "clearAll": "Clear",
+    "disabledHint": "{model} · disabled",
+    "noAgents": "No agents yet — create one",
+    "runNone": "Select an agent to run",
+    "runOne": "Run {name}",
+    "runMany": "Run multi-agent review ({count})"
   },
   "runStatus": {
     "elapsed": "Running · {count} agent(s)",
@@ -91,7 +107,9 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
