@@ -1,13 +1,29 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  PrAgentFindings,
+  GitHubClient,
+  PrReviewComment,
+  SeverityCounts,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
+import { scoreFromFindings } from '@devdigest/reviewer-core';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import {
+  deriveReviewStatus,
+  latestReviewPerAgent,
+  rollupSeverities,
+  sumRunCosts,
+  sumSeverityCounts,
+  SEVERITY_SORT_ORDER,
+} from './status.js';
+import { findingRowToDto } from '../reviews/helpers.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,27 +127,130 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // The reviews behind the FINDINGS and SCORE columns: the newest review of
+    // EACH agent per PR. Computed on read from reviews (no FK denorm); the list
+    // is small, so a couple of IN-queries + JS grouping is cheap. No LLM call —
+    // this is a plain SELECT + `Array.filter` tally. One Run Review click
+    // writes one review per agent, so "newest review overall" would show only
+    // whichever agent finished last — see server/specs/pr-list-findings-by-agent.md.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    let agentReviewsByPr = new Map<
+      string,
+      { id: string; prId: string; agentId: string | null; score: number | null }[]
+    >();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
-      for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+      // Rows are newest-first → the first seen per (PR, agent) is its latest.
+      agentReviewsByPr = latestReviewPerAgent(reviewRows);
+    }
+
+    // Agent display names for the popover's per-agent headers. One IN-query,
+    // workspace-scoped; a missing entry (deleted agent, or a review with no
+    // agent recorded) renders as "unknown agent" on the client.
+    const agentIds = [
+      ...new Set(
+        [...agentReviewsByPr.values()].flat().flatMap((rv) => (rv.agentId ? [rv.agentId] : [])),
+      ),
+    ];
+    const agentNameById = new Map<string, string>();
+    if (agentIds.length > 0) {
+      const agentRows = await container.db
+        .select({ id: t.agents.id, name: t.agents.name })
+        .from(t.agents)
+        .where(and(eq(t.agents.workspaceId, workspaceId), inArray(t.agents.id, agentIds)));
+      for (const a of agentRows) agentNameById.set(a.id, a.name);
+    }
+
+    // FINDINGS severity breakdown + read-only preview, keyed by review id.
+    // One IN-query over `findings` scoped to every agent's latest review,
+    // grouped in JS — same shape as the review/cost derivations either side.
+    // The preview is NOT capped: it's the same scrollable-popover pattern as
+    // the PR-detail Timeline (client/src/components/severity/FindingsPopover),
+    // which shows every finding of a run — a review's finding count is small
+    // (tens, not thousands) and text-only, so sending it all is cheap, and a
+    // truncated "6 of 15" list defeats the point of a scrollable popover.
+    const agentReviewIds = [...agentReviewsByPr.values()].flat().map((rv) => rv.id);
+    const severityByReview = new Map<string, SeverityCounts>();
+    const previewByReview = new Map<string, PrAgentFindings['findings']>();
+    if (agentReviewIds.length > 0) {
+      const findingRows = await container.db
+        .select()
+        .from(t.findings)
+        .where(inArray(t.findings.reviewId, agentReviewIds));
+      const byReview = new Map<string, typeof findingRows>();
+      for (const f of findingRows) {
+        const bucket = byReview.get(f.reviewId);
+        if (bucket) bucket.push(f);
+        else byReview.set(f.reviewId, [f]);
       }
+      for (const [reviewId, fRows] of byReview) {
+        severityByReview.set(reviewId, rollupSeverities(fRows));
+        previewByReview.set(
+          reviewId,
+          [...fRows]
+            .sort(
+              (a, b) =>
+                (SEVERITY_SORT_ORDER[a.severity] ?? 9) - (SEVERITY_SORT_ORDER[b.severity] ?? 9),
+            )
+            .map(findingRowToDto),
+        );
+      }
+    }
+
+    // TOTAL COST per PR for the list's cost column = the sum of EVERY
+    // successful run, not just the newest one — a PR reviewed three times has
+    // cost three times as much, and the list is where that adds up. Same
+    // read-time derivation as the findings above (one IN-query + JS grouping, no
+    // FK denorm). Only status='done' counts; null vs 0 semantics live in
+    // `sumRunCosts` ("—" for unknown, never "$0.00").
+    const runCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      const byPr = new Map<string, { costUsd: number | null }[]>();
+      for (const run of runRows) {
+        if (!run.prId) continue;
+        const bucket = byPr.get(run.prId);
+        if (bucket) bucket.push(run);
+        else byPr.set(run.prId, [run]);
+      }
+      for (const [prId, runs] of byPr) runCostByPr.set(prId, sumRunCosts(runs));
     }
 
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
+      // One group per agent (its latest review), sorted by name, unknown last.
+      // A reviewed agent with zero findings still gets a zeroed group so the
+      // PR-level sum below stays {0,0,0} rather than null. No reviews at all
+      // (never reviewed) → null, not an empty array.
+      const agentReviews = agentReviewsByPr.get(r.id);
+      const agentGroups: PrAgentFindings[] | null = agentReviews
+        ? agentReviews
+            .map((rv) => ({
+              agent_id: rv.agentId,
+              agent_name: rv.agentId ? (agentNameById.get(rv.agentId) ?? null) : null,
+              review_id: rv.id,
+              score: rv.score,
+              findings_by_severity: severityByReview.get(rv.id) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
+              findings: previewByReview.get(rv.id) ?? [],
+            }))
+            .sort((a, b) => {
+              if (a.agent_name == null) return b.agent_name == null ? 0 : 1;
+              if (b.agent_name == null) return -1;
+              return a.agent_name.localeCompare(b.agent_name);
+            })
+        : null;
       return {
         id: r.id,
         number: r.number,
@@ -152,7 +271,19 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        // Recomputed from exactly the findings the FINDINGS column counts, with
+        // the engine's own rule (100 − 35·C − 12·W − 3·S, clamped) — the score
+        // can never contradict the pills beside it (Field Manual, Sheet 05).
+        // NOT any single agent's `reviews.score`, and NOT a mean of them.
+        score: agentGroups ? scoreFromFindings(agentGroups.flatMap((g) => g.findings)) : null,
+        cost_usd: runCostByPr.get(r.id) ?? null,
+        // Summed over every agent's latest review. A reviewed PR with zero
+        // findings still gets a zeroed breakdown (not null) — null means
+        // "never reviewed", {0,0,0} means "reviewed, clean".
+        findings_by_severity: agentGroups
+          ? sumSeverityCounts(agentGroups.map((g) => g.findings_by_severity))
+          : null,
+        findings_by_agent: agentGroups,
       };
     });
   });

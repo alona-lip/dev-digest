@@ -23,8 +23,12 @@ export const SIZE_COLOR: Record<string, string> = {
   L: "var(--crit)",
 };
 
-/** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 78px";
+/** Grid template for both the header row and PR rows.
+ *  FINDINGS (5th track) is sized for three compact two-digit pills
+ *  (~46px each + 6px gaps ≈ 150px): the column sums every agent's latest
+ *  review, so counts like "19 · 13 · 1" are routine. Larger counts wrap
+ *  inside the cell (SeverityPills) rather than overlap STATUS. */
+export const GRID = "1fr 132px 92px 60px 156px 118px 72px 78px";
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -38,13 +42,16 @@ export const STATUS_FILTERS: { key: string; labelKey: string }[] = [
   { key: "stale", labelKey: "stale" },
 ];
 
-/** Column header i18n keys (under `list.columns`), in display order. */
+/** Column header i18n keys (under `list.columns`), in display order — MUST
+ *  match GRID's track order and each PRRow cell 1:1 (cells are positional). */
 export const COLUMN_KEYS: string[] = [
   "pullRequest",
   "author",
   "size",
   "score",
+  "findings",
   "status",
+  "cost",
   "updated",
 ];
 
