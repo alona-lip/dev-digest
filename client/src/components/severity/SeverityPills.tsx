@@ -31,7 +31,10 @@ export function SeverityPills({
   if (levels.length === 0) return null;
 
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+    // flexWrap: a narrow container (a fixed PR-list grid track) wraps the
+    // pills onto a second line instead of letting them spill over the
+    // neighbouring cell; with enough room this renders exactly as before.
+    <div style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
       {levels.map((sev) =>
         onSelect ? (
           <button

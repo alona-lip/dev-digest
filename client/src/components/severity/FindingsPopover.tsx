@@ -21,29 +21,39 @@
    The caller's `useFindingsPopoverAnchor()` hook debounces the close and
    `onMouseEnter`/`onMouseLeave` below cancel/reschedule it, so trigger +
    popover behave as one hoverable region instead of closing mid-transit.
+   Two modes: flat `findings` (one run — the Timeline) or `groups` (the PR
+   list, one section per agent's latest review, each headed by the agent's
+   name, its own non-interactive pills and its own score ring — see
+   server/specs/pr-list-findings-by-agent.md).
+
    See client/specs/severity-filter.md. */
 "use client";
 
 import React from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { Icon, SEV, CAT } from "@devdigest/ui";
-import type { Finding } from "@devdigest/shared";
+import { Icon, SEV, CAT, CircularScore } from "@devdigest/ui";
+import type { Finding, PrAgentFindings } from "@devdigest/shared";
+import { SeverityPills } from "./SeverityPills";
 
 const WIDTH = 360;
 const GAP = 6;
 
 export function FindingsPopover({
   findings,
+  groups,
   total,
   anchorRect,
   popoverRef,
   onMouseEnter,
   onMouseLeave,
 }: {
-  /** Preview list — capped server-side for the PR list, full for the Timeline. */
-  findings: Finding[];
-  /** Full count for the header — may exceed `findings.length` when capped. */
+  /** Flat mode — every finding of ONE run (the PR-detail Timeline). */
+  findings?: Finding[];
+  /** Grouped mode — one section per agent (the PR list). Wins over `findings`.
+   *  Groups with no findings are skipped. */
+  groups?: PrAgentFindings[] | null;
+  /** Full count for the header. */
   total: number;
   /** Live snapshot of the hovered element's box, taken by the caller on open. */
   anchorRect: DOMRect | null;
@@ -64,6 +74,8 @@ export function FindingsPopover({
   // not reposition on resize (it closes on scroll instead, see callers).
   const overflowsRight = anchorRect.left + WIDTH > window.innerWidth;
   const left = overflowsRight ? Math.max(8, anchorRect.right - WIDTH) : anchorRect.left;
+
+  const visibleGroups = groups ? groups.filter((g) => g.findings.length > 0) : null;
 
   return createPortal(
     <div
@@ -96,66 +108,119 @@ export function FindingsPopover({
           marginBottom: 10,
         }}
       >
-        {t("severity.popoverTitle", { count: total })}
+        {visibleGroups
+          ? t("severity.popoverTitleAgents", { count: total, agents: visibleGroups.length })
+          : t("severity.popoverTitle", { count: total })}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {findings.map((f) => {
-          const meta = SEV[f.severity];
-          const SevIcon = Icon[meta.icon];
-          const cat = CAT[f.category];
-          const CatIcon = cat ? Icon[cat.icon] : null;
-          const lines = f.end_line !== f.start_line ? `${f.start_line}-${f.end_line}` : `${f.start_line}`;
-          return (
-            <div key={f.id} style={{ display: "flex", gap: 8 }}>
-              <SevIcon size={14} style={{ color: meta.c, marginTop: 2, flexShrink: 0 }} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                  {f.title}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    fontSize: 11.5,
-                    color: "var(--text-muted)",
-                    marginTop: 3,
-                  }}
-                >
-                  {cat && CatIcon && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <CatIcon size={11} />
-                      {cat.label}
-                    </span>
-                  )}
-                  <span className="mono">
-                    {f.file}:{lines}
-                  </span>
-                  <span className="tnum">
-                    {t("severity.confidence", { pct: Math.round(f.confidence * 100) })}
-                  </span>
-                </div>
-                <p
+      {visibleGroups ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {visibleGroups.map((g) => (
+            <section key={g.review_id} aria-label={g.agent_name ?? t("severity.unknownAgent")}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  paddingBottom: 6,
+                  marginBottom: 10,
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <span
                   style={{
                     fontSize: 12,
-                    color: "var(--text-secondary)",
-                    marginTop: 4,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
+                    fontWeight: 700,
+                    color: "var(--text-primary)",
                     overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {f.rationale}
-                </p>
+                  {g.agent_name ?? t("severity.unknownAgent")}
+                </span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  {/* No onSelect — the popover stays strictly read-only. */}
+                  <SeverityPills compact counts={g.findings_by_severity} />
+                  {/* This agent's own score; the row's ring is the PR-level one. */}
+                  {g.score != null && <CircularScore score={g.score} size={28} stroke={2.5} />}
+                </span>
               </div>
-            </div>
-          );
-        })}
-      </div>
+              <FindingList findings={g.findings} />
+            </section>
+          ))}
+        </div>
+      ) : (
+        <FindingList findings={findings ?? []} />
+      )}
     </div>,
     document.body,
+  );
+}
+
+function FindingList({ findings }: { findings: Finding[] }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {findings.map((f) => (
+        <FindingItem key={f.id} finding={f} />
+      ))}
+    </div>
+  );
+}
+
+function FindingItem({ finding: f }: { finding: Finding }) {
+  const t = useTranslations("prReview");
+  const meta = SEV[f.severity];
+  const SevIcon = Icon[meta.icon];
+  const cat = CAT[f.category];
+  const CatIcon = cat ? Icon[cat.icon] : null;
+  const lines = f.end_line !== f.start_line ? `${f.start_line}-${f.end_line}` : `${f.start_line}`;
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <SevIcon size={14} style={{ color: meta.c, marginTop: 2, flexShrink: 0 }} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+          {f.title}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            fontSize: 11.5,
+            color: "var(--text-muted)",
+            marginTop: 3,
+          }}
+        >
+          {cat && CatIcon && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <CatIcon size={11} />
+              {cat.label}
+            </span>
+          )}
+          <span className="mono">
+            {f.file}:{lines}
+          </span>
+          <span className="tnum">
+            {t("severity.confidence", { pct: Math.round(f.confidence * 100) })}
+          </span>
+        </div>
+        <p
+          style={{
+            fontSize: 12,
+            color: "var(--text-secondary)",
+            marginTop: 4,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {f.rationale}
+        </p>
+      </div>
+    </div>
   );
 }
 

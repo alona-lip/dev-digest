@@ -31,8 +31,10 @@ export {
   type ParseResult,
 } from './llm/structured.js';
 
-// Map-reduce helpers (reduce partials, slice a file's diff).
-export { reduceReviews, sliceDiff } from './review/reduce.js';
+// Map-reduce helpers (reduce partials, slice a file's diff) + the score rule
+// (100 − 35·CRITICAL − 12·WARNING − 3·SUGGESTION, clamped) — exported so the
+// server's PR list derives its SCORE from the same penalty table.
+export { reduceReviews, scoreFromFindings, sliceDiff } from './review/reduce.js';
 
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {

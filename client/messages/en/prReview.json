@@ -38,6 +38,8 @@
     "filterAria": "Show only {severity} findings",
     "filterGroupAria": "Filter findings by severity",
     "popoverTitle": "{count} FINDINGS IN THIS RUN",
+    "popoverTitleAgents": "{count} FINDINGS · {agents, plural, one {# AGENT} other {# AGENTS}}",
+    "unknownAgent": "Unknown agent",
     "confidence": "{pct}% conf"
   },
   "runReview": {

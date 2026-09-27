@@ -3,6 +3,10 @@
 Status: implemented (2026-09-21); the pill/filter split revised twice on
 2026-09-23 — read the two "Revision" sections at the bottom in order. The
 second one is what the code does; "Two separate controls" below is history.
+PR-list popover data revised 2026-09-27: `findings_preview` (latest review
+only) was replaced by `findings_by_agent` (each agent's latest review,
+grouped) — see
+[server/specs/pr-list-findings-by-agent.md](../../server/specs/pr-list-findings-by-agent.md).
 
 ## Goal
 

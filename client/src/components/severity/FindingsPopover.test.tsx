@@ -4,9 +4,9 @@
  * with its own network calls. This popover must never render a button.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { Finding } from "@devdigest/shared";
+import type { Finding, PrAgentFindings } from "@devdigest/shared";
 import messages from "../../../messages/en/prReview.json";
 import { FindingsPopover } from "./FindingsPopover";
 
@@ -102,5 +102,67 @@ describe("FindingsPopover", () => {
     expect(mountPoint.contains(tooltip)).toBe(false);
     expect(document.body.contains(tooltip)).toBe(true);
     document.body.removeChild(mountPoint);
+  });
+});
+
+describe("FindingsPopover — grouped by agent (PR list)", () => {
+  const GROUPS: PrAgentFindings[] = [
+    {
+      agent_id: "a-sec",
+      agent_name: "Security Reviewer",
+      review_id: "r-sec",
+      score: 65,
+      findings_by_severity: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 },
+      findings: [FINDINGS[0]!],
+    },
+    {
+      agent_id: null,
+      agent_name: null,
+      review_id: "r-legacy",
+      score: null,
+      findings_by_severity: { CRITICAL: 0, WARNING: 1, SUGGESTION: 0 },
+      findings: [FINDINGS[1]!],
+    },
+    {
+      // Reviewed, clean — no section for it.
+      agent_id: "a-clean",
+      agent_name: "Clean Reviewer",
+      review_id: "r-clean",
+      score: 100,
+      findings_by_severity: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
+      findings: [],
+    },
+  ];
+
+  it("titles the popover with the total and the number of agents with findings", () => {
+    renderWithIntl(<FindingsPopover groups={GROUPS} total={2} anchorRect={ANCHOR} />);
+    expect(screen.getByText("2 FINDINGS · 2 AGENTS")).toBeInTheDocument();
+  });
+
+  it("renders one section per agent with findings, each holding only its own findings", () => {
+    renderWithIntl(<FindingsPopover groups={GROUPS} total={2} anchorRect={ANCHOR} />);
+    const sec = screen.getByRole("region", { name: "Security Reviewer" });
+    expect(sec).toHaveTextContent("Hardcoded Stripe secret key in commit");
+    expect(sec).not.toHaveTextContent("N+1 query in user list endpoint");
+    expect(screen.queryByRole("region", { name: "Clean Reviewer" })).not.toBeInTheDocument();
+  });
+
+  it("labels a group with no agent name as 'Unknown agent'", () => {
+    renderWithIntl(<FindingsPopover groups={GROUPS} total={2} anchorRect={ANCHOR} />);
+    const unknown = screen.getByRole("region", { name: "Unknown agent" });
+    expect(unknown).toHaveTextContent("N+1 query in user list endpoint");
+  });
+
+  it("each group header shows that agent's own score; a null score renders no ring", () => {
+    renderWithIntl(<FindingsPopover groups={GROUPS} total={2} anchorRect={ANCHOR} />);
+    const sec = screen.getByRole("region", { name: "Security Reviewer" });
+    expect(within(sec).getByText("65")).toBeInTheDocument();
+    const unknown = screen.getByRole("region", { name: "Unknown agent" });
+    expect(unknown.querySelector("svg circle")).toBeNull();
+  });
+
+  it("per-agent pills are read-only — still no buttons anywhere in the popover", () => {
+    renderWithIntl(<FindingsPopover groups={GROUPS} total={2} anchorRect={ANCHOR} />);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 });

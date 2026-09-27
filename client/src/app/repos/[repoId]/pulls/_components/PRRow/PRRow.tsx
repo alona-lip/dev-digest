@@ -69,9 +69,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
-        {findingsPopover.isOpen && findingsTotal > 0 && pr.findings_preview && pr.findings_preview.length > 0 && (
+        {findingsPopover.isOpen && findingsTotal > 0 && pr.findings_by_agent && pr.findings_by_agent.length > 0 && (
           <FindingsPopover
-            findings={pr.findings_preview}
+            groups={pr.findings_by_agent}
             total={findingsTotal}
             anchorRect={findingsPopover.anchorRect}
             popoverRef={findingsPopover.popoverRef}

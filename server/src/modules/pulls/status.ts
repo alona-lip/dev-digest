@@ -1,4 +1,4 @@
-import type { PrStatus } from '@devdigest/shared';
+import type { PrStatus, SeverityCounts } from '@devdigest/shared';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
@@ -20,13 +20,10 @@ export const SEVERITY_SORT_ORDER: Record<string, number> = {
   SUGGESTION: 2,
 };
 
-/** Keys match the wire `Severity` enum (`@devdigest/shared`) so callers can
- *  index this object directly with a finding's `severity` field. */
-export interface SeverityCounts {
-  CRITICAL: number;
-  WARNING: number;
-  SUGGESTION: number;
-}
+/** Keys match the wire `Severity` enum so callers can index it directly with
+ *  a finding's `severity` field. Re-exported from the wire contract so the
+ *  route's rollups and the `PrMeta` fields can't drift apart. */
+export type { SeverityCounts };
 
 /**
  * Total spend for one PR = the SUM of every successful run's cost.
@@ -56,6 +53,45 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
     else if (r.severity === 'SUGGESTION') c.SUGGESTION += 1;
   }
   return c;
+}
+
+/** Sum several severity tallies (one per agent) into one. Empty → all zeros. */
+export function sumSeverityCounts(counts: SeverityCounts[]): SeverityCounts {
+  const c: SeverityCounts = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const x of counts) {
+    c.CRITICAL += x.CRITICAL;
+    c.WARNING += x.WARNING;
+    c.SUGGESTION += x.SUGGESTION;
+  }
+  return c;
+}
+
+/**
+ * The reviews that feed a PR's FINDINGS column: the LATEST review of EACH
+ * agent. A re-run of the same agent replaces its previous review rather than
+ * adding to it, so retries don't inflate the count.
+ *
+ * `rowsNewestFirst` MUST be ordered newest-first (the caller's ORDER BY) —
+ * the first row seen per `(prId, agentId)` wins. Reviews with a null
+ * `agentId` (legacy / seeded rows) share one "unattributed" bucket per PR.
+ * Returns each PR's winners in the same newest-first order.
+ */
+export function latestReviewPerAgent<T extends { prId: string; agentId: string | null }>(
+  rowsNewestFirst: T[],
+): Map<string, T[]> {
+  const seen = new Set<string>();
+  const byPr = new Map<string, T[]>();
+  for (const row of rowsNewestFirst) {
+    // JSON-encoded tuple: no separator can collide with a real id, and null
+    // stays distinct from any string agent id.
+    const key = JSON.stringify([row.prId, row.agentId]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const bucket = byPr.get(row.prId);
+    if (bucket) bucket.push(row);
+    else byPr.set(row.prId, [row]);
+  }
+  return byPr;
 }
 
 /**

@@ -11,3 +11,6 @@ criteria, and what's explicitly out of scope.
 
 - [run-cost.md](./run-cost.md) — run cost end to end: price sources, the
   "null is not zero" invariant, and the per-PR SUM shown in the list.
+- [pr-list-findings-by-agent.md](./pr-list-findings-by-agent.md) — PR-list
+  FINDINGS column summed over each agent's latest review, grouped by agent in
+  the popover.

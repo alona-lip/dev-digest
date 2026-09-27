@@ -11,6 +11,16 @@ by hand in the same format.
 
 ## What Works
 
+- 2026-09-27 — PR-list rollups are integration-tested WITHOUT running a real
+  review: insert `reviews` + `findings` rows directly with an explicit
+  `createdAt` per row, and build the app with
+  `overrides: { github: new MockGitHubClient({ pulls: [] }) }` so the GitHub
+  sync inserts nothing and the route serves only the seeded rows. "Latest"
+  is then deterministic, and there is no LLM mock, no fire-and-forget run to
+  `waitForPrRuns` on. ALWAYS start a new list-rollup test from this file
+  rather than from `reviews.it.test.ts`, which drives the whole pipeline.
+  (`server/test/pulls-list.it.test.ts`)
+
 ## What Doesn't Work
 
 <!--
@@ -82,6 +92,32 @@ by hand in the same format.
   first: the expensive-looking part is usually already list-shaped, and the
   gate is a single resolver. (`server/src/modules/reviews/service.ts:46`,
   `server/src/modules/reviews/run-executor.ts:107`)
+- 2026-09-27 — one Run Review click writes ONE `reviews` row PER AGENT, so
+  any PR-level rollup written as "the newest `reviews` row per PR" silently
+  shows only whichever agent finished last — nothing errors, the numbers are
+  just partial. That is how the PR-list FINDINGS column under-reported
+  multi-agent PRs. ALWAYS group by `(pr_id, agent_id)` first — use
+  `latestReviewPerAgent()` — and only then sum. The SCORE column still uses
+  "newest overall" on purpose (see Open Questions).
+  (`server/src/modules/pulls/status.ts:79`, `server/src/modules/pulls/routes.ts:129`)
+- 2026-09-27 — `reviews.agent_id` has NO foreign key and is nullable:
+  legacy/seeded reviews carry `null`, and a deleted agent leaves a dangling
+  id that `agents` no longer resolves. NEVER inner-join `reviews` to `agents`
+  or assume a name exists — that drops those reviews from counts. Keep null
+  as its own bucket (the helper keys on `JSON.stringify([prId, agentId])`) and
+  resolve names with a separate workspace-scoped IN-query where a miss means
+  `agent_name: null` ("Unknown agent" in the UI).
+  (`server/src/db/schema/reviews.ts:17`, `server/src/modules/pulls/routes.ts:157`)
+- 2026-09-27 — supersedes Open Question (1) of the same date: the PR-list
+  SCORE is now `scoreFromFindings()` (re-exported from reviewer-core) over the
+  SAME findings the FINDINGS column counts, not any one agent's
+  `reviews.score` and not a mean. Reason: the DevDigest Field Manual, Sheet
+  05 — "the number can never contradict the list". Beware the manual's
+  "findings concatenated, worst verdict wins, scores averaged" (Sheet 03,
+  "Large diffs"): that is `reduceReviews` merging file slices of ONE agent's
+  map-reduce run, not a rule for combining agents — don't cite it for a
+  multi-agent mean. (`server/src/modules/pulls/routes.ts:278`,
+  `server/specs/pr-list-findings-by-agent.md`)
 
 ## Tool & Library Notes
 
@@ -98,3 +134,17 @@ by hand in the same format.
 ## Session Notes
 
 ## Open Questions
+
+- 2026-09-27 — (1) SCORE for a multi-agent PR is still the newest review
+  overall, i.e. one arbitrary agent's score; min vs mean across each agent's
+  latest review was left undecided. (2) Known, accepted mismatch: PR detail
+  totals EVERY run (`client/.../pulls/[number]/page.tsx` → `runs.flatMap`)
+  while the list counts each agent's latest review only, so after a re-run
+  the detail count is higher. Decide both together before "fixing" either.
+  (`server/specs/pr-list-findings-by-agent.md`)
+- 2026-09-27 — the same issue reported by two agents is counted, and
+  penalised in the PR-list SCORE, twice: there is no cross-agent dedupe. The
+  manual puts that in the multi-agent "conflicts" screen
+  (`/repos/:id/multi-agent/:prId`, Sheet 07), which this repo doesn't have.
+  Revisit if multi-agent scores look implausibly low.
+  (`server/specs/pr-list-findings-by-agent.md`)

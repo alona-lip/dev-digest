@@ -8,8 +8,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   deriveReviewStatus,
+  latestReviewPerAgent,
   rollupSeverities,
   sumRunCosts,
+  sumSeverityCounts,
   STALE_DAYS,
 } from '../src/modules/pulls/status.js';
 
@@ -94,5 +96,57 @@ describe('sumRunCosts', () => {
 
   it('keeps a genuine zero as 0, distinct from null', () => {
     expect(sumRunCosts([{ costUsd: 0 }])).toBe(0);
+  });
+});
+
+describe('latestReviewPerAgent', () => {
+  // Newest-first, as the route's ORDER BY created_at DESC hands them over.
+  const rv = (id: string, prId: string, agentId: string | null) => ({ id, prId, agentId });
+
+  it('keeps only the newest review per agent — a re-run replaces, not adds', () => {
+    const out = latestReviewPerAgent([
+      rv('a2', 'pr1', 'A'),
+      rv('b1', 'pr1', 'B'),
+      rv('a1', 'pr1', 'A'),
+    ]);
+    expect(out.get('pr1')?.map((r) => r.id)).toEqual(['a2', 'b1']);
+  });
+
+  it('puts reviews with no agent into one shared bucket per PR', () => {
+    const out = latestReviewPerAgent([
+      rv('n2', 'pr1', null),
+      rv('a1', 'pr1', 'A'),
+      rv('n1', 'pr1', null),
+    ]);
+    expect(out.get('pr1')?.map((r) => r.id)).toEqual(['n2', 'a1']);
+  });
+
+  it('keeps PRs independent even when the same agent reviewed both', () => {
+    const out = latestReviewPerAgent([
+      rv('x2', 'pr1', 'A'),
+      rv('y1', 'pr2', 'A'),
+      rv('x1', 'pr1', 'A'),
+    ]);
+    expect(out.get('pr1')?.map((r) => r.id)).toEqual(['x2']);
+    expect(out.get('pr2')?.map((r) => r.id)).toEqual(['y1']);
+  });
+
+  it('returns an empty map for no reviews', () => {
+    expect(latestReviewPerAgent([]).size).toBe(0);
+  });
+});
+
+describe('sumSeverityCounts', () => {
+  it('sums per-agent tallies', () => {
+    expect(
+      sumSeverityCounts([
+        { CRITICAL: 1, WARNING: 2, SUGGESTION: 0 },
+        { CRITICAL: 0, WARNING: 1, SUGGESTION: 3 },
+      ]),
+    ).toEqual({ CRITICAL: 1, WARNING: 3, SUGGESTION: 3 });
+  });
+
+  it('returns all zeros for an empty list (reviewed, clean — not null)', () => {
+    expect(sumSeverityCounts([])).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
   });
 });

@@ -155,6 +155,29 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Finding count per severity; keys match the wire `Severity` enum. */
+export const SeverityCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type SeverityCounts = z.infer<typeof SeverityCounts>;
+
+/** One agent's slice of a PR's findings: its LATEST review only (a re-run of
+ *  the same agent replaces the previous one, it doesn't add to it). */
+export const PrAgentFindings = z.object({
+  // Null = review with no agent recorded (legacy / seeded rows).
+  agent_id: z.string().nullable(),
+  // Null = unattributed or since-deleted agent.
+  agent_name: z.string().nullable(),
+  review_id: z.string(),
+  // This agent's own score (its review's `reviews.score`); null on legacy rows.
+  score: z.number().int().nullable(),
+  findings_by_severity: SeverityCounts,
+  findings: z.array(Finding),
+});
+export type PrAgentFindings = z.infer<typeof PrAgentFindings>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -169,26 +192,24 @@ export const PrMeta = z.object({
   status: PrStatus,
   opened_at: z.string().nullish(),
   updated_at: z.string().nullish(),
-  // Latest-review score (list endpoint only; null/absent until reviewed).
+  // PR score (list endpoint only) = `scoreFromFindings` over the SAME findings
+  // `findings_by_severity` counts (every agent's latest review) — the number
+  // can never contradict the FINDINGS column. 100 = reviewed and clean;
+  // null/absent = never reviewed.
   score: z.number().int().nullish(),
   // Total spend on this PR in USD = SUM over every successful (status='done')
   // run, not just the latest (list endpoint only; see `sumRunCosts`).
   // Null = nothing to show ("—"): never reviewed, or every price is unknown.
   cost_usd: z.number().nullish(),
-  // Severity breakdown of the LATEST review's findings (list endpoint only).
+  // Severity breakdown summed over the LATEST review of EACH agent (list
+  // endpoint only) — i.e. the sum of `findings_by_agent[].findings_by_severity`.
   // Null/absent until the PR has been reviewed.
-  findings_by_severity: z
-    .object({
-      CRITICAL: z.number().int(),
-      WARNING: z.number().int(),
-      SUGGESTION: z.number().int(),
-    })
-    .nullish(),
-  // Read-only preview for the FINDINGS-column hover popover: ALL of the
-  // latest review's findings, severity-sorted, not capped — the popover is
-  // scrollable, same pattern as the PR-detail Timeline. Reuses the Finding
-  // schema — no new type.
-  findings_preview: z.array(Finding).nullish(),
+  findings_by_severity: SeverityCounts.nullish(),
+  // Per-agent breakdown for the FINDINGS-column hover popover: one group per
+  // agent, holding that agent's latest review's findings, severity-sorted,
+  // not capped — the popover is scrollable, same pattern as the PR-detail
+  // Timeline. Null/absent until the PR has been reviewed.
+  findings_by_agent: z.array(PrAgentFindings).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

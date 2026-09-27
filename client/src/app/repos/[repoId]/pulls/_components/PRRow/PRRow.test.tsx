@@ -37,7 +37,7 @@ function pr(o: Partial<PrMeta>): PrMeta {
     score: 61,
     cost_usd: 0.014,
     findings_by_severity: null,
-    findings_preview: null,
+    findings_by_agent: null,
     ...o,
   };
 }
@@ -103,15 +103,36 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
       evidence: null,
     },
   ];
+  // Two agents reviewed the PR — one finding each. The cell shows the SUM;
+  // the popover splits them by agent.
+  const FINDINGS_BY_AGENT = [
+    {
+      agent_id: "a-sec",
+      agent_name: "Security Reviewer",
+      review_id: "r-sec",
+      score: 65,
+      findings_by_severity: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 },
+      findings: [FINDINGS_PREVIEW[0]!],
+    },
+    {
+      agent_id: "a-perf",
+      agent_name: "Perf Reviewer",
+      review_id: "r-perf",
+      score: 88,
+      findings_by_severity: { CRITICAL: 0, WARNING: 1, SUGGESTION: 0 },
+      findings: [FINDINGS_PREVIEW[1]!],
+    },
+  ];
+  const POPOVER_TITLE = "2 FINDINGS · 2 AGENTS";
 
   it("shows '—' when the PR has never been reviewed", () => {
-    renderRow(pr({ findings_by_severity: null, findings_preview: null }));
+    renderRow(pr({ findings_by_severity: null, findings_by_agent: null }));
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows severity icons with counts when the latest review has findings", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     // One CRITICAL pill (1) and one WARNING pill (1); SUGGESTION is 0 → not rendered.
     expect(screen.getAllByText("1")).toHaveLength(2);
@@ -119,40 +140,56 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
 
   it("clicking a severity icon navigates to the filtered PR-detail view, not the row's own link", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     fireEvent.click(screen.getByLabelText("Show only Critical findings"));
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith("/repos/repo-1/pulls/482?tab=findings&severity=CRITICAL");
   });
 
-  it("the popover is closed by default and opens on hover, titled 'N FINDINGS IN THIS RUN', read-only", () => {
+  it("the popover is closed by default and opens on hover, titled 'N FINDINGS · M AGENTS', read-only", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
-    expect(screen.queryByText("2 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
+    expect(screen.queryByText(POPOVER_TITLE)).not.toBeInTheDocument();
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
     fireEvent.mouseEnter(cell);
-    expect(screen.getByText("2 FINDINGS IN THIS RUN")).toBeInTheDocument();
+    expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
     expect(screen.getByText("N+1 query in user list endpoint")).toBeInTheDocument();
     // Only the two severity-icon buttons exist — none inside the popover.
     expect(screen.getAllByRole("button")).toHaveLength(2);
+  });
+
+  it("the popover groups findings under each agent's name", () => {
+    renderRow(
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
+    );
+    const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
+    fireEvent.mouseEnter(cell);
+    const sec = screen.getByRole("region", { name: "Security Reviewer" });
+    const perf = screen.getByRole("region", { name: "Perf Reviewer" });
+    expect(sec).toHaveTextContent("Hardcoded Stripe secret key in commit");
+    expect(sec).not.toHaveTextContent("N+1 query in user list endpoint");
+    expect(perf).toHaveTextContent("N+1 query in user list endpoint");
+    // Each header carries its agent's own score, separate from the row's ring.
+    expect(sec).toHaveTextContent("65");
+    expect(perf).toHaveTextContent("88");
   });
 
   it("leaving the cell closes the popover after a short grace period (not instantly)", () => {
     vi.useFakeTimers();
     try {
       renderRow(
-        pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+        pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
       );
       const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
       fireEvent.mouseEnter(cell);
       fireEvent.mouseLeave(cell);
       // Still open immediately after leaving — the popover is a portal, not a
       // DOM child, so this window is what lets the cursor reach it.
-      expect(screen.getByText("2 FINDINGS IN THIS RUN")).toBeInTheDocument();
+      expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
       act(() => vi.advanceTimersByTime(200));
-      expect(screen.queryByText("2 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
+      expect(screen.queryByText(POPOVER_TITLE)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -162,7 +199,7 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
     vi.useFakeTimers();
     try {
       renderRow(
-        pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+        pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
       );
       const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
       fireEvent.mouseEnter(cell);
@@ -170,12 +207,12 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
       const popover = screen.getByRole("tooltip");
       fireEvent.mouseEnter(popover); // cursor arrives on the popover
       act(() => vi.advanceTimersByTime(500)); // well past the grace period
-      expect(screen.getByText("2 FINDINGS IN THIS RUN")).toBeInTheDocument();
+      expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
 
       // Leaving the popover (not back onto the cell) does eventually close it.
       fireEvent.mouseLeave(popover);
       act(() => vi.advanceTimersByTime(200));
-      expect(screen.queryByText("2 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
+      expect(screen.queryByText(POPOVER_TITLE)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -183,7 +220,7 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
 
   it("the popover accepts mouse interaction (not pointer-events: none) so wheel-scroll works", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
     fireEvent.mouseEnter(cell);
@@ -193,7 +230,7 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
 
   it("scrolling the popover's own findings list does NOT close it — this is the bug being fixed", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
     fireEvent.mouseEnter(cell);
@@ -203,17 +240,17 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
     // what previously misread "the popover scrolled" as "the page scrolled"
     // and closed it on every wheel tick.
     fireEvent.scroll(popover);
-    expect(screen.getByText("2 FINDINGS IN THIS RUN")).toBeInTheDocument();
+    expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
   });
 
   it("a real page scroll (not inside the popover) still closes it", () => {
     renderRow(
-      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_preview: FINDINGS_PREVIEW }),
+      pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
     fireEvent.mouseEnter(cell);
-    expect(screen.getByText("2 FINDINGS IN THIS RUN")).toBeInTheDocument();
+    expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
     fireEvent.scroll(document);
-    expect(screen.queryByText("2 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
+    expect(screen.queryByText(POPOVER_TITLE)).not.toBeInTheDocument();
   });
 });
