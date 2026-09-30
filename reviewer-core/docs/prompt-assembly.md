@@ -50,7 +50,7 @@ reads as context, not as an injected instruction.
 
 The obvious cheaper design — scan untrusted text for "ignore previous
 instructions" and strip it — is deliberately rejected, and
-`reviewer-core/CLAUDE.md` marks the guard do-not-touch for this reason.
+`reviewer-core/AGENTS.md` marks the guard do-not-touch for this reason.
 
 A denylist catches one phrasing in one language. The attack surface is
 "any sentence that convinces a model the code doesn't need reviewing", which is
@@ -70,7 +70,7 @@ that needs no injection at all.
 `PromptParts` accepts `skills`, `memory`, `specs`, `repoMap`, `callers`. In the
 starter most are left unfilled by design, for later course lessons — an
 empty or undefined slot omits its section entirely, with no behaviour change.
-**Don't delete them** (`reviewer-core/CLAUDE.md`, Non-default conventions).
+**Don't delete them** (`reviewer-core/AGENTS.md`, Non-default conventions).
 
 Section order matters: `repoMap` renders before `## Project context`, and
 `callers` before `## Diff to review`, so the model sees structure and crossfile

@@ -131,6 +131,9 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 `server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
+`scripts/link-agents.sh` — agent instructions live in `AGENTS.md` (root + each package);
+every `CLAUDE.md` is a symlink to it. The script repairs the links (e.g. after a Windows
+checkout without `core.symlinks`), `--check` only verifies.
 
 ## Testing & CI
 

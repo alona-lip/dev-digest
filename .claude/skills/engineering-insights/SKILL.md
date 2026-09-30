@@ -88,7 +88,7 @@ true *and* what to do about it, plus evidence:
 ## 7. Before appending
 
 - Read the target file. Skip exact duplicates.
-- Skip anything the module's `CLAUDE.md` or `README.md` already states.
+- Skip anything the module's `AGENTS.md` or `README.md` already states.
 - A finding that contradicts an existing entry becomes a **new dated entry
   that supersedes it**. The old entry stays.
 

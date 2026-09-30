@@ -2,7 +2,7 @@
 
 The client has exactly one path from the API to the screen. This is the
 "data flows exclusively through TanStack Query hooks" rule from
-[`../CLAUDE.md`](../CLAUDE.md) spelled out, with the reasons.
+[`../AGENTS.md`](../AGENTS.md) spelled out, with the reasons.
 
 ```
 Fastify (:3001)

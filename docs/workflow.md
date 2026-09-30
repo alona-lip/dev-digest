@@ -16,9 +16,9 @@ nothing you can point at, it didn't happen.
 
 ## 1. Initiation
 
-Read before writing. Concretely: the module's [`INSIGHTS.md`](../CLAUDE.md#session-protocol)
+Read before writing. Concretely: the module's [`INSIGHTS.md`](../AGENTS.md#session-protocol)
 (entries are high-confidence unless the code contradicts them), its
-`CLAUDE.md` for the do-not-touch zones, and
+`AGENTS.md` for the do-not-touch zones, and
 [`docs/architecture.md`](./architecture.md) if the change crosses a package
 boundary.
 
