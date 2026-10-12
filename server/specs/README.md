@@ -14,3 +14,6 @@ criteria, and what's explicitly out of scope.
 - [pr-list-findings-by-agent.md](./pr-list-findings-by-agent.md) — PR-list
   FINDINGS column summed over each agent's latest review, grouped by agent in
   the popover.
+- [onion-architecture.md](./onion-architecture.md) — the ring map for server +
+  reviewer-core, the two deliberate exceptions, dependency-cruiser enforcement
+  with a known-violations baseline, and the rejected alternatives.

@@ -10,7 +10,9 @@ Details — [README](./README.md).
 
 `pnpm dev` (`:3001`) · `pnpm db:migrate` · `pnpm db:seed` · `pnpm typecheck`
 Unit: `pnpm exec vitest run --exclude '**/*.it.test.ts'` · Integration (Docker): `pnpm exec vitest run .it.test`
-No lint step exists in this package — the check gate is `pnpm typecheck` + the unit run.
+Architecture: `pnpm arch:check` (dependency-cruiser, also covers `../reviewer-core/src`; fails only on new
+violations) · `pnpm arch:baseline` only after fixing a known one.
+No lint step exists in this package — the check gate is `pnpm typecheck` + the unit run + `pnpm arch:check`.
 
 ## Map
 
@@ -20,6 +22,9 @@ No lint step exists in this package — the check gate is `pnpm typecheck` + the
 - `src/modules/repo-intel` — the code indexer (lives inside server, not a separate package)
 - `src/db/schema/*` — DB schema, already holds tables for all 8 course lessons
 - `src/vendor/shared` — vendored Zod contracts (`@devdigest/shared`)
+- Onion rings: `vendor/shared` (contracts + ports) → `helpers`/`status` (pure) →
+  `service` (use cases) → `repository`/`adapters` (driven) and `routes` (driving);
+  `platform/container.ts` is the composition root. Rules: `.dependency-cruiser.cjs`
 
 ## Non-default conventions
 
@@ -74,6 +79,9 @@ Repo-wide rules — [../AGENTS.md](../AGENTS.md#naming-conventions). Server-spec
 
 - Need the API route contracts, env vars, full description → read [README.md](./README.md).
 - Planning a new module or route → start with [specs/](./specs/), then write code.
+- Adding/moving a route, service, repository, adapter or helper, or `pnpm arch:check`
+  failed → use the `onion-architecture` skill (`.claude/skills/onion-architecture/`);
+  decision record → [specs/onion-architecture.md](./specs/onion-architecture.md).
 - Need details on the DI container or a specific adapter → [docs/](./docs/).
 - Need the architecture of the whole pipeline (not just server) → read [../docs/architecture.md](../docs/architecture.md).
 - Before changing something non-trivial — check whether we've already hit this wall → [INSIGHTS.md](./INSIGHTS.md).

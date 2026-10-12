@@ -64,6 +64,9 @@ Repo-wide rules — [../AGENTS.md](../AGENTS.md#naming-conventions). Package-spe
 
 - Need the package's public API, testing strategy → read [README.md](./README.md).
 - Planning a new prompt slot or pipeline change → start with [specs/](./specs/), then write code.
+- A change seems to need I/O, a new dependency, or a new export → `onion-architecture`
+  skill, `references/reviewer-core.md`. Purity rules are enforced from `server/` by
+  `pnpm arch:check` (no Node I/O, no server code, `openai` only in `src/llm/`).
 - Need details on how `groundFindings` works or the prompt format → [docs/](./docs/).
 - Need to see how this engine gets called from server → read [../docs/architecture.md](../docs/architecture.md).
 - Before changing something non-trivial — check whether we've already hit this wall → [INSIGHTS.md](./INSIGHTS.md).

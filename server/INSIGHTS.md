@@ -27,6 +27,15 @@ by hand in the same format.
 - 2026-09-18 — example entry: state what turned out to be true, then what to do
   or avoid next time, and point at the evidence. (`path/to/file.ts:42`)
 -->
+- 2026-10-12 — writing the dependency-cruiser baseline before triaging the
+  first run freezes false positives as "known violations": the first cut of the
+  onion rules reported 49 errors, 15 of them false — reviewer-core's
+  `@devdigest/shared` resolves to `server/src/vendor/shared` (looked like
+  "reviewer-core imports server"), `reviewer-core/src/llm/structured.ts`
+  legitimately imports `openai/helpers/zod`, and type-only cycles
+  (`agents/helpers.ts` ↔ `agents/repository.ts`) tripped `no-circular`. ALWAYS
+  run with `--no-ignore-known`, fix the rules until every hit is a real
+  violation, and only then `pnpm arch:baseline`. (`server/.dependency-cruiser.cjs`)
 
 ## Codebase Patterns
 
@@ -118,8 +127,22 @@ by hand in the same format.
   map-reduce run, not a rule for combining agents — don't cite it for a
   multi-agent mean. (`server/src/modules/pulls/routes.ts:278`,
   `server/specs/pr-list-findings-by-agent.md`)
+- 2026-10-12 — `pnpm arch:check` only sees imports, so `container.db` used in a
+  route or service without a `drizzle-orm`/`db/schema` import (e.g.
+  `container.db.query.*`, or a service holding `this.container`) passes the
+  check while still bypassing the repository ring. Because the tool is green,
+  NEVER treat a passing arch:check as proof a handler is thin — grep the diff
+  for `container.db` and apply the onion-architecture skill's review checklist.
+  (`server/src/modules/pulls/routes.ts:44`, `.claude/skills/onion-architecture/SKILL.md`)
 
 ## Tool & Library Notes
+- 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
+  flag even though the current online CLI docs describe it, and
+  `depcruise-baseline` is a deprecated alias. Write the known-violations file
+  with `-T baseline --output-to .dependency-cruiser-known-violations.json`
+  (wrapped as `pnpm arch:baseline`) and read it with `--ignore-known`. The
+  `err-long` reporter prints each rule's `comment`, so put the fix in the
+  comment. (`server/package.json`, `server/.dependency-cruiser.cjs`)
 
 ## Recurring Errors & Fixes
 
