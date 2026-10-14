@@ -54,14 +54,21 @@ export function reduceReviews(partials: Review[]): Review {
   return { verdict, score, summary, findings };
 }
 
-/** Extract the slice of the unified diff for a single file (for map chunks). */
+/**
+ * Extract the slice of the unified diff for a single file (for map chunks).
+ *
+ * A file section starts at its `diff --git a/<old> b/<new>` header and is
+ * matched on the header's END (` b/<path>`, or ` <path>` for no-prefix diffs):
+ * a substring match let `src/a.ts` also capture `lib/src/a.ts` and
+ * `src/a.ts.orig`, mixing other files' hunks into the chunk.
+ */
 export function sliceDiff(diff: UnifiedDiff, path: string): string {
   const lines = diff.raw.split('\n');
   const out: string[] = [];
   let capture = false;
   for (const line of lines) {
     if (line.startsWith('diff --git'))
-      capture = line.includes(`b/${path}`) || line.includes(` ${path}`);
+      capture = line.endsWith(` b/${path}`) || line.endsWith(` ${path}`);
     if (capture) out.push(line);
   }
   if (out.length > 0) return out.join('\n');

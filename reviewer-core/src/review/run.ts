@@ -112,6 +112,9 @@ export interface ReviewOutcome {
   raw: string;
 }
 
+/** A unified-diff hunk header line (`@@ -a,b +c,d @@`). */
+const HUNK_HEADER = /^@@ /m;
+
 function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: number): ReviewMode {
   if (strategy === 'single-pass') return 'single-pass';
   if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
@@ -141,10 +144,22 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
   let assembly: PromptAssembly = assemblePrompt({ ...promptParts, diff: input.diff.raw }).assembly;
 
-  const chunks =
-    mode === 'map-reduce'
-      ? input.diff.files.map((f) => ({ label: f.path, diffText: sliceDiff(input.diff, f.path) }))
-      : [{ label: 'all files', diffText: input.diff.raw }];
+  const wholeDiff = [{ label: 'all files', diffText: input.diff.raw }];
+  let chunks = wholeDiff;
+  if (mode === 'map-reduce') {
+    const sliced = input.diff.files.map((f) => ({
+      label: f.path,
+      diffText: sliceDiff(input.diff, f.path),
+    }));
+    // A file with no hunk (binary, rename-only, mode change) has nothing to
+    // review and nothing a finding could be grounded on — don't pay an LLM
+    // call for it. If that leaves nothing, review the whole diff once.
+    const reviewable = sliced.filter((c) => HUNK_HEADER.test(c.diffText));
+    for (const c of sliced) {
+      if (!reviewable.includes(c)) emit('info', `map: skipping ${c.label} (no diff hunks)`);
+    }
+    chunks = reviewable.length > 0 ? reviewable : wholeDiff;
+  }
 
   emit(
     'info',

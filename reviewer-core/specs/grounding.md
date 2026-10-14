@@ -40,7 +40,7 @@ applies.
 Asking a model to check the previous model's citations inherits the same
 failure mode, costs a second call, and produces a non-reproducible result. Line
 intersection is deterministic, free, and unit-testable with a hand-written diff
-(`test/grounding.test.ts`). The gate is the one place in the pipeline where
+(`test/grounding-gate.test.ts`, `test/grounding.test.ts`). The gate is the one place in the pipeline where
 "the model said so" is not sufficient evidence.
 
 ## Output

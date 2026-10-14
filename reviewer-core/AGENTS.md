@@ -18,6 +18,8 @@ No lint step exists in this package — the check gate is `npm run typecheck` + 
 - `src/llm/openrouter.ts` — the `LLMProvider` implementation; `src/llm/structured.ts` —
   Zod → JSON Schema, parse-with-repair
 - `src/review/run.ts` — orchestrates a run (single-pass by default)
+- `src/review/reduce.ts` — map-reduce helpers (`sliceDiff`, `reduceReviews`, `scoreFromFindings`)
+- `src/output/to-review.ts` — grounded Review → GitHub review payload
 - `src/index.ts` — the package's public API
 
 ## Non-default conventions
