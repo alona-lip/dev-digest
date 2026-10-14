@@ -27,6 +27,16 @@ export interface EnqueuedJob {
   done: Promise<void>;
 }
 
+/**
+ * Strip credentials a git/HTTP client may echo into an error message (a URL's
+ * `user:token@`, an `Authorization:` header) before it is persisted in `jobs.error`.
+ */
+export function redactCredentials(message: string): string {
+  return message
+    .replace(/(\/\/)[^/\s:@]+:[^/\s@]+@/g, '$1***@')
+    .replace(/(Authorization:\s*(?:Basic|Bearer|token)\s+)\S+/gi, '$1***');
+}
+
 export class JobRunner {
   private queue: PQueue;
   private handlers = new Map<string, JobHandler>();
@@ -90,7 +100,7 @@ export class JobRunner {
           .set({
             status: 'failed',
             finishedAt: new Date(),
-            error: (err as Error).message,
+            error: redactCredentials((err as Error).message),
           })
           .where(eq(t.jobs.id, jobId));
         throw err;

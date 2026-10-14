@@ -1,4 +1,4 @@
-import type { UnifiedDiff, DiffHunk } from '@devdigest/shared';
+import type { UnifiedDiff, DiffHunk } from './adapters.js';
 
 /**
  * Minimal unified-diff parser. Extracts per-file hunks and the set of new-side

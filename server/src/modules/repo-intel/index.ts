@@ -1,12 +1,10 @@
 /**
- * repo-intel module barrel.
+ * repo-intel public facade — what OTHER modules may import from repo-intel.
  *
- * T1.0 exports the contract (types) + constants. T1.1 adds the facade
- * `RepoIntelService`, the thin Drizzle helpers (`RepoIntelRepository`), and
- * the Fastify routes plugin.
+ * Deliberately narrow: the `RepoIntel` contract (types) and the constants
+ * other modules need (job kinds the `repos` module enqueues). The service
+ * itself is reached through `container.repoIntel`, and the routes plugin is
+ * registered by `modules/index.ts` — neither is re-exported here.
  */
 export * from './types.js';
 export * from './constants.js';
-export * from './service.js';
-export * from './repository.js';
-export { default as repoIntelRoutes } from './routes.js';

@@ -38,6 +38,9 @@ export interface BuildAppOptions {
  * DI container and the statically-registered feature modules, plus a structured
  * error handler returning the ApiErrorBody envelope.
  */
+/** Upper bound on how long shutdown waits for in-flight jobs to drain. */
+const SHUTDOWN_JOB_DRAIN_MS = 10_000;
+
 export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = opts.config ?? loadConfig();
   const handle = opts.db ? null : createDb(config.databaseUrl);
@@ -52,6 +55,20 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
         ? false
         : {
             level: config.logLevel,
+            // Errors from simple-git/Octokit/LLM SDKs are logged as `{ err }`;
+            // never let a credential they carry reach the log.
+            redact: {
+              paths: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                '*.token',
+                '*.apiKey',
+                '*.key',
+                'err.config',
+                'err.request.headers',
+              ],
+              censor: '[redacted]',
+            },
             transport:
               config.nodeEnv === 'development'
                 ? { target: 'pino-pretty', options: { colorize: true } }
@@ -113,7 +130,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // Structured error handler. Registered BEFORE modules so encapsulated
   // module plugins inherit it. Validation → 422; AppError → its status.
-  app.setErrorHandler((err: unknown, _req, reply) => {
+  app.setErrorHandler((err: unknown, request, reply) => {
     // Request validation failure from the zod type provider (schema.body/params).
     if (hasZodFastifySchemaValidationErrors(err)) {
       reply.status(422).send({
@@ -158,9 +175,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     }
     app.log.error(err);
     const e = err as { statusCode?: number; message?: string };
-    reply.status(e.statusCode ?? 500).send({
-      error: { code: 'internal_error', message: e.message ?? 'Internal error' },
-    });
+    const status = e.statusCode ?? 500;
+    // Fastify's own 4xx (bad JSON, 413, 429, …) carry a message meant for the
+    // caller. Anything else is an unexpected failure whose text can expose SQL,
+    // SDK or file-system internals — the caller gets the request id to quote,
+    // the details stay in the log.
+    const message =
+      status < 500 ? (e.message ?? 'Request failed') : `Internal error (request ${request.id})`;
+    reply.status(status).send({ error: { code: 'internal_error', message } });
   });
 
   // Register feature modules from the static registry (src/modules/index.ts).
@@ -169,7 +191,15 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     await app.register(plugin);
   }
 
-  // Close the db handle we created on shutdown.
+  // On shutdown let in-flight jobs (clone, index) finish first — bounded, so a
+  // stuck job can't hold the process — THEN close the db handle we created.
+  // onClose hooks run in registration order.
+  app.addHook('onClose', async () => {
+    await Promise.race([
+      container.jobs.onIdle(),
+      new Promise((resolve) => setTimeout(resolve, SHUTDOWN_JOB_DRAIN_MS).unref()),
+    ]);
+  });
   if (handle) app.addHook('onClose', async () => handle.close());
 
   return app;

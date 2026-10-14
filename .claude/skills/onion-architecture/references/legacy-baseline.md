@@ -1,5 +1,12 @@
 # Legacy baseline — known violations (as of 2026-10-12)
 
+> **Update 2026-10-12 (later the same day): the baseline is empty (`[]`).**
+> All 34 entries below were fixed in one deliberate pass —
+> `server/specs/onion-burn-down.md`. The table is kept as the record of what
+> each fix looked like; any violation now fails `pnpm arch:check` outright.
+> The two "not statically detectable" items at the bottom are only partly
+> done (see "Not done" in that spec).
+
 `server/.dependency-cruiser-known-violations.json` holds 34 violations that
 existed when the rules were introduced. `pnpm arch:check` ignores them so it can
 fail on **new** violations only. See them with:

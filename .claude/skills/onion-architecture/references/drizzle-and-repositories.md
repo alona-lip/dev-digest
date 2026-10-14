@@ -90,8 +90,10 @@ await this.repo.inTransaction(async (repo) => {
   transaction holds a pooled connection for seconds and starves the pool —
   load, call the LLM, then open the transaction to persist (the impureim
   sandwich, #8).
-- No transaction exists in the codebase yet (2026-10-12); the first one should
-  follow this shape.
+- `Tx` / `Executor` exist in `db/client.ts`. Reference implementations:
+  `ReviewRepository.persistCompletedRun` (review + findings + run status in one
+  transaction, opened after the LLM call) and the pulls repository's PR-detail
+  refresh (delete + re-insert of files/commits).
 
 ## Migrations and schema
 

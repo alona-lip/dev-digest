@@ -87,9 +87,14 @@ export class ReviewRepository {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
 
+  /** Whether a run exists in the workspace (any status). */
+  runInWorkspace(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.runInWorkspace(this.db, workspaceId, runId);
+  }
+
   /** Mark a still-running run as cancelled (no-op if it already finished). */
-  cancelRunIfRunning(runId: string): Promise<boolean> {
-    return runRepo.cancelRunIfRunning(this.db, runId);
+  cancelRunIfRunning(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.cancelRunIfRunning(this.db, workspaceId, runId);
   }
 
   /** On boot: any run still 'running' is orphaned (its process died / restarted),
@@ -170,6 +175,32 @@ export class ReviewRepository {
     return runRepo.completeAgentRun(this.db, runId, values);
   }
 
+  /**
+   * Persist a finished run atomically: the review, its findings, the PR's
+   * last-reviewed sha and the run's `done` status commit together or not at
+   * all. Written one by one, a failure in between left findings attached to a
+   * run the catch-path then marked `failed`.
+   */
+  persistCompletedRun(args: {
+    runId: string;
+    review: Parameters<ReviewRepository['insertReview']>[0];
+    findings: Finding[];
+    headSha: string;
+    run: Omit<Parameters<ReviewRepository['completeAgentRun']>[1], 'status' | 'findingsCount'>;
+  }): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
+    return this.db.transaction(async (tx) => {
+      const review = await reviewRepo.insertReview(tx, args.review);
+      const findings = await reviewRepo.insertFindings(tx, review.id, args.findings);
+      await pullRepo.markReviewed(tx, args.review.prId, args.headSha);
+      await runRepo.completeAgentRun(tx, args.runId, {
+        ...args.run,
+        status: 'done',
+        findingsCount: findings.length,
+      });
+      return { review, findings };
+    });
+  }
+
   /** Record the head SHA a review ran against (PR-list freshness derivation). */
   markReviewed(prId: string, sha: string): Promise<void> {
     return pullRepo.markReviewed(this.db, prId, sha);
@@ -180,7 +211,7 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
-  getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return runRepo.getRunTrace(this.db, runId);
+  getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    return runRepo.getRunTrace(this.db, workspaceId, runId);
   }
 }

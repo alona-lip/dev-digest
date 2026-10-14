@@ -78,7 +78,7 @@ module.exports = {
       comment:
         'Drizzle, the postgres driver and the table objects in src/db/schema* belong to repository/*.repo.ts. ' +
         'Add a repository method and call it from the service. ' +
-        `Type-only imports of src/db/rows.ts are fine. ${SKILL} §6.`,
+        `Type-only imports of src/db/rows.ts are fine. ${SKILL} §5.`,
       from: { path: '^src/modules/', pathNot: REPOSITORY },
       to: {
         path: ['^src/db/', DB_DRIVERS],
@@ -120,7 +120,7 @@ module.exports = {
       severity: 'error',
       comment:
         'Every third-party SDK sits behind a port from src/vendor/shared/adapters.ts and is implemented in ' +
-        `src/adapters/<kind>/. Construct it in platform/container.ts. ${SKILL} §7.`,
+        `src/adapters/<kind>/. Construct it in platform/container.ts. ${SKILL} §6.`,
       from: {
         pathNot: ['^src/adapters/', '^src/platform/container\\.ts$', `${REVIEWER_CORE}llm/`],
       },
@@ -131,14 +131,14 @@ module.exports = {
       severity: 'error',
       comment:
         'Modules reach an adapter through the Container (typed by its port), never by importing src/adapters/*. ' +
-        `${SKILL} §7.`,
+        `${SKILL} §6.`,
       from: { path: '^src/modules/' },
       to: { path: '^src/adapters/' },
     },
     {
       name: 'adapters-dont-know-modules',
       severity: 'error',
-      comment: `An adapter implements a port; it must not call feature modules. ${SKILL} §7.`,
+      comment: `An adapter implements a port; it must not call feature modules. ${SKILL} §6.`,
       from: { path: '^src/adapters/' },
       to: { path: '^src/modules/' },
     },
@@ -149,7 +149,7 @@ module.exports = {
       severity: 'error',
       comment:
         "A module may not import another module's files. Go through the Container (container.agentsRepo, " +
-        `container.repoIntel), the module's index.ts facade, or move the shared piece to modules/_shared. ${SKILL} §9.`,
+        `container.repoIntel), the module's index.ts facade, or move the shared piece to modules/_shared. ${SKILL} §3.`,
       from: { path: '^src/modules/([^/]+)/' },
       to: {
         path: '^src/modules/',
@@ -172,7 +172,7 @@ module.exports = {
       severity: 'error',
       comment:
         'reviewer-core has no DB, GitHub, FS or HTTP server. Its only side effect is the injected LLMProvider. ' +
-        `${SKILL} §8.`,
+        `${SKILL} §7.`,
       from: { path: REVIEWER_CORE },
       to: {
         path: ['^src/', DB_DRIVERS, HTTP_FRAMEWORK, 'node_modules/(octokit|@octokit|simple-git)/'],
@@ -183,7 +183,7 @@ module.exports = {
     {
       name: 'reviewer-core-no-node-io',
       severity: 'error',
-      comment: `reviewer-core must stay runnable in CI and tests without touching disk, processes or the network directly. ${SKILL} §8.`,
+      comment: `reviewer-core must stay runnable in CI and tests without touching disk, processes or the network directly. ${SKILL} §7.`,
       from: { path: REVIEWER_CORE },
       to: {
         dependencyTypes: ['core'],
@@ -194,15 +194,15 @@ module.exports = {
       name: 'reviewer-core-sdk-only-in-llm',
       severity: 'error',
       comment:
-        'Only reviewer-core/src/llm/ (the LLMProvider adapter + its structured-output helper) may import the openai SDK. ' +
-        `${SKILL} §8.`,
+        'Only reviewer-core/src/llm/ (the LLMProvider adapter + its structured-output helper) may import an LLM SDK (openai, @anthropic-ai). ' +
+        `${SKILL} §7.`,
       from: { path: REVIEWER_CORE, pathNot: `${REVIEWER_CORE}llm/` },
-      to: { path: 'node_modules/openai/' },
+      to: { path: 'node_modules/(openai|@anthropic-ai)/' },
     },
     {
       name: 'reviewer-core-via-public-api',
       severity: 'error',
-      comment: `server imports @devdigest/reviewer-core (src/index.ts), never a deep path. ${SKILL} §8.`,
+      comment: `server imports @devdigest/reviewer-core (src/index.ts), never a deep path. ${SKILL} §7.`,
       from: { path: '^src/' },
       to: { path: REVIEWER_CORE, pathNot: `${REVIEWER_CORE}index\\.ts$` },
     },
@@ -213,7 +213,7 @@ module.exports = {
       severity: 'error',
       comment:
         'Circular imports usually mean two rings were merged. Type-only cycles are ignored (they vanish at runtime). ' +
-        `${SKILL} §11.`,
+        `${SKILL} §1.`,
       from: {},
       to: { circular: true, viaOnly: { dependencyTypesNot: ['type-only'] } },
     },

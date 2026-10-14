@@ -17,17 +17,17 @@
  * The constructor takes ONLY a Container. No astgrep / depgraph / tokenizer
  * deps are imported here — those land later and plug into this same shell.
  */
-import type { CodeSymbol, RepoRef } from '@devdigest/shared';
+import type {
+  CodeSymbol,
+  ParsedImport,
+  ParsedInvocationHead,
+  ParsedSymbol,
+  RepoRef,
+} from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { extractEndpoints } from '../../adapters/codeindex/extract.js';
-import {
-  parseImports,
-  parseInvocationHeads,
-  parseSymbols,
-  langForFile,
-} from '../../adapters/astgrep/index.js';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extractEndpoints } from './extract.js';
+import { readFile, realpath } from 'node:fs/promises';
+import { extname, join, sep } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import type {
   BlastCallerRow,
@@ -460,6 +460,7 @@ export class RepoIntelService implements RepoIntel {
 
     const repo = await this.repo.getRepoBasics(repoId);
     if (!repo || !repo.clonePath) return [];
+    const { langForFile, parseSymbols } = this.container.codeParser;
 
     // 1. Symbols declared in changed files. Filter to symbols that can BE
     //    called (function / method / class). Type/interface aliases have no
@@ -490,7 +491,7 @@ export class RepoIntelService implements RepoIntel {
     const seen = new Set<string>();
     // Cache caller-file astgrep parses so we don't re-parse the same file per
     // referenced symbol.
-    const callerSymbolsByFile = new Map<string, ReturnType<typeof parseSymbols>>();
+    const callerSymbolsByFile = new Map<string, ParsedSymbol[]>();
 
     for (const [symbolName, decl] of declaredSymbols) {
       if (out.length >= limit) break;
@@ -581,6 +582,7 @@ export class RepoIntelService implements RepoIntel {
 
     const repo = await this.repo.getRepoBasics(repoId);
     if (!repo || !repo.clonePath) return [];
+    const { parseSymbols, parseImports, parseInvocationHeads } = this.container.codeParser;
 
     const out: RefRow[] = [];
 
@@ -591,9 +593,9 @@ export class RepoIntelService implements RepoIntel {
       const source = await readClone(repo.clonePath, file);
       if (source == null) continue;
 
-      let declared: ReturnType<typeof parseSymbols>;
-      let imports: ReturnType<typeof parseImports>;
-      let heads: ReturnType<typeof parseInvocationHeads>;
+      let declared: ParsedSymbol[];
+      let imports: ParsedImport[];
+      let heads: ParsedInvocationHead[];
       try {
         declared = parseSymbols(file, source);
         imports = parseImports(file, source);
@@ -759,6 +761,18 @@ function enclosingSymbolName(
   return inFile[0]?.name ?? fromPath.split('/').pop() ?? fromPath;
 }
 
+/**
+ * Read a file from the clone. `file` comes from repo content (diff paths,
+ * index rows), so a path that leaves the clone — via `..` or a symlink
+ * pointing elsewhere on disk — is treated as missing rather than read.
+ */
 async function readClone(clonePath: string, file: string): Promise<string | null> {
-  return readFile(join(clonePath, file), 'utf8').catch(() => null);
+  try {
+    const root = await realpath(clonePath);
+    const target = await realpath(join(root, file));
+    if (!target.startsWith(root + sep)) return null;
+    return await readFile(target, 'utf8');
+  } catch {
+    return null;
+  }
 }

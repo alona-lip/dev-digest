@@ -33,7 +33,7 @@ export class ReviewService {
   constructor(private container: Container) {
     this.repo = new ReviewRepository(container.db);
     this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+    this.executor = new ReviewRunExecutor(container, this.repo);
   }
 
   // ===========================================================================
@@ -108,10 +108,15 @@ export class ReviewService {
    * so cancel also works for ORPHANED runs (whose background process died on a
    * server restart) where signalling alone would do nothing.
    */
-  async cancelRun(runId: string): Promise<void> {
+  async cancelRun(workspaceId: string, runId: string): Promise<void> {
+    // Only a run of the caller's workspace may be signalled — the bus is
+    // process-wide, so an unchecked id would let one workspace stop another's run.
+    if (!(await this.repo.runInWorkspace(workspaceId, runId))) {
+      throw new NotFoundError('Run not found');
+    }
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
     this.container.runBus.cancel(runId);
-    await this.repo.cancelRunIfRunning(runId);
+    await this.repo.cancelRunIfRunning(workspaceId, runId);
     this.container.runBus.complete(runId);
   }
 
@@ -187,19 +192,16 @@ export class ReviewService {
     const pull = await this.repo.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
     const rows = await this.repo.reviewsForPull(prId);
-    const names = new Map<string, string>();
-    for (const { review } of rows) {
-      if (review.agentId && !names.has(review.agentId)) {
-        const a = await this.agents.getById(workspaceId, review.agentId);
-        if (a) names.set(review.agentId, a.name);
-      }
-    }
+    // One IN-query for every agent named in the history (was one query per agent).
+    const agentIds = [...new Set(rows.flatMap(({ review }) => (review.agentId ? [review.agentId] : [])))];
+    const agents = agentIds.length > 0 ? await this.agents.listByIds(workspaceId, agentIds) : [];
+    const names = new Map(agents.map((a) => [a.id, a.name]));
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
   }
 
-  async getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return this.repo.getRunTrace(runId);
+  async getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    return this.repo.getRunTrace(workspaceId, runId);
   }
 }

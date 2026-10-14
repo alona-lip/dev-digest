@@ -21,32 +21,19 @@ import { parse, Lang, type SgNode } from '@ast-grep/napi';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
-import type { ExtractedReference, ExtractedSymbol } from '../codeindex/extract.js';
-import { MAX_SIGNATURE_CHARS, SUPPORTED_EXT } from '../../modules/repo-intel/constants.js';
+import {
+  MAX_SIGNATURE_CHARS,
+  SUPPORTED_EXT,
+  type CodeParser,
+  type ParsedImport,
+  type ParsedInvocationHead,
+  type ParsedReference,
+  type ParsedSymbol,
+} from '@devdigest/shared';
 
-// ---------------------------------------------------------------------------
-// Public types — superset of the regex extractor's row shapes.
-// ---------------------------------------------------------------------------
-
-export interface ParsedSymbol extends ExtractedSymbol {
-  /** True when the declaration is reached through an `export` form. */
-  exported: boolean;
-  /** Declaration head trimmed to MAX_SIGNATURE_CHARS; null for kinds without one. */
-  signature: string | null;
-  /** 1-based line of the closing token of the declaration body. */
-  endLine: number;
-}
-
-export interface ParsedReference extends ExtractedReference {
-  /** Path passed in by the caller — surfaced so consumers can fan-out. */
-  refFile: string;
-}
-
-export interface ParsedImport {
-  name: string;
-  source: string;
-  isType: boolean;
-}
+// Public types — the CodeParser port's row shapes (a superset of the regex
+// extractor's). Defined in the shared kernel; re-exported for existing imports.
+export type { ParsedImport, ParsedInvocationHead, ParsedReference, ParsedSymbol };
 
 // ---------------------------------------------------------------------------
 // Lang mapping — accepts SUPPORTED_EXT and falls back to null otherwise.
@@ -465,15 +452,6 @@ export function parseReferences(file: string, source: string): ParsedReference[]
 // parseInvocationHeads — T1.3 Phantom-API gate fuel
 // ---------------------------------------------------------------------------
 
-export interface ParsedInvocationHead {
-  /** The bare identifier being invoked (callee name, ctor name, or JSX tag). */
-  name: string;
-  /** 1-based line of the invocation. */
-  line: number;
-  /** Which AST shape produced this head. */
-  kind: 'call' | 'new' | 'jsx';
-}
-
 /**
  * Bare-identifier invocation heads only — the phantom-gate's high-precision
  * input. We DELIBERATELY skip `x.foo()` (member calls) because we can't
@@ -637,3 +615,16 @@ export async function parseChangedFiles(
 
   return { symbols, references, imports };
 }
+
+// ---------------------------------------------------------------------------
+// CodeParser port — what repo-intel receives through the container.
+// ---------------------------------------------------------------------------
+
+/** The ast-grep implementation of the CodeParser port (plain functions, safe to destructure). */
+export const astGrepParser: CodeParser = {
+  langForFile,
+  parseSymbols,
+  parseReferences,
+  parseImports,
+  parseInvocationHeads,
+};

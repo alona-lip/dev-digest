@@ -8,11 +8,11 @@ Details — [README](./README.md).
 
 ## Commands
 
-`pnpm dev` (`:3001`) · `pnpm db:migrate` · `pnpm db:seed` · `pnpm typecheck`
-Unit: `pnpm exec vitest run --exclude '**/*.it.test.ts'` · Integration (Docker): `pnpm exec vitest run .it.test`
+`pnpm dev` (`:3001`) · `pnpm db:migrate` · `pnpm db:seed` · `pnpm typecheck` (src + test, `noUnusedLocals`)
+Unit: `pnpm test:unit` · Integration (Docker): `pnpm test:integration`
 Architecture: `pnpm arch:check` (dependency-cruiser, also covers `../reviewer-core/src`; fails only on new
 violations) · `pnpm arch:baseline` only after fixing a known one.
-No lint step exists in this package — the check gate is `pnpm typecheck` + the unit run + `pnpm arch:check`.
+No lint step exists in this package — the check gate is `pnpm typecheck` + `pnpm test:unit` + `pnpm arch:check` (all three run in CI).
 
 ## Map
 

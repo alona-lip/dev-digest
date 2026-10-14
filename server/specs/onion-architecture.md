@@ -87,3 +87,12 @@ another reason; don't open a refactor-only PR across modules.
   not statically visible to dependency-cruiser; covered by the skill's review
   checklist instead.
 - `client/` (covered by `frontend-ui-architecture`) and `e2e/`.
+
+## 2026-10-12 — legacy burn-down requested
+
+"Fix on touch" stays the default policy. On 2026-10-12 the user explicitly
+asked for a project-wide improvement pass after the skill audit, which is the
+"unless the user asks" case above: the baselined violations are being fixed
+as one deliberate pass — plan and order in
+[onion-burn-down.md](./onion-burn-down.md). The baseline must only shrink
+while it runs.

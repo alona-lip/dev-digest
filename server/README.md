@@ -92,6 +92,7 @@ flowchart TB
 |-----|---------|-------|
 | `DATABASE_URL` | `postgres://devdigest:devdigest@localhost:5432/devdigest` | required to migrate/serve |
 | `API_PORT` / `WEB_PORT` | `3001` / `3000` | API port; `WEB_PORT` also sets the allowed CORS origin |
+| `API_HOST` | `localhost` | bind interface; the API has no auth, so it stays on loopback (127.0.0.1 + ::1) |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | — | optional, per-provider; also settable via Settings UI |
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |

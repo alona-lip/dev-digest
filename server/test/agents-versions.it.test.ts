@@ -165,14 +165,36 @@ d('GET /agents/:id/versions', () => {
     });
 
     const service = new AgentsService({ db } as unknown as Container);
-    const [{ id: defaultWs }] = await db
+    const [defaultWs] = await db
       .select({ id: t.workspaces.id })
       .from(t.workspaces)
       .where(eq(t.workspaces.name, 'default'));
 
     // Owner can read; a different workspace is denied (undefined → 404 at route).
     expect(await service.listVersions(otherWs!.id, foreign.id)).toHaveLength(1);
-    expect(await service.listVersions(defaultWs!, foreign.id)).toBeUndefined();
-    expect(await service.getVersion(defaultWs!, foreign.id, 1)).toBeUndefined();
+    expect(await service.listVersions(defaultWs!.id, foreign.id)).toBeUndefined();
+    expect(await service.getVersion(defaultWs!.id, foreign.id, 1)).toBeUndefined();
+  });
+
+  it('concurrent config edits each get their own version + snapshot (no lost update)', async () => {
+    const { db } = pg.handle;
+    const [ws] = await db.insert(t.workspaces).values({ name: 'race' }).returning();
+    const repo = new AgentsRepository(db);
+    const agent = await repo.insert({
+      workspaceId: ws!.id,
+      name: 'Racer',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      systemPrompt: 'v1',
+    });
+
+    await Promise.all([
+      repo.update(ws!.id, agent.id, { systemPrompt: 'edit A' }),
+      repo.update(ws!.id, agent.id, { systemPrompt: 'edit B' }),
+    ]);
+
+    const versions = (await repo.listVersions(agent.id)).map((v) => v.version);
+    expect(versions).toEqual([3, 2, 1]);
+    expect((await repo.getById(ws!.id, agent.id))!.version).toBe(3);
   });
 });

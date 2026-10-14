@@ -134,6 +134,14 @@ by hand in the same format.
   NEVER treat a passing arch:check as proof a handler is thin — grep the diff
   for `container.db` and apply the onion-architecture skill's review checklist.
   (`server/src/modules/pulls/routes.ts:44`, `.claude/skills/onion-architecture/SKILL.md`)
+- 2026-10-12 — `withRetry`'s default `isRetryable` reads `err.status` BEFORE
+  `err.statusCode`, and retries anything ≥500. So wrapping an SDK error in an
+  `AppError` subclass (whose `statusCode` is the HTTP answer, e.g. 502 for
+  `ExternalServiceError`) silently makes every upstream 404/422 retryable —
+  unless the mapped error keeps the upstream code on `status`. ALWAYS carry
+  the provider's own status on `status` when mapping adapter errors, as
+  `GitHubRequestError` does. (`server/src/platform/resilience.ts:35`,
+  `server/src/adapters/github/octokit.ts:26`)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
@@ -143,6 +151,12 @@ by hand in the same format.
   (wrapped as `pnpm arch:baseline`) and read it with `--ignore-known`. The
   `err-long` reporter prints each rule's `comment`, so put the fix in the
   comment. (`server/package.json`, `server/.dependency-cruiser.cjs`)
+- 2026-10-12 — macOS (BSD) `grep` and `file` classify some TS files in this
+  repo as binary (`file` says `data`; UTF-8 em-dashes in comments), and
+  `grep -r` then SILENTLY drops their matches — a search for importers of
+  `repo-intel/constants` missed `adapters/depgraph/index.ts` entirely. Use
+  `grep -a` (or ripgrep) for any "who uses X" search before moving code.
+  (`server/src/adapters/depgraph/index.ts:20`)
 
 ## Recurring Errors & Fixes
 

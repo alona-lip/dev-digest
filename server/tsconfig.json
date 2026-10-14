@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "strict": true,
+    "noUnusedLocals": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -22,8 +23,7 @@
     "paths": {
       "@devdigest/shared": ["./src/vendor/shared/index.ts"],
       "@devdigest/shared/*": ["./src/vendor/shared/*"],
-      "@devdigest/reviewer-core": ["../reviewer-core/src/index.ts"],
-      "@devdigest/reviewer-core/*": ["../reviewer-core/src/*"]
+      "@devdigest/reviewer-core": ["../reviewer-core/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"]

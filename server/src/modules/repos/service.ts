@@ -2,16 +2,12 @@ import type { Container } from '../../platform/container.js';
 import { type Repo } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
 import { RepoRepository } from './repository.js';
-import { parseRepoUrl, withGitHubToken, toRepoDto } from './helpers.js';
-import {
-  CLONE_JOB_KIND,
-  CLONE_DEPTH,
-  GITHUB_TOKEN_SECRET,
-} from './constants.js';
+import { parseRepoUrl, canonicalCloneUrl, toRepoDto } from './helpers.js';
+import { CLONE_JOB_KIND, CLONE_DEPTH } from './constants.js';
 import {
   INDEX_JOB_KIND,
   REFRESH_JOB_KIND,
-} from '../repo-intel/constants.js';
+} from '../repo-intel/index.js';
 
 /**
  * F1 — repos service. Business logic for the Repositories feature:
@@ -38,8 +34,8 @@ export class RepoService {
   }
 
   /**
-   * Register the `clone` job handler once. Authenticates the clone with the
-   * stored GitHub PAT (so private repos work), clones via the GitClient adapter,
+   * Register the `clone` job handler once. Clones via the GitClient adapter
+   * (which authenticates with the stored GitHub PAT, so private repos work),
    * then persists the resulting path + last_polled_at.
    */
   registerCloneJobHandler(): void {
@@ -49,12 +45,14 @@ export class RepoService {
   }
 
   async runCloneJob(payload: CloneJobPayload): Promise<void> {
-    const { repoId, owner, name, url } = payload;
-    const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
-    const cloneUrl = token ? withGitHubToken(url, token) : url;
-    const { path } = await this.container.git.clone({ owner, name }, cloneUrl, {
-      depth: CLONE_DEPTH,
-    });
+    // Rebuild the URL from owner/name rather than trusting `payload.url`: a job
+    // persisted before URLs were canonicalised may still carry the raw input.
+    const { repoId, owner, name } = payload;
+    const { path } = await this.container.git.clone(
+      { owner, name },
+      canonicalCloneUrl(owner, name),
+      { depth: CLONE_DEPTH },
+    );
     await this.repo.updateClonePath(repoId, path);
 
     // T2.2 — kick off the indexer in the background. ENQUEUE (not call) so the
@@ -99,7 +97,7 @@ export class RepoService {
       repoId: row.id,
       owner,
       name,
-      url,
+      url: canonicalCloneUrl(owner, name),
     } satisfies CloneJobPayload);
 
     return { repo: toRepoDto(row), created: true };
@@ -118,7 +116,7 @@ export class RepoService {
       repoId: repo.id,
       owner: repo.owner,
       name: repo.name,
-      url: `https://github.com/${repo.fullName}.git`,
+      url: canonicalCloneUrl(repo.owner, repo.name),
     } satisfies CloneJobPayload);
     // T2.2 — also enqueue an incremental refresh. The two queue positions are
     // independent (p-queue doesn't FIFO across kinds), but `runIncremental` is

@@ -17,3 +17,10 @@ criteria, and what's explicitly out of scope.
 - [onion-architecture.md](./onion-architecture.md) — the ring map for server +
   reviewer-core, the two deliberate exceptions, dependency-cruiser enforcement
   with a known-violations baseline, and the rejected alternatives.
+- [security-hardening.md](./security-hardening.md) — clone-URL validation and
+  path containment, GitHub token passed as a header (never in `.git/config`),
+  loopback bind, 5xx/log hygiene, test-then-save keys, the review-persist
+  transaction, untrusted PR title.
+- [onion-burn-down.md](./onion-burn-down.md) — the deliberate pass over the
+  dependency-cruiser baseline: pulls/settings/polling/workspace onto
+  service + repository, ports out of `src/adapters`, intended behaviour changes.

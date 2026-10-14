@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../db/client.js';
+import type { Executor } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
@@ -49,7 +49,12 @@ export interface LinkedSkillRow {
 }
 
 export class AgentsRepository {
-  constructor(private db: Db) {}
+  constructor(private db: Executor) {}
+
+  /** Run `fn` in one transaction; on a Tx this nests as a savepoint. */
+  inTransaction<T>(fn: (repo: AgentsRepository) => Promise<T>): Promise<T> {
+    return this.db.transaction((tx) => fn(new AgentsRepository(tx)));
+  }
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
@@ -98,8 +103,15 @@ export class AgentsRepository {
     return rows.length > 0;
   }
 
-  /** Insert an agent AND record version 1 in agent_versions (immutable snapshot). */
-  async insert(values: InsertAgent): Promise<AgentRow> {
+  /**
+   * Insert an agent AND record version 1 in agent_versions (immutable
+   * snapshot) — one transaction, so an agent never exists without its v1.
+   */
+  insert(values: InsertAgent): Promise<AgentRow> {
+    return this.inTransaction((repo) => repo.insertWithSnapshot(values));
+  }
+
+  private async insertWithSnapshot(values: InsertAgent): Promise<AgentRow> {
     const [row] = await this.db
       .insert(t.agents)
       .values({
@@ -125,13 +137,26 @@ export class AgentsRepository {
   /**
    * Update an agent. Any config change bumps the version and snapshots the new
    * config into agent_versions (reproducibility for eval).
+   *
+   * One transaction with the agent row locked (`FOR UPDATE`): two concurrent
+   * edits used to both read version N, both write N+1, and the second
+   * snapshot was silently dropped by `onConflictDoNothing`. Now the second
+   * waits, reads N+1 and writes N+2.
    */
-  async update(
+  update(workspaceId: string, id: string, patch: UpdateAgent): Promise<AgentRow | undefined> {
+    return this.inTransaction((repo) => repo.updateLocked(workspaceId, id, patch));
+  }
+
+  private async updateLocked(
     workspaceId: string,
     id: string,
     patch: UpdateAgent,
   ): Promise<AgentRow | undefined> {
-    const existing = await this.getById(workspaceId, id);
+    const [existing] = await this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+      .for('update');
     if (!existing) return undefined;
 
     // A config-affecting change (anything except just toggling enabled) bumps version.
@@ -244,10 +269,14 @@ export class AgentsRepository {
    * the list are unlinked.
    */
   async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    // Delete + re-insert in one transaction: a failed insert must not leave
+    // the agent with no skills at all.
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+      if (skillIds.length === 0) return;
+      await tx
+        .insert(t.agentSkills)
+        .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    });
   }
 }
