@@ -25,6 +25,7 @@ import {
   resolveArgs,
   stdoutContains,
   summarize,
+  parseFlow,
   type Flow,
   type FlowResult,
   type StepResult,
@@ -56,8 +57,14 @@ function loadFlows(): { file: string; flow: Flow }[] {
     .sort()
     .map((file) => ({
       file,
-      flow: JSON.parse(readFileSync(join(SPECS_DIR, file), "utf8")) as Flow,
+      flow: parseFlow(JSON.parse(readFileSync(join(SPECS_DIR, file), "utf8")), file),
     }));
+}
+
+/** Best-effort failure screenshot for the CI artifact upload. */
+async function failureScreenshot(id: string): Promise<void> {
+  mkdirSync(RESULTS_DIR, { recursive: true });
+  await ab(["screenshot", join(RESULTS_DIR, `${id}-fail.png`)]).catch(() => {});
 }
 
 async function runFlow(file: string, flow: Flow): Promise<FlowResult> {
@@ -73,6 +80,7 @@ async function runFlow(file: string, flow: Flow): Promise<FlowResult> {
       if (step.assert?.stdoutIncludes && !stdoutContains(stdout, step.assert.stdoutIncludes)) {
         steps.push({ label, ok: false, detail: `stdout missing "${step.assert.stdoutIncludes}"` });
         console.log(`   ✗ ${label} — assertion failed`);
+        await failureScreenshot(id);
         break;
       }
       steps.push({ label, ok: true });
@@ -81,9 +89,7 @@ async function runFlow(file: string, flow: Flow): Promise<FlowResult> {
       const msg = (e as Error).message.split("\n")[0];
       steps.push({ label, ok: false, detail: msg });
       console.log(`   ✗ ${label} — ${msg}`);
-      // Best-effort failure screenshot for the artifact upload.
-      mkdirSync(RESULTS_DIR, { recursive: true });
-      await ab(["screenshot", join(RESULTS_DIR, `${id}-fail.png`)]).catch(() => {});
+      await failureScreenshot(id);
       break;
     }
   }
