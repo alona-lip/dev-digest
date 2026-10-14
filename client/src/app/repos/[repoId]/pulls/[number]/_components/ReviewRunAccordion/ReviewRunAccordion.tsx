@@ -6,11 +6,12 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Severity, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
-import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
+import { useDeleteReview } from "@/lib/hooks/reviews";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -47,6 +48,7 @@ export function ReviewRunAccordion({
   severity?: Severity | null;
   onSeverityChange?: (severity: Severity | null) => void;
 }) {
+  const t = useTranslations("prReview");
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -54,7 +56,6 @@ export function ReviewRunAccordion({
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
   // A severity deep-link (e.g. from the PR-list popover) should open whichever
   // run actually has a finding at that level, even if it isn't the first run —
@@ -99,15 +100,15 @@ export function ReviewRunAccordion({
         }}
       >
         <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? t("detail.accordion.agentFallback")}</span>
         {review.verdict && (
           <Badge color={verdictColor} bg="transparent">
             {review.verdict.replace("_", " ")}
           </Badge>
         )}
         <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {findings.length} finding{findings.length === 1 ? "" : "s"}
-          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+          {t("detail.accordion.findings", { count: findings.length })}
+          {blockers > 0 ? t("detail.accordion.blockers", { count: blockers }) : ""}
         </span>
         <span style={{ flex: 1 }} />
         {review.score != null && (
@@ -121,13 +122,19 @@ export function ReviewRunAccordion({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete this "${review.agent_name ?? "agent"}" review run and its findings?`)) {
+            if (
+              window.confirm(
+                t("detail.accordion.confirmDelete", {
+                  agent: review.agent_name ?? t("detail.accordion.agentLower"),
+                }),
+              )
+            ) {
               del.mutate(review.id);
             }
           }}
           disabled={del.isPending}
-          title="Delete this review run"
-          aria-label="Delete this review run"
+          title={t("detail.accordion.deleteRun")}
+          aria-label={t("detail.accordion.deleteRun")}
           style={{
             background: "none",
             border: "none",

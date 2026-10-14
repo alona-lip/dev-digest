@@ -35,6 +35,13 @@ by hand in the same format.
   Worked example: the Run Review agent picker.
   (`client/src/vendor/ui/kit/Dropdown.tsx:12`,
   `client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/RunReviewDropdown.tsx:1`)
+- 2026-10-12 — a `<Suspense>` around ALL providers in the root layout makes
+  every response start streaming before the page runs, so `notFound()` from a
+  page renders the 404 UI but the HTTP status is already **200** (seen with
+  `curl -w '%{http_code}'` on `/settings/nope` against `next start`; unit
+  tests can't see it). NEVER put an app-wide Suspense in `app/layout.tsx`;
+  wrap only the views that call `useSearchParams`, at their `page.tsx`.
+  (`client/src/app/layout.tsx:29`, `client/src/app/settings/[section]/page.tsx`)
 
 ## Codebase Patterns
 
@@ -94,6 +101,17 @@ by hand in the same format.
   `client/specs/multi-agent-selection.md`)
 
 ## Tool & Library Notes
+- 2026-10-12 — the local toolchain runs pnpm 12 while CI pins pnpm 10, and
+  both write `lockfileVersion: '9.0'`. pnpm 10 refuses a `node_modules`
+  installed from the newer store (`ERR_PNPM_UNEXPECTED_STORE`) and changes
+  nothing, so install with the local pnpm, then prove CI will accept the
+  lockfile with `npx -y pnpm@10 install --frozen-lockfile --lockfile-only`.
+  pnpm 12 also writes a literal `unrs-resolver: set this to true or false`
+  placeholder into `pnpm-workspace.yaml` `allowBuilds` when a new dep has a
+  build script — replace it with a real boolean before committing. Do NOT
+  add `packageManager: pnpm@10` to package.json: pnpm would then switch the
+  local run to v10 and hit the store error. (`client/pnpm-workspace.yaml`,
+  `.github/workflows/client.yml`)
 
 ## Recurring Errors & Fixes
 
@@ -169,6 +187,16 @@ by hand in the same format.
   until someone makes it dynamic, and vitest/jsdom never reports it (the
   warning comes from the Next dev overlay, not from React DOM in tests).
   (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:9`)
+- 2026-10-12 — `pnpm build` (or any `next build`) writes the SAME
+  `client/.next` a running `pnpm dev` serves from; building while the dev
+  server is up left :3000 accepting connections but never answering (curl
+  timed out, `.next` held `BUILD_ID` + `export-marker.json` from the build).
+  NEVER run `next build` in `client/` while a dev server may be running —
+  check `lsof -iTCP:3000` first. Fix: stop the dev server, `rm -rf .next`,
+  `pnpm dev`. If Ctrl-C can't reach it (an orphaned `next dev` reparented to
+  PID 1 keeps the port, and a new `pnpm dev` fails with `EADDRINUSE :::3000`),
+  kill the PID that `lsof -nP -iTCP:3000 -sTCP:LISTEN` reports.
+  (`client/package.json` `build`/`dev` scripts)
 
 ## Session Notes
 

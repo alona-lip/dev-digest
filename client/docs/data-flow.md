@@ -36,10 +36,14 @@ Hooks are grouped by domain (`core.ts` for settings/secrets/repos/pulls,
 `reviews.ts`, `agents.ts`, `trace.ts`, `repo-intel.ts`), re-exported from
 `hooks/index.ts`. Components import from the barrel.
 
-Each hook owns its query key and its invalidation. Mutations either
-`setQueryData` with the server's response (`useUpdateSettings`) or invalidate
-the keys that a write can change — e.g. saving a provider key invalidates the
-model lists, because which models resolve depends on it.
+Each hook owns its query key and its invalidation. Keys come from a private
+`keys` factory at the top of each domain file — components never spell a
+query key; when a screen needs "refresh these", the domain file exports a hook
+for it (`useRefreshPrRuns`). Mutations either `setQueryData` with the
+server's response (`useUpdateSettings`) or invalidate the keys that a write
+can change — e.g. saving a provider key invalidates the model lists, because
+which models resolve depends on it; starting, cancelling or deleting a run
+invalidates the PR's in-flight runs, run history and reviews together.
 
 ## Components render, they don't fetch
 
@@ -51,8 +55,11 @@ places like `FindingsPanel`: the findings array is already in memory from
 `Array.filter` with **no** request — which is what makes the severity counters
 demonstrably LLM-free (see [`../specs/severity-filter.md`](../specs/severity-filter.md)).
 
-This is also why tests mock `fetch` globally rather than mocking hooks: if a
-component ever did reach the network, the test would catch it.
+Tests: the data layer itself is tested with `fetch` stubbed
+(`lib/api.test.ts`, `lib/hooks/reviews.test.tsx` — the latter pins which keys
+each mutation invalidates). Component tests mostly `vi.mock` the hooks they
+use, so they don't exercise the cache; anything about invalidation belongs in
+the hook tests.
 
 ## Wire shapes stay wire-shaped
 

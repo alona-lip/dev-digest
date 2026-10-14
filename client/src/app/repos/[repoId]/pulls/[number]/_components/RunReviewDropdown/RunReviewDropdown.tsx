@@ -15,8 +15,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Icon } from "@devdigest/ui";
-import { useAgents } from "../../../../../../../lib/hooks/agents";
-import { useRunReview } from "../../../../../../../lib/hooks/reviews";
+import { useAgents } from "@/lib/hooks/agents";
+import { useRunReview } from "@/lib/hooks/reviews";
 import { DROPDOWN_WIDTH } from "./constants";
 import { s } from "./styles";
 import { defaultSelection, isAllSelected, runLabel, selectAll, toggleAgent } from "./helpers";
@@ -93,7 +93,7 @@ export function RunReviewDropdown({
 
   return (
     <div ref={wrapRef} style={s.wrap}>
-      <div onClick={() => setOpen((o) => !o)}>
+      <div>
         <span
           title={warnMerged ? t("runReview.mergedTooltip") : undefined}
           style={warnMerged ? { opacity: 0.6 } : undefined}
@@ -104,6 +104,11 @@ export function RunReviewDropdown({
             iconRight="ChevronDown"
             icon="Sparkles"
             loading={run.isPending}
+            // The click lives on the real <button> (not a wrapping div), so
+            // keyboard users get it and assistive tech hears the menu state.
+            onClick={() => setOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={open}
           >
             {run.isPending ? t("runReview.running") : t("runReview.runReview")}
           </Button>

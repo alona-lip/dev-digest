@@ -17,7 +17,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const router = useRouter();
   const [h, setH] = React.useState(false);
   const findingsPopover = useFindingsPopoverAnchor<HTMLDivElement>();
-  const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
+  const st = STATUS_META[pr.status] ?? STATUS_META.needs_review;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
   const findingsTotal = pr.findings_by_severity
@@ -47,7 +47,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         <Badge
           color={SIZE_COLOR[size]}
           bg="transparent"
-          style={s.sizeBadgeBorder(SIZE_COLOR[size]!)}
+          style={s.sizeBadgeBorder(SIZE_COLOR[size])}
         >
           {size} · {lines}
         </Badge>

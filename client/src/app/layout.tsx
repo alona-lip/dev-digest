@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
@@ -7,7 +6,8 @@ import { Providers } from "../lib/providers";
 import { themeNoFlashScript } from "../lib/theme";
 
 export const metadata: Metadata = {
-  title: "DevDigest",
+  // Pages set `metadata.title` / `generateMetadata` → "PR #482 · DevDigest".
+  title: { default: "DevDigest", template: "%s · DevDigest" },
   description: "Local-first AI PR review tool",
 };
 
@@ -26,9 +26,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           (one level deep) — real mismatches in descendants are still reported. */}
       <body suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Suspense fallback={null}>
-            <Providers>{children}</Providers>
-          </Suspense>
+          {/* No app-wide <Suspense>: it made every response stream before the page
+              ran, so notFound() could not set a 404 status. The views that read
+              useSearchParams are wrapped at their own page instead. */}
+          <Providers>{children}</Providers>
         </NextIntlClientProvider>
       </body>
     </html>

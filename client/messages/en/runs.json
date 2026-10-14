@@ -68,10 +68,14 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
-    "noTrace": "No trace available yet."
+    "noTrace": "No trace available yet.",
+    "tabs": {
+      "trace": "Trace",
+      "log": "Live log"
+    }
   },
   "stats": {
     "na": "n/a",

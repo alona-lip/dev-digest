@@ -1,4 +1,5 @@
-import type { PrMeta } from "../../../../lib/types";
+import type { PrStatus } from "@devdigest/shared";
+import type { PrMeta } from "@/lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
 
@@ -7,7 +8,7 @@ import type { PrMeta } from "../../../../lib/types";
  * carry a derived review status (needs_review / reviewed / stale); merged/closed
  * keep their GitHub merge state.
  */
-export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
+export const STATUS_META: Record<PrStatus, { c: string; labelKey: string }> = {
   needs_review: { c: "var(--warn)", labelKey: "needs_review" },
   reviewed: { c: "var(--ok)", labelKey: "reviewed" },
   stale: { c: "var(--stale)", labelKey: "stale" },
@@ -17,7 +18,7 @@ export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
 };
 
 /** Size bucket → colour token. */
-export const SIZE_COLOR: Record<string, string> = {
+export const SIZE_COLOR: Record<PrSize, string> = {
   S: "var(--ok)",
   M: "var(--warn)",
   L: "var(--crit)",
@@ -63,3 +64,13 @@ export type SizeInfo = { size: PrSize; lines: number };
 
 /** Re-exported for helpers that consume PrMeta. */
 export type { PrMeta };
+
+/** Open PRs carry a derived review status; everything else is merged/closed. */
+export const OPEN_STATUSES: ReadonlySet<PrStatus> = new Set(["needs_review", "reviewed", "stale"]);
+
+/** List sort orders (`?sort=`); the first is the default. */
+export const SORT_ORDERS = ["newest", "oldest"] as const;
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
+/** Default status filter — the most actionable view on open. */
+export const DEFAULT_STATUS_FILTER = "needs_review";

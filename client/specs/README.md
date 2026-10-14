@@ -11,3 +11,6 @@ only while working on the matching feature.
 
 - [severity-filter.md](./severity-filter.md) — findings severity counters, the
   pill/filter controls and the read-only popover.
+- [structure-and-data-layer.md](./structure-and-data-layer.md) — thin route
+  entries + Next file conventions, Suspense at the leaves (real 404s), query-key
+  factories and invalidation, lint-enforced boundaries, user-event tests.
