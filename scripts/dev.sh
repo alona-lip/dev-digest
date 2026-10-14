@@ -35,7 +35,12 @@ warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 
 # --- prerequisites -----------------------------------------------------------
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
+docker info >/dev/null 2>&1 || { echo "docker is installed but the daemon isn't running — start Docker Desktop"; exit 1; }
+command -v node   >/dev/null || { echo "node not found (Node >= 22, see .nvmrc)"; exit 1; }
+node_major="$(node -p 'process.versions.node.split(".")[0]')"
+[ "$node_major" -ge 22 ] || { echo "Node >= 22 required (found $(node -v)); see .nvmrc"; exit 1; }
 command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm)"; exit 1; }
+command -v npm    >/dev/null || { echo "npm not found (reviewer-core installs with npm)"; exit 1; }
 
 # --- env files ---------------------------------------------------------------
 for dir in server client; do
@@ -70,7 +75,9 @@ log "Postgres healthy"
 install_if_needed() {
   if [ ! -d "$1/node_modules" ]; then
     log "installing deps in $1"
-    (cd "$1" && pnpm install)
+    # --frozen-lockfile: install exactly what the lockfile pins; a lockfile
+    # only ever changes on purpose (root AGENTS.md, Do-not-touch).
+    (cd "$1" && pnpm install --frozen-lockfile)
   fi
 }
 install_if_needed server
@@ -95,9 +102,19 @@ fi
 
 # --- dev servers -------------------------------------------------------------
 SERVER_PID=""
+# Recursively kill a process and its descendants. `pnpm dev` runs `tsx watch`
+# as a GRANDCHILD of this subshell, so a plain `kill $SERVER_PID` left the API
+# running with :3001 still bound (same helper as scripts/e2e.sh).
+kill_tree() {
+  local pid="$1"
+  [ -n "$pid" ] || return 0
+  local kid
+  for kid in $(pgrep -P "$pid" 2>/dev/null || true); do kill_tree "$kid"; done
+  kill "$pid" 2>/dev/null || true
+}
 cleanup() {
-  log "shutting down dev servers (Postgres stays up; stop it with: docker compose down)"
-  [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+  log "shutting down dev servers (Postgres stays up; stop it with: docker compose stop)"
+  kill_tree "$SERVER_PID"
 }
 trap cleanup EXIT INT TERM
 

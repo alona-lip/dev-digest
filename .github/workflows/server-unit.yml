@@ -5,8 +5,8 @@
 #    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
 #    macOS is covered by daily local dev, Windows is not a ship target, and
 #    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
-#    deliberate version bump.
-#  - unit: the ~19 DB-free test files (everything that is NOT `*.it.test.ts`).
+#    deliberate version bump. Also runs `pnpm arch:check` (onion layering).
+#  - unit: the DB-free test files (everything that is NOT `*.it.test.ts`).
 #    LLM/git/embeddings are mocked via src/adapters/mocks.ts — no Docker.
 #
 # DB-backed tests run in server-integration.yml. reviewer-core/** is in the
@@ -65,6 +65,12 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Onion-architecture ratchet (dependency-cruiser): fails on any NEW
+      # violation; the 2026-10-12 legacy ones live in
+      # .dependency-cruiser-known-violations.json. Also cruises
+      # ../reviewer-core/src, so it runs after reviewer-core's `npm ci`.
+      - run: pnpm arch:check
+
   unit:
     name: tests
     runs-on: ubuntu-latest
@@ -93,7 +99,4 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      # Inlined rather than `pnpm test:unit`: server/package.json is
-      # skip-worktree (a local variant), so the committed package.json may
-      # not carry the split scripts. Run vitest directly.
-      - run: pnpm exec vitest run --exclude '**/*.it.test.ts'
+      - run: pnpm test:unit
