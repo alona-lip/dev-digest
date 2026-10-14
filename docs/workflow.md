@@ -62,6 +62,10 @@ Not "it looked right in the browser".
 - `cd reviewer-core && npm run typecheck && npm test`
 - Browser-level behaviour → an `e2e/specs/NN-name.flow.json` flow, run through
   `./scripts/e2e.sh` (hermetic).
+- Before calling it done → `/pr-self-review` on the uncommitted diff: a second
+  pass where the skills of each touched bucket review the change
+  ([what is checked](../.claude/skills/pr-self-review/routing.md)). BLOCK means
+  the task is not done.
 
 The test must encode the *invariant*, not the current output. "Pill count
 equals the number of cards rendered below" survives a redesign; "renders the

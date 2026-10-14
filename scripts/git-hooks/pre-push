@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#
+# Refuse to push a commit that has no PASS verdict from pr-self-review.
+# Enable once per clone:  git config core.hooksPath scripts/git-hooks
+# Bypass (you own the consequences): git push --no-verify
+# See .claude/skills/pr-self-review/SKILL.md and specs/pr-self-review.md.
+
+exec "$(git rev-parse --show-toplevel)/.claude/skills/pr-self-review/scripts/gate.sh" pre-push "$@"

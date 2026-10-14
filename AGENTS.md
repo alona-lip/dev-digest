@@ -33,6 +33,11 @@ Full description, with a worked example → [docs/workflow.md](docs/workflow.md)
   high-confidence unless the code contradicts them.
 - Planning phase: write `<module>/specs/<feature>.md` BEFORE the code, and
   record the rejected alternative with its reason, not just the choice.
+- Before reporting a task as done, if it changed code under `client/`,
+  `server/` or `reviewer-core/` → run `/pr-self-review` on the uncommitted diff
+  (a second pass by the skills of each bucket: Frontend = UI architecture +
+  react + RTL, Backend = Onion + fastify + drizzle). BLOCK means it is not done.
+  Before a PR, run it again with `--scope branch` after committing.
 - Ending a task that involved a problem, a decision or a discovery → run
   `engineering-insights`. Don't skip it; that's how the next session learns.
 - `INSIGHTS.md` is append-only: correct a wrong entry with a new dated one,

@@ -137,6 +137,27 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 every `CLAUDE.md` is a symlink to it. The script repairs the links (e.g. after a Windows
 checkout without `core.symlinks`), `--check` only verifies.
 
+## Self-review before a PR
+
+`/pr-self-review` is a second-pass review of your own changes. Run it **before
+calling a task done** (on the uncommitted diff, the default) and **before a PR**
+(`--scope branch`, after committing). Changed files are grouped into buckets —
+Frontend (UI architecture + react + RTL), Backend (Onion + fastify + drizzle),
+Database, Engine, Shared contracts — and reviewed by those skills plus
+deterministic checks ([what is checked](.claude/skills/pr-self-review/routing.md)).
+One confirmed CRITICAL finding means **BLOCK**. A branch PASS drafts the PR
+description (`gh pr create --body-file …`).
+
+A gate enforces it: a Claude Code hook (`.claude/settings.json`, active
+automatically) and a git `pre-push` hook (enable once per clone:
+`git config core.hooksPath scripts/git-hooks`) refuse to push or open a PR
+until the current `HEAD` has a PASS verdict. `git push --no-verify` bypasses the
+git hook — it is a local safety net, not a server-side control. False positives:
+`.pr-self-review-waivers.json` (reason + expiry). Details:
+[`specs/pr-self-review.md`](specs/pr-self-review.md),
+[`.claude/skills/pr-self-review/SKILL.md`](.claude/skills/pr-self-review/SKILL.md).
+Tests: `node --test .claude/skills/pr-self-review/scripts/`.
+
 ## Testing & CI
 
 One test suite per package, each gated by its own GitHub Actions workflow with a

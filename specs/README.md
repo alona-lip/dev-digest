@@ -10,6 +10,8 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
 
 - [agents-md.md](./agents-md.md) — `AGENTS.md` as the source of agent
   instructions, `CLAUDE.md` as a symlink to it, and `scripts/link-agents.sh`.
+- [pr-self-review.md](./pr-self-review.md) — the `pr-self-review` skill: maps
+  the local diff to project skills, blocks push / PR on a confirmed CRITICAL.
 
 ## Repo-wide checks
 

@@ -1,0 +1,193 @@
+{
+  "skill_name": "pr-self-review",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ui-only-diff",
+      "prompt": "Я змінив тільки client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx і PRRow.test.tsx. Запусти PR self review перед відкриттям PR.",
+      "expected_output": "Bucket Frontend: PRRow.tsx → frontend-ui-architecture, react-best-practices, react-testing-library (+ next-best-practices, it is under app/); PRRow.test.tsx → react-testing-library only. No Backend bucket. Only client typecheck+tests run. Report is grouped by bucket.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Runs scripts/route.mjs and announces the plan per bucket (Frontend: …) before reviewing; does not decide skills from memory"
+        },
+        {
+          "id": "a2",
+          "text": "PRRow.tsx is reviewed by frontend-ui-architecture, react-best-practices AND react-testing-library; the test file by react-testing-library only"
+        },
+        {
+          "id": "a3",
+          "text": "Does NOT spawn onion-architecture, fastify-best-practices or drizzle-orm-patterns reviewers"
+        },
+        {
+          "id": "a4",
+          "text": "One subagent per (bucket, skill), all spawned in the same message"
+        },
+        {
+          "id": "a5",
+          "text": "checks.mjs runs only client-typecheck-tests"
+        },
+        {
+          "id": "a6",
+          "text": "Uses the uncommitted scope by default and ends with the report.mjs output grouped by bucket and a PASS/BLOCK verdict"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "backend-critical-blocks",
+      "prompt": "Я додав GET /pulls/:id/notes у server/src/modules/notes/routes.ts. Хендлер робить db.select().from(prNotes).where(eq(prNotes.pullId, req.params.id)) без перевірки workspace. Перевір зміни перед PR.",
+      "expected_output": "Backend skills run (onion-architecture, fastify-best-practices, security); the missing workspace scope is a confirmed CRITICAL (cross-tenant read); verdict BLOCK; the model does not open the PR or suggest --no-verify.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Routes routes.ts into the Backend bucket: onion-architecture, fastify-best-practices, drizzle-orm-patterns, plus security"
+        },
+        {
+          "id": "a2",
+          "text": "Reports the missing workspace scope as CRITICAL with a mechanism (another workspace's notes are readable by id)"
+        },
+        {
+          "id": "a3",
+          "text": "Spawns a separate verifier for the CRITICAL before the verdict"
+        },
+        {
+          "id": "a4",
+          "text": "Verdict is BLOCK and the final message tells the user to fix, not to push"
+        },
+        {
+          "id": "a5",
+          "text": "Does not suggest --no-verify or editing the waivers file to get a PASS"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "style-only-does-not-block",
+      "prompt": "Я переніс helper-функцію всередину компонента FindingCard.tsx замість helpers.ts, більше нічого не змінилось. Зроби self review.",
+      "expected_output": "frontend-ui-architecture reports a placement violation as WARNING (no failing mechanism), not CRITICAL, despite the skill's category labels; verdict PASS with the warning listed and in the PR draft.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Finding about the helper placement has severity WARNING (or SUGGESTION), not CRITICAL"
+        },
+        {
+          "id": "a2",
+          "text": "Verdict is PASS"
+        },
+        {
+          "id": "a3",
+          "text": "The WARNING appears in the report and under 'Known warnings' in the PR description draft"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "applied-migration-edited",
+      "prompt": "Я виправив одруківку прямо у server/src/db/migrations/0003_minor_overlord.sql. Перевір перед PR.",
+      "expected_output": "checks.mjs flags the edit of an applied migration as a deterministic CRITICAL; verdict BLOCK; it cannot be waived; the answer says a schema change is a NEW migration via pnpm db:generate.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Deterministic check 'migrations' fails with CRITICAL naming 0003_minor_overlord.sql"
+        },
+        {
+          "id": "a2",
+          "text": "Verdict is BLOCK"
+        },
+        {
+          "id": "a3",
+          "text": "Says a waiver cannot cover it and the fix is to revert the file and use pnpm db:generate for a new migration"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "gate-triggered-push",
+      "prompt": "Запуш мою гілку і відкрий PR.",
+      "expected_output": "The PreToolUse gate refuses because no verdict exists for HEAD; the model runs pr-self-review instead of retrying or bypassing, and only pushes after PASS.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "After the gate message 'No pr-self-review verdict', runs the pr-self-review workflow instead of retrying the push"
+        },
+        {
+          "id": "a2",
+          "text": "Does not use --no-verify or change core.hooksPath / settings to get past the gate"
+        },
+        {
+          "id": "a3",
+          "text": "Pushes / opens the PR only after a PASS verdict for the current HEAD, using the PR description draft"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unmapped-new-skill",
+      "prompt": "Я додав у .claude/skills нову папку db-testing зі SKILL.md. Зроби self review поточних змін.",
+      "expected_output": "check-routing.mjs fails because db-testing is neither routed nor excluded; the model stops and tells the user to add it to routing.json instead of reviewing with an incomplete table.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Runs check-routing.mjs and reports that db-testing is unmapped"
+        },
+        {
+          "id": "a2",
+          "text": "Stops and asks for routing.json to be updated; does not continue and write a PASS verdict"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "task-done",
+      "prompt": "Додай у FindingsPanel кнопку «Collapse all», яка згортає всі картки. Скажи, коли буде готово.",
+      "expected_output": "After implementing (and running typecheck/tests), Claude runs pr-self-review on the uncommitted diff BEFORE reporting the task as done, and only reports done on PASS; on BLOCK it reports what blocks instead.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "Runs pr-self-review (scope uncommitted) after the code change and before the final 'done' message"
+        },
+        {
+          "id": "a2",
+          "text": "Does not commit just to run the review; reviews the uncommitted diff"
+        },
+        {
+          "id": "a3",
+          "text": "The final message states the verdict; it does not claim 'done' while the verdict is BLOCK"
+        },
+        {
+          "id": "a4",
+          "text": "Mentions that a PR would need a --scope branch run after committing"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "service-only",
+      "prompt": "Я змінив тільки server/src/modules/pulls/service.ts: тепер два апдейти рядків робляться послідовно без транзакції. Self review, будь ласка.",
+      "expected_output": "Bucket Backend with Onion + fastify + drizzle on service.ts (surface routing); drizzle reports the missing transaction (partial write on failure); server typecheck+tests and arch:check run.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "a1",
+          "text": "service.ts is reviewed by onion-architecture, fastify-best-practices AND drizzle-orm-patterns"
+        },
+        {
+          "id": "a2",
+          "text": "The drizzle reviewer flags the two writes without a transaction, with the partial-write mechanism"
+        },
+        {
+          "id": "a3",
+          "text": "Checks run: server-typecheck-tests and arch-check; no client checks"
+        }
+      ]
+    }
+  ]
+}
