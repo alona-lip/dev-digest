@@ -1,0 +1,28 @@
+{
+  "name": "Skills Lab: nav section, empty Skills page, Add menu, editor hint, new agents' Skills tab",
+  "description": "Loads /skills and confirms the SKILLS LAB sidebar section and the empty detail pane (the seed ships no skills), opens the Add Skill menu (Create / Import), opens /skills/new and confirms the directive hint under Description, then confirms the two seeded agents Test Quality Reviewer and API Contract Reviewer exist and that an agent editor has a Skills tab. Read-only (no skill is created, no model call). See e2e/docs/specs/skills.md.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the Skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "SKILLS LAB"], "label": "the sidebar has the Skills Lab section" },
+    { "cmd": ["wait", "--text", "Select a skill"], "label": "nothing is selected: the detail pane prompts to pick a skill" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Add Skill"], "label": "open the Add Skill menu" },
+    { "cmd": ["wait", "--text", "Create skill"], "label": "the menu offers creating a skill" },
+    { "cmd": ["wait", "--text", "Import from file"], "label": "the menu offers importing a file" },
+    { "cmd": ["open", "{BASE}/skills/new"], "label": "load the new-skill editor" },
+    { "cmd": ["wait", "--url", "/skills/new"], "label": "new-skill route reached" },
+    { "cmd": ["wait", "--text", "New skill"], "label": "the editor renders in create mode" },
+    { "cmd": ["wait", "--text", "Write it as a directive"], "label": "the description field tells the author to write a directive" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents list" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "the seeded Test Quality Reviewer exists" },
+    { "cmd": ["wait", "--text", "API Contract Reviewer"], "label": "the seeded API Contract Reviewer exists" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the Test Quality Reviewer editor" },
+    { "cmd": ["wait", "--url", "tab=config"], "label": "agent editor reached on the Config tab" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "the editor has rendered (the URL changes before the agent loads)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the agent's Skills tab (a button; the sidebar entry is a link)" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "the Skills tab is in the URL" },
+    { "cmd": ["wait", "--text", "Order matters"], "label": "the Skills tab explains that order is prompt order" }
+  ]
+}

@@ -21,6 +21,14 @@ by hand in the same format.
   rather than from `reviews.it.test.ts`, which drives the whole pipeline.
   (`server/test/pulls-list.it.test.ts`)
 
+
+- 2026-10-16 — a skills-in-the-prompt test needs no real LLM: build the app with
+  `overrides.llm = { openai: mock }`, keep the `MockLLMProvider` instance in a
+  variable, run a review, then read `mock.calls.find(c => c.method ===
+  'completeStructured').req.messages[0].content` — that IS the system message the
+  model got. Combine with `GET /runs/:id/trace` for `skill_blocks` and `log`.
+  (`server/test/skills.it.test.ts`)
+
 ## What Doesn't Work
 
 <!--
@@ -143,6 +151,9 @@ by hand in the same format.
   `GitHubRequestError` does. (`server/src/platform/resilience.ts:35`,
   `server/src/adapters/github/octokit.ts:26`)
 
+- 2026-10-17 — a repository that aggregates over tables another module owns (skill stats read `agent_runs`, `reviews`, `findings`) must use the typed Drizzle builder with the shared `db/schema` tables, never `db.execute(sql\`… raw names …\`)`: `arch:check` only sees imports, so a raw string breaks at runtime when a column is renamed, while a typed query fails `tsc` (checked by renaming `findings.acceptedAt`: error at `skill-stats.repo.ts`). Short `sql` fragments are fine when they interpolate typed columns (`count(*) filter (where ${t.agentSkills.enabled})`); use `countDistinct`/`count` + `.mapWith(Number)` so counts arrive as numbers, not bigint strings. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
+- 2026-10-17 — migration `0011` adds `UNIQUE(workspace_id, name)` to `skills` with no dedupe step, on purpose: before it nothing created skills (the only `INSERT` into `skills` is `SkillRepository.insert`), so no database can hold duplicate names, and editing an applied migration is forbidden. If a database ever fails `db:migrate` at `0011` with a duplicate-key error (skills inserted by hand), clean the duplicates in the data and re-run — do not edit `0011`. A `pr-self-review` waiver cannot silence this WARNING: `waivers.mjs` only applies to CRITICAL findings, so it stays in the report as accepted. (`server/src/db/migrations/0011_rare_carnage.sql`, `.claude/skills/pr-self-review/scripts/waivers.mjs`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
   flag even though the current online CLI docs describe it, and
@@ -158,6 +169,12 @@ by hand in the same format.
   `grep -a` (or ripgrep) for any "who uses X" search before moving code.
   (`server/src/adapters/depgraph/index.ts:20`)
 
+- 2026-10-16 — `pnpm` is not on PATH in some shells, and the lockfile/`node_modules`
+  here were written by pnpm 12.4.1: `npx -y pnpm@10 add …` fails with "node_modules was
+  installed with a different major version", and `pnpm@12.4.1 add` reformats
+  `engines` in `package.json` (restore that line by hand to keep the diff clean).
+  Use `npx -y pnpm@12.4.1 <cmd>`. (`server/package.json`)
+
 ## Recurring Errors & Fixes
 
 - 2026-09-21 — `seed.ts`'s PR #482 review+findings block only runs inside
@@ -167,6 +184,9 @@ by hand in the same format.
   row already exists so the insert is skipped entirely. To see a new seeded
   finding on an existing dev DB, insert it by hand (or drop the PR's review
   row) rather than just re-seeding. (`server/src/db/seed.ts:99`)
+
+- 2026-10-16 — `agent_runs.status` is `'done'` (not `'completed'`); a raw-SQL rollup
+  filtering on the wrong word silently returns nothing. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
 
 ## Session Notes
 

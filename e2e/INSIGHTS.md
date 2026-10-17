@@ -42,7 +42,11 @@ by hand in the same format.
   for `--name` and `--text` occurrences of the old string before assuming the
   suite still passes. (`e2e/specs/04-pr-findings.flow.json:11`)
 
+- 2026-10-16 — flows `04-pr-findings` and `05-pr-diff` fail locally and deterministically at "open the PR row": `wait --url /pulls` returns as soon as the client redirect changes the URL, but the PR list is still fetching, so `find text … click` runs before the row exists (`02-repo-pulls-detail` passes because it has `wait --text` before the click). Not a product regression. Put a `wait --text <row text>` before any `find text … click` that follows a navigation; the same race bit `08-skills` after clicking an agent card (wait for the editor's own text first). (`e2e/specs/04-pr-findings.flow.json`)
+
 ## Tool & Library Notes
+
+- 2026-10-16 — `agent-browser find role button click --name Skills` is unambiguous only because the sidebar entry is a `link` and the editor tab is a `button` (`agent-browser snapshot -i` shows roles). A `find last "button:has-text('…')"` CSS-pseudo selector does not work here. To run flows by hand: copy `scripts/e2e.sh` with the final `(cd e2e && npm test)` replaced by `sleep`, then drive `agent-browser` against :3100 and `E2E_BASE_URL=http://localhost:3100 npm test`. `pnpm` must be on PATH for `e2e.sh`. (`e2e/docs/specs/skills.md`)
 
 ## Recurring Errors & Fixes
 

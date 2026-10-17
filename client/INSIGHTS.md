@@ -100,6 +100,8 @@ by hand in the same format.
   (`client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/helpers.ts:17`,
   `client/specs/multi-agent-selection.md`)
 
+- 2026-10-16 — a component used by TWO sibling routes (`/skills/new` and `/skills/[id]` share the skill editor) cannot live in either route's `_components`: eslint `no-restricted-imports` rejects `../_components/…` ("Cross-route import of another route's private _components"). Put it in `src/components/<kebab-name>/` from the start (`@/components/skill-editor`); a layout-level pane shared by children can stay in the route's own `_components`. (`client/eslint.config.mjs`, `client/src/components/skill-editor/`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the local toolchain runs pnpm 12 while CI pins pnpm 10, and
   both write `lockfileVersion: '9.0'`. pnpm 10 refuses a `node_modules`
@@ -197,6 +199,8 @@ by hand in the same format.
   PID 1 keeps the port, and a new `pnpm dev` fails with `EADDRINUSE :::3000`),
   kill the PID that `lsof -nP -iTCP:3000 -sTCP:LISTEN` reports.
   (`client/package.json` `build`/`dev` scripts)
+
+- 2026-10-16 — jsdom's `File` has no `arrayBuffer()`, so a file-upload component that calls it throws `file.arrayBuffer is not a function` as an UNHANDLED rejection (the test itself may look fine). Read bytes through a helper that falls back to `FileReader` (also covers older Safari); upload with `userEvent.upload(input, file, { applyAccept: false })` to test the type/size rejection of a file the `accept` attribute would filter out. (`client/src/app/skills/_components/SkillsListPane/_components/ImportSkillModal/helpers.ts`)
 
 ## Session Notes
 
