@@ -19,6 +19,7 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  const skillBlocks = trace.prompt_assembly.skill_blocks ?? [];
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -76,8 +77,29 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
 
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
-        {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+        {skillBlocks.length > 0 ? (
+          <>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "6px 0 2px" }} data-testid="skills-summary">
+              {t("trace.prompt.skillsSummary", {
+                count: skillBlocks.length,
+                tokens: skillBlocks.reduce((n, b) => n + b.tokens, 0),
+              })}
+            </div>
+            {skillBlocks.map((b) => (
+              <PromptBlock
+                key={b.skill_id}
+                label={t("trace.prompt.skillBlock", { name: b.name, version: b.version })}
+                text={b.text}
+                color={PROMPT_COLORS.skills}
+                tokens={b.tokens}
+              />
+            ))}
+          </>
+        ) : (
+          // Traces from before per-skill blocks existed carry one joined string.
+          trace.prompt_assembly.skills != null && (
+            <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+          )
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
