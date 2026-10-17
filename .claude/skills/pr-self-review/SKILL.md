@@ -1,9 +1,10 @@
 ---
 name: pr-self-review
-description: "PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done, and git push / gh pr create are refused. Use after implementing a change and before saying done / готово / ready / complete, before git push or opening a PR, when the user says self review or pre-PR review, or when the gate reports a missing verdict. Not for reviewing someone else's PR (use code-review)."
+description: "MANUAL ONLY — type /pr-self-review; the model never starts it on its own. PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done, and git push / gh pr create are refused. Run it after implementing a change and before calling the task done, before git push or opening a PR, or when the gate reports a missing verdict. Not for reviewing someone else's PR (use code-review)."
+disable-model-invocation: true
 metadata:
-  version: 1.1.0
-  updated: 2026-10-14
+  version: 1.2.0
+  updated: 2026-10-16
   tags: review, pull-request, gate, skills-routing, buckets
 ---
 

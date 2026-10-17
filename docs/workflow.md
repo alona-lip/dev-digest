@@ -62,7 +62,8 @@ Not "it looked right in the browser".
 - `cd reviewer-core && npm run typecheck && npm test`
 - Browser-level behaviour → an `e2e/specs/NN-name.flow.json` flow, run through
   `./scripts/e2e.sh` (hermetic).
-- Before calling it done → `/pr-self-review` on the uncommitted diff: a second
+- Before calling it done → `/pr-self-review` on the uncommitted diff (manual-only:
+  the user starts it, Claude asks): a second
   pass where the skills of each touched bucket review the change
   ([what is checked](../.claude/skills/pr-self-review/routing.md)). BLOCK means
   the task is not done.

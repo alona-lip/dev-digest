@@ -105,3 +105,20 @@ ran RTL only on test files, and fastify / drizzle only on HTTP / data-access fil
   would still have to be reverse-engineered from a dozen regexes.
 - **`routing.md` as the source, parsed by the scripts**: one formatting slip in a
   markdown table would silently drop files from review.
+
+## 2026-10-16 — manual invocation only
+
+**Decision.** `SKILL.md` sets `disable-model-invocation: true`: the review is started
+by the user typing `/pr-self-review`, never by the model deciding to. The root
+`AGENTS.md` rule changed from "run it" to "ask the user to run it, and say it has
+not been run" when a task changed `client/`, `server/` or `reviewer-core/`.
+
+**Why.** The review fans out one subagent per (bucket, skill) and costs real
+tokens and minutes; the owner of the diff should decide when that is worth it.
+The gate (`scripts/git-hooks/pre-push`) is unchanged — it reads the verdict for
+`HEAD`, not who started the run, so an unreviewed push is still refused.
+
+**Rejected alternative.** Keep auto-invocation and rely on the description to
+make it rare: a description is a hint, not a switch, and it already told the
+model to run the skill "before saying done" on every task.
+
