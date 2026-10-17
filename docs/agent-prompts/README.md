@@ -9,6 +9,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md) — generic on purpose; sharpened by bound skills
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) — generic on purpose; sharpened by bound skills
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -26,6 +28,9 @@ receives exactly two messages:
 
 <INJECTION_GUARD>   // appended verbatim to EVERY agent, every run
 ```
+
+When the agent has enabled **skills**, they sit between the two, one block each in
+the agent's order (`## Skills` → `### Skill: <name>`); the guard stays last.
 
 `INJECTION_GUARD` (`prompt.ts:16`) tells the model that everything inside
 `<untrusted>…</untrusted>` is data, never instructions, and that claims like "test

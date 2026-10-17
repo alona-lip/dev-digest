@@ -6,6 +6,8 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -188,7 +190,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (the starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -220,6 +222,30 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       provider: DEFAULT_PROVIDER,
       model: DEFAULT_MODEL,
       systemPrompt: PERFORMANCE_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    // The two prompts below are deliberately generic: what makes them sharp is the
+    // skills bound to them (see docs/skills-experiment.md), added through the UI.
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks test quality: uncovered branches, missing corner cases, over-mocking, flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Detects breaking API changes: routes, payload shapes, exported signatures.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
       enabled: true,
       version: 1,
       createdBy: userId,
