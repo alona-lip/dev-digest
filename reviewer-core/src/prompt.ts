@@ -44,11 +44,31 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/** One enabled skill, already resolved from the DB and ordered by the caller. */
+export interface PromptSkill {
+  name: string;
+  body: string;
+}
+
+/**
+ * The exact text one skill contributes to the system message. Exported so the
+ * server can count tokens for precisely what the model sees.
+ */
+export function renderSkillBlock(skill: PromptSkill): string {
+  // A name must never be able to open its own heading / block.
+  const name = skill.name.replace(/\s+/g, ' ').trim();
+  return `### Skill: ${name}\n${skill.body.trim()}`;
+}
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
-  skills?: string[];
+  /**
+   * Enabled skills in prompt order (agent configuration — same trust as `system`,
+   * so NOT delimiter-wrapped). Rendered into the system message, before the
+   * injection guard. Empty/undefined → no `## Skills` section.
+   */
+  skills?: PromptSkill[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
   /** Project-context spec chunks (untrusted content). */
@@ -91,10 +111,14 @@ export interface AssembledPrompt {
  * appended to the system message.
  */
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
-  const system = `${parts.system}\n\n${INJECTION_GUARD}`;
-
   const skillsBlock =
-    parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
+    parts.skills && parts.skills.length > 0
+      ? parts.skills.map(renderSkillBlock).join('\n\n')
+      : undefined;
+  // Skills sit between the agent's own prompt and the guard; the guard stays last.
+  const system = skillsBlock
+    ? `${parts.system}\n\n## Skills\n\n${skillsBlock}\n\n${INJECTION_GUARD}`
+    : `${parts.system}\n\n${INJECTION_GUARD}`;
   const memoryBlock =
     parts.memory && parts.memory.length > 0
       ? parts.memory.map((m) => `- ${m}`).join('\n')
@@ -114,7 +138,6 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
     userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);

@@ -74,7 +74,13 @@ that needs no injection at all.
 
 ## Optional slots
 
-`PromptParts` accepts `skills`, `memory`, `specs`, `repoMap`, `callers`. In the
+`PromptParts` accepts `skills`, `memory`, `specs`, `repoMap`, `callers`.
+`skills` (`{ name, body }[]`, enabled + ordered by the caller) renders into the
+**system** message as `## Skills` → one `### Skill: <name>` block each, before
+`INJECTION_GUARD` (see [specs/skills-slot.md](../specs/skills-slot.md)). A skill is
+agent configuration, so it is not `<untrusted>`-wrapped; an *imported* skill is
+foreign instructions in the agent's prompt, which is why import goes through a
+human-confirmed preview. In the
 starter most are left unfilled by design, for later course lessons — an
 empty or undefined slot omits its section entirely, with no behaviour change.
 **Don't delete them** (`reviewer-core/AGENTS.md`, Non-default conventions).
