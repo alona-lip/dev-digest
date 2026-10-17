@@ -14,3 +14,5 @@ explicitly out of scope.
 - [engine-hardening.md](./engine-hardening.md) — delimiter escaping, untrusted PR
   title, grounding bounded by the diff, exact `sliceDiff`, provider timeouts
   and the cost rule across repair attempts; rejected alternatives.
+- [skills-slot.md](./skills-slot.md) — skills move from the user message into the system
+  message as ordered `### Skill: <name>` blocks, before `INJECTION_GUARD`.
