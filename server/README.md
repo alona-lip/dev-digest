@@ -72,7 +72,8 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
   subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (GET, PUT)"]
+    skills["skills<br/>/skills · /skills/:id · /skills/:id/(versions|stats)<br/>/skills/:id/versions/:v/restore · /skills/import/preview"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -107,7 +108,29 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, the built-in agents — General, Security, Performance,
+Test Quality and API Contract; no skills, add them through the UI).
+
+## Skills (non-obvious)
+
+A skill is reusable, **text-only** agent configuration (`modules/skills`). Contract:
+[../specs/skills.md](../specs/skills.md).
+
+- **Two switches.** `skills.enabled` is global; `agent_skills.enabled` is per agent.
+  A run's prompt gets `link.enabled && skill.enabled`, in the agent's `order`
+  (`AgentsRepository.activeSkillsForRun`). Skills sit in the **system** message,
+  after the agent prompt and before `INJECTION_GUARD` (`reviewer-core/src/prompt.ts`).
+- **Versions** are body snapshots (`skill_versions`): only a changed `body` bumps
+  `skills.version`; restore appends a new version, never rewrites history.
+- **Binding bumps the agent version** only when the set of *active* skills (ids, in
+  order) changes — so two runs "without / with skills" differ in `config.version`.
+- **`run_skills`** records which skill versions were in each run's prompt; the
+  Stats tab (pull / accept rate, findings by category) is derived from it and
+  only counts runs with `status = 'done'`.
+- **Import** (`POST /skills/import/preview`) parses a `.md` or `.zip` and saves
+  nothing. From an archive only `SKILL.md` is inflated (`fflate` `filter`); every
+  other entry is listed as ignored and never read, extracted or run.
+  Limits: 512 KB archive, 200 entries, 64 KB `SKILL.md`.
 
 ## Review context (non-obvious)
 

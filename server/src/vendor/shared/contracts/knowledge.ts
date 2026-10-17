@@ -115,7 +115,13 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +134,82 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  /** Token count of `body` (server tokenizer). */
+  tokens: z.number().int(),
+  created_at: z.string(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Skill + the rollups shown on the list card. null rate = no data yet. */
+export const SkillListItem = Skill.extend({
+  agent_count: z.number().int(),
+  pull_rate: z.number().min(0).max(1).nullable(),
+  accept_rate: z.number().min(0).max(1).nullable(),
+});
+export type SkillListItem = z.infer<typeof SkillListItem>;
+
+export const CreateSkillInput = z.object({
+  name: z.string().trim().min(1).max(80),
+  // The description is the skill's interface: written as a directive
+  // ("Use when …, do …"), not a summary.
+  description: z.string().trim().min(1).max(500),
+  type: SkillType,
+  body: z.string().min(1).max(20_000),
+  enabled: z.boolean().optional(),
+  source: z.enum(['manual', 'imported_file']).optional(),
+});
+export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
+
+export const UpdateSkillInput = CreateSkillInput.omit({ source: true })
+  .partial()
+  .extend({
+    /** Note stored with the new version snapshot when `body` changes. */
+    change_note: z.string().trim().max(200).optional(),
+  });
+export type UpdateSkillInput = z.infer<typeof UpdateSkillInput>;
+
+export const SkillVersion = z.object({
+  version: z.number().int(),
+  body: z.string(),
+  message: z.string(),
+  created_at: z.string(),
+  current: z.boolean(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+export const SkillStats = z.object({
+  used_by: z.array(z.object({ agent_id: z.string(), name: z.string(), enabled: z.boolean() })),
+  /** Share of recent runs (30d) of bound agents that had this skill in the prompt. */
+  pull_rate: z.number().min(0).max(1).nullable(),
+  /** accepted / (accepted + dismissed) over findings of those runs. */
+  accept_rate: z.number().min(0).max(1).nullable(),
+  findings_30d: z.number().int(),
+  findings_by_category: z.array(z.object({ category: z.string(), count: z.number().int() })),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
+export const SkillImportRequest = z.object({
+  filename: z.string().min(1).max(200),
+  /** File bytes, base64 (the API client only speaks JSON). */
+  content_base64: z.string().min(1),
+});
+export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
+
+export const IgnoredFileReason = z.enum(['executable', 'not_core', 'binary', 'too_large']);
+export type IgnoredFileReason = z.infer<typeof IgnoredFileReason>;
+
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source_file: z.string(),
+  /** Archive entries that were NOT read — listed only, never extracted or run. */
+  ignored_files: z.array(z.object({ path: z.string(), reason: IgnoredFileReason })),
+  warnings: z.array(z.string()),
+  name_conflict: z.boolean(),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -195,13 +275,21 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  /** Enabled for THIS agent (the skill's own `enabled` is the global switch). */
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+/** Replace an agent's skill list; array order = order in the prompt. */
+export const SetAgentSkillsInput = z.object({
+  skills: z.array(z.object({ skill_id: z.string().uuid(), enabled: z.boolean() })).max(50),
+});
+export type SetAgentSkillsInput = z.infer<typeof SetAgentSkillsInput>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
 // config changes (everything but `enabled`). Mirrors the shape written by the
 // agents repository — provider/model/prompt/output_schema/strategy/gate/repo_intel
-// plus the ordered skill ids linked at snapshot time. Used for reproducibility
+// plus the ordered ids of skills enabled for the agent at snapshot time. Used for reproducibility
 // (eval replays a past version) and for surfacing an agent's edit history.
 export const AgentVersionConfig = z.object({
   provider: Provider,

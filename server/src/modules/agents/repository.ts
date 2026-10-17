@@ -46,6 +46,21 @@ export interface UpdateAgent {
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
+  /** Enabled for this agent (the skill's own `enabled` is the global switch). */
+  enabled: boolean;
+}
+
+/** An enabled skill as it goes into a run's prompt. */
+export interface ActiveSkill {
+  id: string;
+  name: string;
+  body: string;
+  version: number;
+}
+
+export interface SkillLinkInput {
+  skillId: string;
+  enabled: boolean;
 }
 
 export class AgentsRepository {
@@ -233,17 +248,86 @@ export class AgentsRepository {
   /** Skills linked to an agent, in `order` ascending. */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
+      .select({ skill: t.skills, order: t.agentSkills.order, enabled: t.agentSkills.enabled })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
   }
 
+  /**
+   * Ids of the skills ACTIVE for this agent, in prompt order — what the version
+   * snapshot records (a link switched off for the agent is not part of its config).
+   */
   async skillIdsForAgent(agentId: string): Promise<string[]> {
     const links = await this.linkedSkills(agentId);
-    return links.map((l) => l.skill.id);
+    return links.filter((l) => l.enabled && l.skill.enabled).map((l) => l.skill.id);
+  }
+
+  /** Skills for a run's prompt: bound + enabled for the agent + globally enabled, in order. */
+  async activeSkillsForRun(agentId: string): Promise<ActiveSkill[]> {
+    const links = await this.linkedSkills(agentId);
+    return links
+      .filter((l) => l.enabled && l.skill.enabled)
+      .map((l) => ({
+        id: l.skill.id,
+        name: l.skill.name,
+        body: l.skill.body,
+        version: l.skill.version,
+      }));
+  }
+
+  /** How many of `skillIds` exist in the workspace — tenancy guard for links. */
+  async countWorkspaceSkills(workspaceId: string, skillIds: string[]): Promise<number> {
+    if (skillIds.length === 0) return 0;
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
+    return rows.length;
+  }
+
+  /**
+   * Replace the agent's whole skill list (order = array index) in ONE transaction
+   * with the agent row locked. If the set of skills ACTIVE in the prompt (ids, in
+   * order) changed, the agent's config version is bumped and snapshotted — otherwise
+   * two runs "without / with skills" would carry the same version in their traces.
+   * Returns undefined when the agent doesn't exist in the workspace.
+   */
+  replaceSkills(
+    workspaceId: string,
+    agentId: string,
+    items: SkillLinkInput[],
+  ): Promise<AgentRow | undefined> {
+    return this.inTransaction(async (repo) => {
+      const [agent] = await repo.db
+        .select()
+        .from(t.agents)
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)))
+        .for('update');
+      if (!agent) return undefined;
+
+      const before = await repo.skillIdsForAgent(agentId);
+      await repo.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+      if (items.length > 0) {
+        await repo.db.insert(t.agentSkills).values(
+          items.map((it, i) => ({ agentId, skillId: it.skillId, order: i, enabled: it.enabled })),
+        );
+      }
+      const after = await repo.skillIdsForAgent(agentId);
+      if (!sameIds(before, after)) {
+        const version = agent.version + 1;
+        const [row] = await repo.db
+          .update(t.agents)
+          .set({ version })
+          .where(eq(t.agents.id, agentId))
+          .returning();
+        await repo.snapshotVersion(row!, version);
+        return row!;
+      }
+      return agent;
+    });
   }
 
   /** Link a skill to an agent at a given order (idempotent: upserts order). */
@@ -262,21 +346,8 @@ export class AgentsRepository {
       .delete(t.agentSkills)
       .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
   }
+}
 
-  /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
-   */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    // Delete + re-insert in one transaction: a failed insert must not leave
-    // the agent with no skills at all.
-    await this.db.transaction(async (tx) => {
-      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-      if (skillIds.length === 0) return;
-      await tx
-        .insert(t.agentSkills)
-        .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
-    });
-  }
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }

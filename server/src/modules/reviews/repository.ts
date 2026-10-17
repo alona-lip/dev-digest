@@ -187,6 +187,8 @@ export class ReviewRepository {
     findings: Finding[];
     headSha: string;
     run: Omit<Parameters<ReviewRepository['completeAgentRun']>[1], 'status' | 'findingsCount'>;
+    /** Skills that were in the prompt — recorded with the run for skill Stats. */
+    skills?: runRepo.RunSkillInput[];
   }): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
     return this.db.transaction(async (tx) => {
       const review = await reviewRepo.insertReview(tx, args.review);
@@ -197,6 +199,7 @@ export class ReviewRepository {
         status: 'done',
         findingsCount: findings.length,
       });
+      await runRepo.insertRunSkills(tx, args.runId, args.skills ?? []);
       return { review, findings };
     });
   }

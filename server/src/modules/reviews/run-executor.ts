@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, renderSkillBlock } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import type { RepoRow } from '../../db/rows.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -182,6 +182,26 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills: enabled for this agent AND globally, in the agent's order. A
+      // disabled skill is not loaded at all, so it appears neither in the prompt
+      // nor in the log.
+      const activeSkills = await this.container.agentsRepo.activeSkillsForRun(agent.id);
+      const skillBlocks = activeSkills.map((s) => {
+        const text = renderSkillBlock(s);
+        return {
+          skill_id: s.id,
+          name: s.name,
+          version: s.version,
+          text,
+          tokens: this.container.tokenizer.count(text),
+        };
+      });
+      if (skillBlocks.length > 0) {
+        const total = skillBlocks.reduce((n, b) => n + b.tokens, 0);
+        runLog.info(`Skills: ${skillBlocks.length} attached (+${total} tokens)`);
+        for (const b of skillBlocks) runLog.info(`Skill "${b.name}" v${b.version} (+${b.tokens} tokens)`);
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -199,6 +219,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Agent skills — config, not data: rendered into the system message.
+        ...(activeSkills.length > 0 ? { skills: activeSkills } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -246,6 +268,12 @@ export class ReviewRunExecutor {
           blockers,
           error: null,
         },
+        skills: skillBlocks.map((b, order) => ({
+          skillId: b.skill_id,
+          skillVersion: b.version,
+          order,
+          tokens: b.tokens,
+        })),
       });
       runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 
@@ -268,7 +296,7 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: { ...outcome.assembly, skill_blocks: skillBlocks },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,

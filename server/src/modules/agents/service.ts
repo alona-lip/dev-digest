@@ -8,6 +8,7 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
 
@@ -138,21 +139,35 @@ export class AgentsService {
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({
+      agent_id: agentId,
+      skill_id: l.skill.id,
+      order: l.order,
+      enabled: l.enabled,
+    }));
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Replace the agent's skill list: array order = order in the prompt, `enabled`
+   * is per agent. Rejects skills outside the workspace. Returns the resulting
+   * ordered links, or undefined when the agent doesn't exist.
    */
   async setSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
+    items: { skill_id: string; enabled: boolean }[],
   ): Promise<AgentSkillLink[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
+    const ids = items.map((i) => i.skill_id);
+    if (new Set(ids).size !== ids.length) throw new ValidationError('Duplicate skill in list');
+    if ((await this.repo.countWorkspaceSkills(workspaceId, ids)) !== ids.length) {
+      throw new NotFoundError('Skill not found');
+    }
+    const agent = await this.repo.replaceSkills(
+      workspaceId,
+      agentId,
+      items.map((i) => ({ skillId: i.skill_id, enabled: i.enabled })),
+    );
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
 
@@ -165,6 +180,9 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    if ((await this.repo.countWorkspaceSkills(workspaceId, [skillId])) !== 1) {
+      throw new NotFoundError('Skill not found');
+    }
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
