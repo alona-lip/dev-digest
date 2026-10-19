@@ -124,6 +124,29 @@ export class SkillsService {
     }
   }
 
+  /**
+   * Create the skill, or — when one with this name exists — write the input as
+   * its next version. Lets a generated skill (e.g. `repo-conventions`) be
+   * refreshed in place instead of failing on the name clash.
+   */
+  async upsertByName(workspaceId: string, input: CreateSkillInput, changeNote: string): Promise<Skill> {
+    const existing = await this.repo.findByName(workspaceId, input.name);
+    if (!existing) return this.create(workspaceId, input);
+    return this.update(workspaceId, existing.id, {
+      description: input.description,
+      type: input.type,
+      body: input.body,
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      change_note: changeNote,
+    });
+  }
+
+  /** The skill named `name`, or null — for callers that offer to overwrite it. */
+  async findByName(workspaceId: string, name: string): Promise<Skill | null> {
+    const row = await this.repo.findByName(workspaceId, name);
+    return row ? this.dto(row) : null;
+  }
+
   async remove(workspaceId: string, id: string): Promise<void> {
     if (!(await this.repo.deleteById(workspaceId, id))) throw new NotFoundError('Skill not found');
   }

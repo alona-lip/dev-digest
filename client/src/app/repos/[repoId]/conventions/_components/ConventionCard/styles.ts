@@ -1,0 +1,42 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  card: (accepted: boolean): CSSProperties => ({
+    display: "flex",
+    gap: 20,
+    padding: "18px 20px",
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    borderLeft: `3px solid ${accepted ? "var(--ok)" : "var(--border-strong)"}`,
+    background: "var(--bg-surface)",
+    opacity: accepted ? 1 : 0.6,
+    transition: "opacity .15s",
+  }),
+  main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  titleRow: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" } satisfies CSSProperties,
+  rule: {
+    margin: 0,
+    fontSize: 15,
+    fontWeight: 600,
+    fontStyle: "italic",
+    color: "var(--text-primary)",
+    lineHeight: 1.4,
+  } satisfies CSSProperties,
+  category: {
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    border: "1px solid var(--border)",
+    borderRadius: 99,
+    padding: "2px 8px",
+  } satisfies CSSProperties,
+  editor: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  editorRow: { display: "flex", gap: 10, alignItems: "center" } satisfies CSSProperties,
+  editorCategory: { width: 200 } satisfies CSSProperties,
+  editorError: { fontSize: 12, color: "var(--crit)" } satisfies CSSProperties,
+  confRow: { display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  confBar: { width: 110 } satisfies CSSProperties,
+  actions: { width: 180, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+} as const;

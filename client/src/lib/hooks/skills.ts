@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tansta
 import { api } from "../api";
 import type {
   AgentSkillLink,
+  CreateConventionSkillInput,
   CreateSkillInput,
   Skill,
   SkillImportPreview,
@@ -98,6 +99,20 @@ export function useDeleteSkill() {
       qc.removeQueries({ queryKey: keys.one(id) });
       qc.removeQueries({ queryKey: keys.versions(id) });
       qc.removeQueries({ queryKey: keys.stats(id) });
+    },
+  });
+}
+
+/** Conventions → Create skill: saves `repo-conventions` (new, or its next version)
+    and links it to the chosen agent in one request. */
+export function useCreateConventionSkill(repoId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateConventionSkillInput) =>
+      api.post<Skill>(`/repos/${repoId}/conventions/skill`, input),
+    onSuccess: (skill) => {
+      skillChanged(qc, skill);
+      qc.invalidateQueries({ queryKey: ["agents"] }); // agent tiles count skill links
     },
   });
 }

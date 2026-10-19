@@ -14,6 +14,9 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
   the local diff to project skills, blocks push / PR on a confirmed CRITICAL.
 - [skills.md](./skills.md) — reusable text-only skills: CRUD + versions + stats,
   binding to agents (order, per-agent enabled), import, prompt slot, trace.
+- [conventions.md](./conventions.md) — Conventions Extractor: code-only
+  sampling, one structured LLM call, a code evidence gate, accept / reject /
+  edit triage, and a `repo-conventions` skill linked to an agent.
 
 ## Repo-wide checks
 

@@ -206,6 +206,17 @@ by hand in the same format.
 
 - 2026-10-16 — jsdom's `File` has no `arrayBuffer()`, so a file-upload component that calls it throws `file.arrayBuffer is not a function` as an UNHANDLED rejection (the test itself may look fine). Read bytes through a helper that falls back to `FileReader` (also covers older Safari); upload with `userEvent.upload(input, file, { applyAccept: false })` to test the type/size rejection of a file the `accept` attribute would filter out. (`client/src/app/skills/_components/SkillsListPane/_components/ImportSkillModal/helpers.ts`)
 
+- 2026-10-19 — every route 500ing with `Module not found: Can't resolve './contracts/findings.js'`
+  (pointing at `src/vendor/shared/index.ts:19`) means some client file imports a VALUE from
+  `@devdigest/shared` (a zod enum such as `ConventionCategory.options`), not only types. The
+  vendored contracts are the server's NodeNext-style TS and import siblings as `./x.js`;
+  tsc and vitest resolve that, Next's webpack did not — so typecheck/lint/tests stay green
+  while `next dev` breaks the whole app. Fixed once with `resolve.extensionAlias`
+  (`.js` → `.ts`/`.tsx`/`.js`) in `next.config.mjs`; value imports from the contracts are fine
+  now. NEVER work around it by copying enum values into the client. Not the 2026-09-21
+  `.next` vendor-chunk poisoning: that one names `.next/server/vendor-chunks/*`, this one names
+  `src/vendor/shared/*`, and restarting `pnpm dev` does not fix it. (`client/next.config.mjs:15`)
+
 ## Session Notes
 
 ## Open Questions

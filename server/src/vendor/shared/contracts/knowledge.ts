@@ -156,7 +156,7 @@ export const CreateSkillInput = z.object({
   type: SkillType,
   body: z.string().min(1).max(20_000),
   enabled: z.boolean().optional(),
-  source: z.enum(['manual', 'imported_file']).optional(),
+  source: z.enum(['manual', 'imported_file', 'extracted']).optional(),
 });
 export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
 
@@ -221,15 +221,96 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'NAMING',
+  'STRUCTURE',
+  'ERROR_HANDLING',
+  'ASYNC',
+  'TYPING',
+  'IMPORTS',
+  'TESTING',
+  'STYLE',
+  'OTHER',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+/** A new candidate starts ACCEPTED; only ACCEPTED rules go into the skill. */
+export const ConventionStatus = z.enum(['ACCEPTED', 'REJECTED']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+/**
+ * A house rule found in the repo. The evidence was verified by code against the
+ * file: `evidence_snippet` is sliced from the file at the verified lines, never
+ * copied from the model's reply.
+ */
 export const ConventionCandidate = z.object({
   id: z.string(),
+  repo_id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_start_line: z.number().int().min(1),
+  evidence_end_line: z.number().int().min(1),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  status: ConventionStatus,
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** Accept / reject / inline edit of one candidate. */
+export const UpdateConventionInput = z
+  .object({
+    rule: z.string().trim().min(1).max(500),
+    category: ConventionCategory,
+    status: ConventionStatus,
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
+export type UpdateConventionInput = z.infer<typeof UpdateConventionInput>;
+
+/** Set one status on many candidates of a repo ("Deselect all" → REJECTED). */
+export const BulkConventionStatusInput = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
+  status: ConventionStatus,
+});
+export type BulkConventionStatusInput = z.infer<typeof BulkConventionStatusInput>;
+
+export const ExtractConventionsResult = z.object({
+  /** Every candidate of the repo after the scan (old + newly added). */
+  candidates: z.array(ConventionCandidate),
+  stats: z.object({
+    sampled_files: z.number().int(),
+    /** What the model returned. */
+    proposed: z.number().int(),
+    /** Evidence not found in the cited file — dropped by the code gate. */
+    dropped_ungrounded: z.number().int(),
+    /** Same rule already on the list (accepted or rejected). */
+    dropped_duplicate: z.number().int(),
+  }),
+  model: z.string(),
+  cost_usd: z.number().nullable(),
+});
+export type ExtractConventionsResult = z.infer<typeof ExtractConventionsResult>;
+
+/** The skill the ACCEPTED candidates merge into. Built by the server, persists nothing. */
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  enabled: z.boolean(),
+  body: z.string(),
+  accepted_count: z.number().int(),
+  /** Set when a skill with `name` exists — saving then writes its next version. */
+  existing_skill: z.object({ id: z.string(), version: z.number().int() }).nullable(),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
+
+/** Save the (edited) draft as a skill and link it to `agent_id`. */
+export const CreateConventionSkillInput = CreateSkillInput.omit({ source: true }).extend({
+  agent_id: z.string().uuid(),
+});
+export type CreateConventionSkillInput = z.infer<typeof CreateConventionSkillInput>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

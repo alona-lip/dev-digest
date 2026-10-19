@@ -1,0 +1,16 @@
+{
+  "name": "Conventions: SKILLS LAB nav entry, repo-scoped page, empty state with Run Scan, scan refused for an uncloned repo",
+  "description": "From the app root (the seeded acme/payments-api repo), opens Conventions from the SKILLS LAB sidebar section and confirms the repo-scoped page, its breadcrumb and the empty state with the first-scan button Run Scan (Re-scan only appears once candidates exist). Clicking Run Scan on the seeded repo, which has no clone, is refused with a 422 before any file read or model call — so the flow stays read-only and key-free. See e2e/docs/specs/conventions.md.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "the root redirects into the seeded repo" },
+    { "cmd": ["wait", "--text", "SKILLS LAB"], "label": "the sidebar has the Skills Lab section" },
+    { "cmd": ["find", "role", "link", "click", "--name", "Conventions"], "label": "Conventions is a Skills Lab sidebar entry" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "the entry opens the repo-scoped conventions route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the candidates fetch settles" },
+    { "cmd": ["wait", "--text", "Conventions in payments-api"], "label": "the page is titled for the active repo" },
+    { "cmd": ["wait", "--text", "No conventions extracted yet"], "label": "a repo without candidates shows the empty state" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Run Scan"], "label": "the first scan starts from Run Scan" },
+    { "cmd": ["wait", "--text", "The repo is not cloned yet"], "label": "the uncloned seed repo is refused before any model call" }
+  ]
+}

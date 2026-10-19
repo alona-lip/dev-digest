@@ -154,6 +154,22 @@ by hand in the same format.
 - 2026-10-17 — a repository that aggregates over tables another module owns (skill stats read `agent_runs`, `reviews`, `findings`) must use the typed Drizzle builder with the shared `db/schema` tables, never `db.execute(sql\`… raw names …\`)`: `arch:check` only sees imports, so a raw string breaks at runtime when a column is renamed, while a typed query fails `tsc` (checked by renaming `findings.acceptedAt`: error at `skill-stats.repo.ts`). Short `sql` fragments are fine when they interpolate typed columns (`count(*) filter (where ${t.agentSkills.enabled})`); use `countDistinct`/`count` + `.mapWith(Number)` so counts arrive as numbers, not bigint strings. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
 - 2026-10-17 — migration `0011` adds `UNIQUE(workspace_id, name)` to `skills` with no dedupe step, on purpose: before it nothing created skills (the only `INSERT` into `skills` is `SkillRepository.insert`), so no database can hold duplicate names, and editing an applied migration is forbidden. If a database ever fails `db:migrate` at `0011` with a duplicate-key error (skills inserted by hand), clean the duplicates in the data and re-run — do not edit `0011`. A `pr-self-review` waiver cannot silence this WARNING: `waivers.mjs` only applies to CRITICAL findings, so it stays in the report as accepted. (`server/src/db/migrations/0011_rare_carnage.sql`, `.claude/skills/pr-self-review/scripts/waivers.mjs`)
 
+- 2026-10-19 — `container.git.readFile` joins the path onto the clone with no `..` / symlink
+  guard (`server/src/adapters/git/simple-git.ts:198`), so it is unsafe for any path derived from
+  repo content or a model. Feature code reads clone files through
+  `repoIntel.readRepoFile(repoId, path)` (realpath check via `readClone`, null when the file is
+  missing or escapes the clone; not gated by `REPO_INTEL_ENABLED`). Note also that
+  `getConventionSamples` returns repo-relative PATHS only and filters configs out (eslint,
+  prettier, `*.config.*`), so a caller that wants configs must list them itself.
+  (`server/src/modules/repo-intel/service.ts:636`)
+- 2026-10-19 — a module that needs to write another module's data goes through that module's
+  `index.ts` facade, never its repository: conventions saves `repo-conventions` via
+  `skills/index.ts` → `SkillsService.upsertByName` (create, or the next body version), so
+  versioning and name-clash rules live in one place; feature models come from
+  `settings/index.ts` → `resolveFeatureModel`. A new service takes narrow constructor deps and
+  is wired by a `createXService(container)` factory in its own `service.ts`, because a route may
+  not import a repository. (`server/src/modules/conventions/service.ts:197`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
   flag even though the current online CLI docs describe it, and
@@ -174,6 +190,14 @@ by hand in the same format.
   installed with a different major version", and `pnpm@12.4.1 add` reformats
   `engines` in `package.json` (restore that line by hand to keep the diff clean).
   Use `npx -y pnpm@12.4.1 <cmd>`. (`server/package.json`)
+
+- 2026-10-19 — `pnpm db:generate` (drizzle-kit, `strict: true`) asks interactively whether a
+  dropped column was RENAMED when the same schema change both adds and drops columns of one
+  table (here: add `conventions.status`, drop `accepted`). Without a TTY it waits for an
+  answer nobody can give. Split such a change into two generate runs — add first, then drop /
+  tighten — which is why `0012_vengeful_slapstick.sql` (ADD COLUMNs + index) and
+  `0013_melodic_network.sql` (SET NOT NULL + DROP COLUMN) are separate.
+  (`server/src/db/migrations/0013_melodic_network.sql`)
 
 ## Recurring Errors & Fixes
 

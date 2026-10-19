@@ -633,6 +633,12 @@ export class RepoIntelService implements RepoIntel {
     return this.getTopFilesByRank(repoId, n);
   }
 
+  async readRepoFile(repoId: string, path: string): Promise<string | null> {
+    const repo = await this.repo.getRepoBasics(repoId);
+    if (!repo?.clonePath) return null;
+    return readClone(repo.clonePath, path);
+  }
+
   /**
    * Top-N file paths by rank DESC, dropping tests/configs/migrations and any
    * caller-supplied `exclude` substrings. Over-fetches by 10× before filtering
