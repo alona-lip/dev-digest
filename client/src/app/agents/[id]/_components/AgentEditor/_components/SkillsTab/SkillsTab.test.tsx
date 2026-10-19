@@ -47,7 +47,7 @@ const renderTab = () =>
   );
 
 describe("agent SkillsTab", () => {
-  it("shows every library skill, checked state, and the 'N of M enabled' counter", () => {
+  it("shows every library skill, its switch state, and the 'N of M enabled' counter", () => {
     SKILLS = [sk("a", "pr-quality-rubric"), sk("b", "no-then-chains"), sk("c", "phantom-api-gate", false)];
     LINKS = [
       { agent_id: "ag", skill_id: "a", order: 0, enabled: true },
@@ -61,16 +61,16 @@ describe("agent SkillsTab", () => {
       "no-then-chains",
       "phantom-api-gate",
     ]);
-    expect(within(rows[0]!).getByRole("checkbox")).toHaveAttribute("aria-checked", "true");
-    expect(within(rows[1]!).getByRole("checkbox")).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "pr-quality-rubric" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "no-then-chains" })).toHaveAttribute("aria-checked", "false");
     expect(within(rows[2]!).getByText("off globally")).toBeInTheDocument();
   });
 
-  it("ticking an unbound skill saves the whole bound list with it appended", async () => {
+  it("switching on an unbound skill saves the whole bound list with it appended", async () => {
     SKILLS = [sk("a", "alpha"), sk("b", "bravo")];
     LINKS = [{ agent_id: "ag", skill_id: "a", order: 0, enabled: true }];
     renderTab();
-    await userEvent.click(within(screen.getAllByTestId("skill-row")[1]!).getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("switch", { name: "bravo" }));
     expect(save).toHaveBeenCalledWith([
       { skill_id: "a", enabled: true },
       { skill_id: "b", enabled: true },

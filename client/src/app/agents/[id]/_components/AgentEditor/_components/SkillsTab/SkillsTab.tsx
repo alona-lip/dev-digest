@@ -1,4 +1,4 @@
-/* SkillsTab — bind library skills to an agent: tick to enable for THIS agent,
+/* SkillsTab — bind library skills to an agent: switch on to enable for THIS agent,
    drag (or ↑/↓) an ENABLED skill to reorder. List order IS the order of the skill
    blocks in the agent's prompt; a disabled skill keeps its place but can't be
    dragged. Every change is saved at once (optimistic, whole list). */
@@ -8,7 +8,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { GripVertical } from "lucide-react";
-import { Checkbox, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { ErrorState, Icon, Skeleton, Toggle } from "@devdigest/ui";
 import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { useAgentSkills, useSetAgentSkills, useSkills } from "@/lib/hooks/skills";
 import {
@@ -102,16 +102,13 @@ export function SkillsTab({ agentId }: { agentId: string }) {
               <span style={s.grip(orderable)} aria-hidden>
                 <GripVertical size={16} />
               </span>
-              <Checkbox
-                checked={r.enabled}
-                onChange={() => commit(toggleRow(rows, r.skill.id))}
-                label={
-                  <span className="mono" style={s.name}>
-                    {r.skill.name}
-                  </span>
-                }
-              />
-              <span style={{ flex: 1 }} />
+              {/* The label names the switch and makes the skill name a click target too. */}
+              <label style={s.toggleLabel}>
+                <Toggle on={r.enabled} onChange={() => commit(toggleRow(rows, r.skill.id))} size={14} />
+                <span className="mono" style={s.name}>
+                  {r.skill.name}
+                </span>
+              </label>
               {!r.skill.enabled && <span style={s.globalOff}>{t("skills.globallyOff")}</span>}
               <SkillTypeBadge type={r.skill.type} />
               {orderable ? (
