@@ -106,7 +106,8 @@
   "card": {
     "agents": "{count, plural, one {# agent} other {# agents}}",
     "pull": "{rate} pull",
-    "accept": "{rate} accept"
+    "accept": "{rate} accept",
+    "delete": "Delete {name}"
   },
   "tabs": {
     "config": "Config",
@@ -116,7 +117,6 @@
     "versions": "Versions"
   },
   "editor": {
-    "newTitle": "New skill",
     "configTitle": "Configuration",
     "runOnEvals": "Run on evals",
     "name": "Name",
@@ -134,11 +134,10 @@
     "changeNoteHint": "Saved with the new version in the history.",
     "changeNotePlaceholder": "e.g. Tightened scope rule",
     "save": "Save skill",
-    "create": "Create skill",
     "saving": "Saving…",
     "cancel": "Cancel",
     "delete": "Delete skill",
-    "deleteConfirm": "Delete skill \"{name}\"? It is removed from every agent. This cannot be undone.",
+    "deleteConfirm": "It is removed from every agent that uses it. This cannot be undone.",
     "savedToast": "Saved (v{version})",
     "createdToast": "Created \"{name}\"",
     "errors": {
@@ -148,7 +147,8 @@
       "descriptionLong": "Description is too long (max 500).",
       "body": "The skill body is required.",
       "bodyLong": "The body is too long (max 20,000 characters)."
-    }
+    },
+    "deleteTitle": "Delete skill \"{name}\"?"
   },
   "evals": {
     "title": "Evals",
@@ -208,5 +208,12 @@
     "save": "Save skill",
     "saving": "Saving…",
     "saved": "Imported \"{name}\""
+  },
+  "create": {
+    "title": "Create skill",
+    "subtitle": "A reusable block for agents' system prompts: a name, a directive description, a type and a markdown body.",
+    "cancel": "Cancel",
+    "save": "Create skill",
+    "saving": "Creating…"
   }
 }

@@ -47,7 +47,7 @@ jobs:
       - run: pnpm typecheck
 
       # next/core-web-vitals + react-hooks + the import boundaries from the
-      # frontend-ui-architecture skill (client/eslint.config.mjs).
+      # frontend-architecture skill (client/eslint.config.mjs).
       - run: pnpm lint
 
       - run: pnpm test

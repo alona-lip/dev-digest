@@ -1,6 +1,6 @@
 {
-  "name": "Skills Lab: nav section, empty Skills page, Add menu, editor hint, new agents' Skills tab",
-  "description": "Loads /skills and confirms the SKILLS LAB sidebar section and the empty detail pane (the seed ships no skills), opens the Add Skill menu (Create / Import), opens /skills/new and confirms the directive hint under Description, then confirms the two seeded agents Test Quality Reviewer and API Contract Reviewer exist and that an agent editor has a Skills tab. Read-only (no skill is created, no model call). See e2e/docs/specs/skills.md.",
+  "name": "Skills Lab: nav section, empty Skills page, Add menu, create modal, new agents' Skills tab",
+  "description": "Loads /skills and confirms the SKILLS LAB sidebar section and the empty detail pane (the seed ships no skills), opens the Add Skill menu (Create / Import), chooses Create and confirms the Create skill modal (directive hint under Description, markdown body field) without saving, then confirms the two seeded agents Test Quality Reviewer and API Contract Reviewer exist and that an agent editor has a Skills tab. Read-only (no skill is created, no model call). See e2e/docs/specs/skills.md.",
   "steps": [
     { "cmd": ["open", "{BASE}/skills"], "label": "load the Skills page" },
     { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
@@ -10,10 +10,11 @@
     { "cmd": ["find", "role", "button", "click", "--name", "Add Skill"], "label": "open the Add Skill menu" },
     { "cmd": ["wait", "--text", "Create skill"], "label": "the menu offers creating a skill" },
     { "cmd": ["wait", "--text", "Import from file"], "label": "the menu offers importing a file" },
-    { "cmd": ["open", "{BASE}/skills/new"], "label": "load the new-skill editor" },
-    { "cmd": ["wait", "--url", "/skills/new"], "label": "new-skill route reached" },
-    { "cmd": ["wait", "--text", "New skill"], "label": "the editor renders in create mode" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Create skill"], "label": "choose Create skill: it opens a modal, not a page" },
+    { "cmd": ["wait", "--text", "A reusable block for agents"], "label": "the Create skill modal is open" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "still on /skills (no separate create route)" },
     { "cmd": ["wait", "--text", "Write it as a directive"], "label": "the description field tells the author to write a directive" },
+    { "cmd": ["wait", "--text", "Skill body"], "label": "the modal has the markdown body field" },
     { "cmd": ["open", "{BASE}/agents"], "label": "load the agents list" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
     { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "the seeded Test Quality Reviewer exists" },

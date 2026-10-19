@@ -1,5 +1,5 @@
 ---
-name: frontend-ui-architecture
+name: frontend-architecture
 description: "Frontend UI architecture and code organization for React and Next.js App Router apps: where components, constants, helpers, utils, hooks and business logic live; how to split a component into files and sub-components; which folders may import which; where the Server/Client boundary goes. Use this skill whenever you create a new component, page, feature or hook, move or refactor code between files, answer where-should-this-live questions (util or helper? hook or function? is this business logic?), set up or review a frontend folder structure, or review a PR for structure and placement, even if the user never says architecture. Use it for any new file under client/src. Not for render performance or hooks anti-patterns (use react-best-practices) and not for Next.js routing file conventions or data-fetching APIs (use next-best-practices)."
 metadata:
   version: 1.0.0

@@ -43,6 +43,8 @@ by hand in the same format.
   wrap only the views that call `useSearchParams`, at their `page.tsx`.
   (`client/src/app/layout.tsx:29`, `client/src/app/settings/[section]/page.tsx`)
 
+- 2026-10-19 — the vendored `Modal` is NOT a portal: it renders where it is mounted, so a dialog placed INSIDE a clickable card bubbles every click in the dialog (Cancel, Delete, the X, the backdrop) through the React tree to the card's `onClick` — on `AgentCard` that navigates to the agent while you are confirming a delete. NEVER mount a `Modal`/`ConfirmDialog` inside an element with its own `onClick`; render it as a fragment sibling of the card (`<>…card…{open && <ConfirmDialog/>}</>`; it is `position: fixed`, so a grid parent is unaffected), or own it in the list parent. `Modal` also ignores Esc — `ConfirmDialog` adds that itself. (`client/src/components/agent-card/AgentCard.tsx:33`, `client/src/components/confirm-dialog/ConfirmDialog.tsx:34`)
+
 ## Codebase Patterns
 
 - 2026-09-21 — `visibleFindings()` (FindingsPanel/helpers.ts) is the single
@@ -114,6 +116,8 @@ by hand in the same format.
   add `packageManager: pnpm@10` to package.json: pnpm would then switch the
   local run to v10 and hit the store error. (`client/pnpm-workspace.yaml`,
   `.github/workflows/client.yml`)
+
+- 2026-10-19 — `client/` has NO prettier config, while the code is formatted at ~120 columns. A bare `npx prettier --write <file>` uses the default width 80 and rewraps the whole file, so a 3-line change shows up as a 100-line diff. Run it as `npx prettier --print-width 120 --write <file>` (matches the existing code), or don't run prettier at all; lint (`pnpm lint`) does not check formatting. (`client/package.json`, `client/eslint.config.mjs`)
 
 ## Recurring Errors & Fixes
 

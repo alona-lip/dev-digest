@@ -33,7 +33,7 @@ their code is touched.
 | Drizzle query syntax, relations, migrations | [drizzle-orm-patterns](../drizzle-orm-patterns/SKILL.md) |
 | Table design, indexes, constraints | [postgresql-table-design](../postgresql-table-design/SKILL.md) |
 | Zod API: schemas, parsing, inference | [zod](../zod/SKILL.md) |
-| Same question for `client/` | [frontend-ui-architecture](../frontend-ui-architecture/README.md) |
+| Same question for `client/` | [frontend-architecture](../frontend-architecture/README.md) |
 
 ## Files
 

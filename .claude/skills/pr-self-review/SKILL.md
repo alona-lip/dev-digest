@@ -1,10 +1,10 @@
 ---
 name: pr-self-review
-description: "MANUAL ONLY — type /pr-self-review; the model never starts it on its own. PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done, and git push / gh pr create are refused. Run it after implementing a change and before calling the task done, before git push or opening a PR, or when the gate reports a missing verdict. Not for reviewing someone else's PR (use code-review)."
+description: "MANUAL ONLY — type /pr-self-review; the model never starts it on its own. PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done and the branch is not ready for a PR. Run it after implementing a change and before calling the task done, and before git push or opening a PR. Not for reviewing someone else's PR (use code-review)."
 disable-model-invocation: true
 metadata:
-  version: 1.2.0
-  updated: 2026-10-16
+  version: 1.3.0
+  updated: 2026-10-19
   tags: review, pull-request, gate, skills-routing, buckets
 ---
 
@@ -23,20 +23,22 @@ Intermediate files go in the scratchpad directory (`$SCRATCH`), never in the rep
 | Moment | Scope | What is reviewed | Verdict is valid for |
 |---|---|---|---|
 | **Before saying "done"** (session protocol, `AGENTS.md`) | `uncommitted` (default) | staged + unstaged + untracked vs `HEAD` | this exact working tree — any later edit makes it stale |
-| **Before `git push` / `gh pr create`** (gate hooks) | `branch` | everything since `merge-base` with `main`, committed | this exact commit |
+| **Before `git push` / `gh pr create`** (by hand) | `branch` | everything since `merge-base` with `main`, committed | this exact commit |
 
 - **"Done" rule:** a task that changed code under `client/`, `server/` or
   `reviewer-core/` is not done until this skill PASSes on the uncommitted diff.
   `$S/gate.sh check --worktree` tells you whether the current tree has a PASS.
   Do not report the task as complete on BLOCK — report what blocks instead.
-- **PR rule:** the push / PR gate needs a `--scope branch` PASS for `HEAD`, made
-  on a clean tree. After a "done" PASS, commit and run with `--scope branch`:
-  file reviews come from the cache, so it is quick.
+- **PR rule:** before pushing or opening a PR, get a `--scope branch` PASS for
+  `HEAD`, made on a clean tree. After a "done" PASS, commit and run with
+  `--scope branch`: file reviews come from the cache, so it is quick. Nothing
+  enforces this automatically: there is no Claude Code hook, and the git
+  `pre-push` gate is opt-in (see Maintaining).
 - Manually: `/pr-self-review`, `/pr-self-review --scope branch`, `--no-cache`.
 
 ## Workflow
 
-`SCOPE` is `uncommitted` unless asked for `branch` (or the push gate sent you here).
+`SCOPE` is `uncommitted` unless asked for `branch` (or the opt-in push gate sent you here).
 
 ### 1. Collect
 
@@ -59,7 +61,7 @@ uncovered, ignored, deleted}`. Never improvise routing. If `check-routing` fails
 (e.g. a new skill is not mapped, or a required core changed), report it and stop.
 
 Before reviewing, tell the user the plan in one short block, bucket by bucket —
-e.g. `Frontend (4 files): frontend-ui-architecture, react-best-practices,
+e.g. `Frontend (4 files): frontend-architecture, react-best-practices,
 react-testing-library, next-best-practices`.
 
 ### 3. Deterministic checks (start in parallel with step 4)
@@ -145,4 +147,6 @@ It writes the verdict (`wt-<fingerprint>.json` or `<HEAD>.json` under
 - `required_core` pins the requirement (Frontend = UI-arch + react + RTL, Backend =
   Onion + fastify + drizzle); `check-routing` fails if a bucket drifts from it.
 - Tests: `node --test .claude/skills/pr-self-review/scripts/`.
-- Git hook, once per clone: `git config core.hooksPath scripts/git-hooks`.
+- Optional push gate (off by default, see [specs/pr-self-review.md](../../../specs/pr-self-review.md) 2026-10-19):
+  `git config core.hooksPath scripts/git-hooks`. There is deliberately no
+  Claude Code `PreToolUse` hook in `.claude/settings.json`.

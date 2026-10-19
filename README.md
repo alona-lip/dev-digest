@@ -148,11 +148,11 @@ deterministic checks ([what is checked](.claude/skills/pr-self-review/routing.md
 One confirmed CRITICAL finding means **BLOCK**. A branch PASS drafts the PR
 description (`gh pr create --body-file …`).
 
-A gate enforces it: a Claude Code hook (`.claude/settings.json`, active
-automatically) and a git `pre-push` hook (enable once per clone:
-`git config core.hooksPath scripts/git-hooks`) refuse to push or open a PR
-until the current `HEAD` has a PASS verdict. `git push --no-verify` bypasses the
-git hook — it is a local safety net, not a server-side control. False positives:
+Nothing runs it automatically: there is no Claude Code hook (removed
+2026-10-19, see the spec). An optional git `pre-push` gate refuses to push until
+`HEAD` has a PASS verdict — enable it per clone with
+`git config core.hooksPath scripts/git-hooks` (`git push --no-verify` bypasses
+it; it is a local safety net, not a server-side control). False positives:
 `.pr-self-review-waivers.json` (reason + expiry). Details:
 [`specs/pr-self-review.md`](specs/pr-self-review.md),
 [`.claude/skills/pr-self-review/SKILL.md`](.claude/skills/pr-self-review/SKILL.md).

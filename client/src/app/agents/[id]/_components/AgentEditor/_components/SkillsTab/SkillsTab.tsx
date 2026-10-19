@@ -1,6 +1,7 @@
 /* SkillsTab — bind library skills to an agent: tick to enable for THIS agent,
-   drag (or ↑/↓) to reorder. List order IS the order of the skill blocks in the
-   agent's prompt. Every change is saved at once (optimistic, whole list). */
+   drag (or ↑/↓) an ENABLED skill to reorder. List order IS the order of the skill
+   blocks in the agent's prompt; a disabled skill keeps its place but can't be
+   dragged. Every change is saved at once (optimistic, whole list). */
 "use client";
 
 import React from "react";
@@ -10,7 +11,16 @@ import { GripVertical } from "lucide-react";
 import { Checkbox, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { useAgentSkills, useSetAgentSkills, useSkills } from "@/lib/hooks/skills";
-import { countEnabled, filterRows, mergeSkillRows, moveRow, toggleRow, toPayload, type SkillRow } from "./helpers";
+import {
+  countEnabled,
+  filterRows,
+  isOrderable,
+  mergeSkillRows,
+  moveRow,
+  toggleRow,
+  toPayload,
+  type SkillRow,
+} from "./helpers";
 import { s } from "./styles";
 
 export function SkillsTab({ agentId }: { agentId: string }) {
@@ -70,7 +80,9 @@ export function SkillsTab({ agentId }: { agentId: string }) {
       ) : (
         visible.map((r) => {
           const index = rows.indexOf(r);
-          const orderable = r.bound && !filter;
+          // Reordering is off while filtering: indexes of a filtered list are not prompt positions.
+          const orderable = isOrderable(r) && !filter;
+          const droppable = r.bound && !filter;
           return (
             <div
               key={r.skill.id}
@@ -78,12 +90,12 @@ export function SkillsTab({ agentId }: { agentId: string }) {
               draggable={orderable}
               onDragStart={() => setDragId(r.skill.id)}
               onDragEnd={() => setDragId(null)}
-              onDragOver={(e) => orderable && e.preventDefault()}
+              onDragOver={(e) => droppable && e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
                 const from = rows.findIndex((x) => x.skill.id === dragId);
                 setDragId(null);
-                if (from >= 0 && orderable) commit(moveRow(rows, from, index));
+                if (from >= 0 && droppable) commit(moveRow(rows, from, index));
               }}
               style={s.row(dragId === r.skill.id, !r.skill.enabled)}
             >

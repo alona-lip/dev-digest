@@ -39,6 +39,15 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
+  deleteBtn: (pending: boolean): CSSProperties => ({
+    background: "none",
+    border: "none",
+    cursor: pending ? "not-allowed" : "pointer",
+    color: "var(--text-muted)",
+    display: "inline-flex",
+    padding: 4,
+  }),
+  provider: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
   metaRow: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
   modelChip: (color: string): CSSProperties => ({
     fontSize: 12,

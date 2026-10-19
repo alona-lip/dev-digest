@@ -239,6 +239,30 @@ d('skills module (Testcontainers pg)', () => {
       await app.close();
     });
 
+    it('GET /agents reports skill_count = skills enabled for each agent (0 when none)', async () => {
+      const app = await makeApp();
+      const { a, b, c, agent } = await setup(app);
+      const countOf = async (id: string) =>
+        (await app.inject({ method: 'GET', url: '/agents' })).json().find((x: { id: string }) => x.id === id)
+          .skill_count;
+
+      expect(await countOf(agent.id)).toBe(0);
+      // b disabled for this agent → not counted; c is globally off but enabled here → counted
+      await app.inject({
+        method: 'PUT',
+        url: `/agents/${agent.id}/skills`,
+        payload: {
+          skills: [
+            { skill_id: a.id, enabled: true },
+            { skill_id: b.id, enabled: false },
+            { skill_id: c.id, enabled: true },
+          ],
+        },
+      });
+      expect(await countOf(agent.id)).toBe(2);
+      await app.close();
+    });
+
     it("refuses another workspace's skill and duplicates", async () => {
       const app = await makeApp();
       const { a, agent } = await setup(app);

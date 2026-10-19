@@ -8,7 +8,7 @@ spec: [../../../specs/skills.md](../../../specs/skills.md).
 1. The sidebar has the **SKILLS LAB** section and `/skills` renders the empty
    detail pane ("Select a skill") — the seed ships no skills.
 2. **Add Skill** offers **Create skill** and **Import from file**.
-3. `/skills/new` renders the editor with the directive hint under *Description*.
+3. *Create skill* opens a modal on `/skills` (no separate route) with the directive hint under *Description* and the markdown *Skill body* field.
 4. The two new seeded agents (**Test Quality Reviewer**, **API Contract Reviewer**) exist.
 5. An agent's editor has a **Skills** tab (`?tab=skills`).
 

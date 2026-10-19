@@ -2,7 +2,7 @@
 
 Status: implemented (2026-10-12).
 
-Fixes from the skill-driven audit (`frontend-ui-architecture`,
+Fixes from the skill-driven audit (`frontend-architecture`,
 `react-best-practices`, `next-best-practices`, `react-testing-library`).
 No behaviour change for a user except where listed under "Visible changes".
 

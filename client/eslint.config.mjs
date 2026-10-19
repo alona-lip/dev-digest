@@ -1,6 +1,6 @@
 // ESLint (flat config). `next/core-web-vitals` brings the Next.js rules plus
 // react-hooks (rules-of-hooks, exhaustive-deps). On top, the import boundaries
-// from the frontend-ui-architecture skill (§8):
+// from the frontend-architecture skill (§8):
 //   - shared code (`src/components`, `src/lib`) never imports from `src/app`;
 //   - a route never reaches into ANOTHER route's private `_components` —
 //     promote the piece to `src/components/<kebab-name>/` first;
@@ -24,7 +24,7 @@ const config = [
               target: ["./src/components", "./src/lib"],
               from: "./src/app",
               message:
-                "Shared code must not depend on a route. Move the piece to src/components or src/lib (frontend-ui-architecture §8).",
+                "Shared code must not depend on a route. Move the piece to src/components or src/lib (frontend-architecture §8).",
             },
           ],
         },
@@ -36,11 +36,11 @@ const config = [
             {
               group: ["../_components", "../_components/*", "../../**/_components/*"],
               message:
-                "Cross-route import of another route's private _components. Promote it to src/components/<kebab-name>/ (frontend-ui-architecture §8).",
+                "Cross-route import of another route's private _components. Promote it to src/components/<kebab-name>/ (frontend-architecture §8).",
             },
             {
               group: ["../../../*"],
-              message: "Use the @/ alias instead of a ../../../ chain (frontend-ui-architecture §8).",
+              message: "Use the @/ alias instead of a ../../../ chain (frontend-architecture §8).",
             },
           ],
         },

@@ -40,7 +40,7 @@ test('glob: ** spans directories, * does not, {a,b} alternates', () => {
 test('Frontend: a component gets the full client core (UI-arch + react + RTL), plus next under app/', () => {
   const r = route(entries('client/src/components/foo-bar/FooBar.tsx', 'client/src/app/x/_components/A/A.tsx'), routing);
   assert.deepEqual(filesOf(r, 'Frontend', 'react-testing-library').length, 2);
-  assert.deepEqual(skillsOf(r, 'Frontend'), ['frontend-ui-architecture', 'next-best-practices', 'react-best-practices', 'react-testing-library']);
+  assert.deepEqual(skillsOf(r, 'Frontend'), ['frontend-architecture', 'next-best-practices', 'react-best-practices', 'react-testing-library']);
   assert.deepEqual(filesOf(r, 'Frontend', 'next-best-practices'), ['client/src/app/x/_components/A/A.tsx']);
 });
 

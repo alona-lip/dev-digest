@@ -100,6 +100,20 @@ describe("agent SkillsTab", () => {
     expect(screen.getAllByTestId("skill-row")[1]).toHaveAttribute("draggable", "false");
   });
 
+  it("only ENABLED skills can be dragged; a disabled one keeps its place", () => {
+    SKILLS = [sk("a", "alpha"), sk("b", "bravo"), sk("c", "charlie")];
+    LINKS = [
+      { agent_id: "ag", skill_id: "a", order: 0, enabled: true },
+      { agent_id: "ag", skill_id: "b", order: 1, enabled: false },
+      { agent_id: "ag", skill_id: "c", order: 2, enabled: true },
+    ];
+    renderTab();
+    const rows = screen.getAllByTestId("skill-row");
+    expect(rows.map((r) => r.getAttribute("draggable"))).toEqual(["true", "false", "true"]);
+    expect(screen.queryByRole("button", { name: "Move bravo up" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move charlie up" })).toBeInTheDocument();
+  });
+
   it("filtering hides rows and turns reordering off (no partial-list moves)", async () => {
     SKILLS = [sk("a", "alpha"), sk("b", "bravo")];
     LINKS = [

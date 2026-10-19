@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentSkillLink, SkillListItem } from "@devdigest/shared";
-import { countEnabled, filterRows, mergeSkillRows, moveRow, toggleRow, toPayload } from "./helpers";
+import { countEnabled, filterRows, isOrderable, mergeSkillRows, moveRow, toggleRow, toPayload } from "./helpers";
 
 const sk = (id: string, name: string, enabled = true): SkillListItem => ({
   id,
@@ -69,6 +69,19 @@ describe("moveRow", () => {
     expect(moveRow(rows, 3, 0)).toBe(rows);
     expect(moveRow(rows, 0, 3)).toBe(rows);
     expect(moveRow(rows, 1, 1)).toBe(rows);
+  });
+});
+
+describe("moveRow with a disabled skill", () => {
+  const rows = mergeSkillRows(SKILLS, [link("a", 0, true), link("b", 1, false), link("c", 2, true)]);
+  it("only enabled bound rows are orderable", () => {
+    expect(rows.map(isOrderable)).toEqual([true, false, true, false]);
+  });
+  it("refuses to move a disabled row", () => {
+    expect(moveRow(rows, 1, 0)).toBe(rows);
+  });
+  it("an enabled row may be dropped onto a disabled row's position", () => {
+    expect(moveRow(rows, 2, 1).map((r) => r.skill.id)).toEqual(["a", "c", "b", "d"]);
   });
 });
 

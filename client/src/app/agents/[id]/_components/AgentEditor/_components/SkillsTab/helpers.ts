@@ -45,10 +45,19 @@ export function toggleRow(rows: SkillRow[], skillId: string): SkillRow[] {
   return next;
 }
 
-/** Move a BOUND row to `to` (index within the bound block). Unbound rows can't be ordered. */
+/** Only an ENABLED bound row can be dragged: only enabled skills reach the prompt, so
+ *  only their order means anything. A disabled row keeps its place (it can be a drop
+ *  target), so re-enabling it brings it back where it was. */
+export function isOrderable(row: SkillRow): boolean {
+  return row.bound && row.enabled;
+}
+
+/** Move an enabled bound row to `to` (index within the bound block). Unbound and
+ *  disabled rows can't be moved. */
 export function moveRow(rows: SkillRow[], from: number, to: number): SkillRow[] {
   const boundCount = rows.filter((r) => r.bound).length;
   if (from < 0 || from >= boundCount || to < 0 || to >= boundCount || from === to) return rows;
+  if (!isOrderable(rows[from]!)) return rows;
   const next = [...rows];
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved!);

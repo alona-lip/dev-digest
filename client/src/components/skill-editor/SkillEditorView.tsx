@@ -1,6 +1,6 @@
-/* SkillEditorView — right pane of /skills/new and /skills/:id. Header (name,
-   type, version) + tabs Config · Preview · Evals · Stats · Versions (tab in ?tab=).
-   `id` undefined = create mode: Config only, no header/tabs of an existing skill. */
+/* SkillEditorView — right pane of /skills/:id. Header (name, type, version) +
+   tabs Config · Preview · Evals · Stats · Versions (tab in ?tab=). Creating a
+   skill is the Create-skill modal in the list pane, not a route. */
 "use client";
 
 import React from "react";
@@ -19,7 +19,7 @@ import { TABS } from "./constants";
 import { parseTabParam } from "./helpers";
 import { s } from "./styles";
 
-export function SkillEditorView({ id }: { id?: string }) {
+export function SkillEditorView({ id }: { id: string }) {
   const t = useTranslations("skills");
   const router = useRouter();
   const search = useSearchParams();
@@ -31,23 +31,6 @@ export function SkillEditorView({ id }: { id?: string }) {
     sp.set("tab", next);
     router.replace(`/skills/${id}?${sp.toString()}`);
   };
-
-  // ---- create mode ----
-  if (!id) {
-    return (
-      <>
-        <div style={s.header}>
-          <div style={s.icon}>
-            <Icon.Sparkles size={16} />
-          </div>
-          <h1 style={s.title}>{t("editor.newTitle")}</h1>
-        </div>
-        <div style={s.body}>
-          <ConfigTab />
-        </div>
-      </>
-    );
-  }
 
   if (isError || (!isLoading && !skill)) {
     return (

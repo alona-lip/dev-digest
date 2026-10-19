@@ -271,6 +271,12 @@ export const Agent = z.object({
 });
 export type Agent = z.infer<typeof Agent>;
 
+/** Agent + the rollup shown on the list tile: skills enabled for this agent. */
+export const AgentListItem = Agent.extend({
+  skill_count: z.number().int(),
+});
+export type AgentListItem = z.infer<typeof AgentListItem>;
+
 export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),

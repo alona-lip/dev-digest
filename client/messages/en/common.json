@@ -6,7 +6,9 @@
     "close": "Close",
     "import": "Import",
     "export": "Export",
-    "run": "Run"
+    "run": "Run",
+    "delete": "Delete",
+    "deleting": "Deleting…"
   },
   "states": {
     "loading": "Loading…",

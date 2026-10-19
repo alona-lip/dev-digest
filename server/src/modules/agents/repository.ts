@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Executor } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -73,6 +73,24 @@ export class AgentsRepository {
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+  }
+
+  /**
+   * agent id → number of skills enabled FOR that agent (`agent_skills.enabled`),
+   * the same rule as a skill card's `agent_count`; the skill's global switch is
+   * not applied. Agents without links are absent (caller treats that as 0).
+   */
+  async skillCounts(workspaceId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        agentId: t.agentSkills.agentId,
+        n: sql<number>`count(*) filter (where ${t.agentSkills.enabled})`.mapWith(Number),
+      })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agents.id, t.agentSkills.agentId))
+      .where(eq(t.agents.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.agentId);
+    return new Map(rows.map((r) => [r.agentId, r.n]));
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {

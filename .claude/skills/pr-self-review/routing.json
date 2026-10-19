@@ -1,7 +1,7 @@
 {
   "$comment": "Source of truth for pr-self-review routing. Each changed file lands in exactly ONE bucket (first match wins); it is reviewed by the bucket's core skills plus every matching extra. After editing run: node scripts/route.mjs --print-table > routing.md && node scripts/check-routing.mjs",
   "required_core": {
-    "Frontend": ["frontend-ui-architecture", "react-best-practices", "react-testing-library"],
+    "Frontend": ["frontend-architecture", "react-best-practices", "react-testing-library"],
     "Backend": ["onion-architecture", "fastify-best-practices", "drizzle-orm-patterns"]
   },
   "buckets": [
@@ -10,7 +10,7 @@
       "description": "Next.js studio — client/src",
       "match": ["client/src/**/*.{ts,tsx}"],
       "not": ["client/src/vendor/**"],
-      "core": ["frontend-ui-architecture", "react-best-practices", "react-testing-library"],
+      "core": ["frontend-architecture", "react-best-practices", "react-testing-library"],
       "overrides": [
         { "match": ["**/*.test.{ts,tsx}", "client/src/test/**"], "core": ["react-testing-library"] }
       ],

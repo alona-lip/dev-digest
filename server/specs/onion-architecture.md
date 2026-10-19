@@ -86,7 +86,7 @@ another reason; don't open a refactor-only PR across modules.
 - `container.db` used directly in routes/services without a Drizzle import —
   not statically visible to dependency-cruiser; covered by the skill's review
   checklist instead.
-- `client/` (covered by `frontend-ui-architecture`) and `e2e/`.
+- `client/` (covered by `frontend-architecture`) and `e2e/`.
 
 ## 2026-10-12 — legacy burn-down requested
 

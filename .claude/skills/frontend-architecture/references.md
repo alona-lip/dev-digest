@@ -1,6 +1,6 @@
 # Frontend UI Architecture Skill — References and Sources
 
-Sources for the `frontend-ui-architecture` skill: where code lives in a React /
+Sources for the `frontend-architecture` skill: where code lives in a React /
 Next.js App Router frontend, how components are split, where constants, helpers,
 utils and business logic go, and how module boundaries are enforced.
 **Architecture only. Performance is out of scope.**

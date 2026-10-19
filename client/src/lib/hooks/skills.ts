@@ -94,6 +94,7 @@ export function useDeleteSkill() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: keys.all });
       qc.invalidateQueries({ queryKey: keys.agentSkillsAll });
+      qc.invalidateQueries({ queryKey: ["agents"] }); // agent tiles count skill links
       qc.removeQueries({ queryKey: keys.one(id) });
       qc.removeQueries({ queryKey: keys.versions(id) });
       qc.removeQueries({ queryKey: keys.stats(id) });

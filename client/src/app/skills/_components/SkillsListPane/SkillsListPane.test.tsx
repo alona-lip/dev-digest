@@ -4,10 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { SkillListItem } from "@devdigest/shared";
 import messages from "@messages/en/skills.json";
+import common from "@messages/en/common.json";
 import { ToastProvider } from "@/lib/toast";
 
 const push = vi.fn();
 const update = vi.fn();
+const del = vi.fn();
 let SKILLS: SkillListItem[] = [];
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
@@ -18,6 +20,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useUpdateSkill: () => ({ mutate: update }),
   useImportSkillPreview: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteSkill: () => ({ mutate: del, isPending: false }),
 }));
 
 import { SkillsListPane } from "./SkillsListPane";
@@ -45,7 +48,7 @@ const sk = (id: string, name: string): SkillListItem => ({
 
 const renderPane = () =>
   render(
-    <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ skills: messages, common }}>
       <ToastProvider>
         <SkillsListPane />
       </ToastProvider>
@@ -75,10 +78,41 @@ describe("SkillsListPane", () => {
     renderPane();
     await userEvent.click(screen.getByRole("button", { name: /Add Skill/ }));
     await userEvent.click(screen.getByText("Create skill"));
-    expect(push).toHaveBeenCalledWith("/skills/new");
+    // Creation happens in a modal, not on a separate page.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText("Skill body")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Add Skill/ }));
     await userEvent.click(screen.getByText("Import from file"));
     expect(screen.getByText("Import skill")).toBeInTheDocument();
+  });
+
+  it("a card's Delete asks for confirmation; only Delete in the dialog deletes", async () => {
+    SKILLS = [sk("s1", "alpha-rule"), sk("s2", "bravo-rule")];
+    renderPane();
+    await userEvent.click(screen.getByRole("button", { name: "Delete alpha-rule" }));
+    expect(screen.getByText('Delete skill "alpha-rule"?')).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(del).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete alpha-rule" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(del).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("deleting the open skill returns to /skills", async () => {
+    SKILLS = [sk("s2", "bravo-rule")];
+    del.mockImplementationOnce((_id: string, opts: { onSuccess: () => void }) => opts.onSuccess());
+    renderPane();
+    await userEvent.click(screen.getByRole("button", { name: "Delete bravo-rule" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(push).toHaveBeenCalledWith("/skills");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows an empty state with an import CTA when the library is empty", () => {

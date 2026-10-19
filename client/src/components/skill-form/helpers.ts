@@ -1,3 +1,4 @@
+/* Rules of a skill form, shared by the Create-skill modal and the editor's Config tab. */
 import { MAX_BODY, MAX_DESCRIPTION, MAX_NAME } from "./constants";
 
 export interface SkillFormValues {
@@ -17,4 +18,15 @@ export function validateSkillForm(v: SkillFormValues): FormError | null {
   if (!v.body.trim()) return "body";
   if (v.body.length > MAX_BODY) return "bodyLong";
   return null;
+}
+
+/** Rough token estimate (chars / 4) for text that is not saved yet. */
+export function approxTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** The file name shown on the body editor's header. */
+export function bodyFileName(name: string): string {
+  const base = name.trim().replace(/[^\w.-]+/g, "-") || "skill";
+  return `${base}.md`;
 }

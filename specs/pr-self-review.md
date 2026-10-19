@@ -122,3 +122,24 @@ The gate (`scripts/git-hooks/pre-push`) is unchanged — it reads the verdict fo
 make it rare: a description is a hint, not a switch, and it already told the
 model to run the skill "before saying done" on every task.
 
+
+## 2026-10-19 — no automatic gate in Claude Code
+
+**Decision.** The Claude Code `PreToolUse` hook (`gate.sh claude` on every `Bash`
+call, refusing `git push` / `gh pr create` without a `branch` verdict) is removed
+from `.claude/settings.json`. `/pr-self-review` is now fully manual: nothing runs
+or blocks on push unless the developer opts in.
+
+**Why.** The course requirement is "local auto-invocation (hook on `git push`)
+disabled, manual run only". With the hook on, every push from a Claude session
+was refused until a `--scope branch` review existed, which is the auto-gate the
+requirement rules out.
+
+**What stays.** `scripts/git-hooks/pre-push` and `gate.sh` remain as an opt-in
+safety net (`git config core.hooksPath scripts/git-hooks`); it is not enabled by
+default. Sections above that describe the gate "installed twice" now describe the
+opt-in setup.
+
+**Rejected alternative.** Keep the hook but make it warn instead of block: it
+still fires on every `Bash` call and still nudges the model into running the
+review, i.e. auto-invocation by another name.

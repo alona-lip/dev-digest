@@ -1,18 +1,18 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import messages from "@messages/en/skills.json";
+import common from "@messages/en/common.json";
 import { ToastProvider } from "@/lib/toast";
 
 const update = vi.fn();
-const create = vi.fn();
+const del = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/lib/hooks/skills", () => ({
-  useCreateSkill: () => ({ mutate: create, isPending: false }),
   useUpdateSkill: () => ({ mutate: update, isPending: false }),
-  useDeleteSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteSkill: () => ({ mutate: del, isPending: false }),
 }));
 
 import { ConfigTab } from "./ConfigTab";
@@ -35,9 +35,9 @@ const SKILL: Skill = {
   created_at: "2026-03-02T00:00:00Z",
 };
 
-const renderTab = (skill?: Skill) =>
+const renderTab = (skill: Skill) =>
   render(
-    <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ skills: messages, common }}>
       <ToastProvider>
         <ConfigTab skill={skill} />
       </ToastProvider>
@@ -89,16 +89,18 @@ describe("ConfigTab", () => {
     expect(update).toHaveBeenCalledWith({ id: "s1", patch: { enabled: false } });
   });
 
-  it("create mode validates before posting", async () => {
-    renderTab();
-    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
-    expect(create).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("Name is required.");
+  it("Delete opens a confirmation modal instead of deleting at once", async () => {
+    renderTab(SKILL);
+    await userEvent.click(screen.getByRole("button", { name: "Delete skill" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText('Delete skill "pr-quality-rubric"?')).toBeInTheDocument();
+    expect(del).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getAllByRole("textbox")[0]!, "my-skill");
-    await userEvent.type(screen.getAllByRole("textbox")[1]!, "Use when X.");
-    fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "Do Y." } });
-    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
-    expect(create.mock.calls[0]![0]).toMatchObject({ name: "my-skill", description: "Use when X.", body: "Do Y.", type: "custom" });
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete skill" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(del).toHaveBeenCalledWith("s1", expect.anything());
   });
 });

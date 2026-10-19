@@ -1,4 +1,4 @@
-# frontend-ui-architecture
+# frontend-architecture
 
 **Version:** 1.0.0 · **Updated:** 2026-10-11 · **Scope:** Frontend (React + Next.js App Router)
 
@@ -24,7 +24,7 @@ performance and React anti-patterns.
 
 | Need | Skill |
 |---|---|
-| Where code lives, how it's split, import boundaries | **frontend-ui-architecture** (this one) |
+| Where code lives, how it's split, import boundaries | **frontend-architecture** (this one) |
 | Render/state anti-patterns, hooks misuse, performance | [react-best-practices](../react-best-practices/SKILL.md) |
 | Routing special files, RSC data APIs, metadata, images/fonts | [next-best-practices](../next-best-practices/SKILL.md) |
 | Component and hook tests | [react-testing-library](../react-testing-library/SKILL.md) |

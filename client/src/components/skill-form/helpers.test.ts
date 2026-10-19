@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateSkillForm } from "./helpers";
+import { approxTokens, bodyFileName, validateSkillForm } from "./helpers";
 
 const ok = { name: "n", description: "d", body: "b" };
 
@@ -12,5 +12,17 @@ describe("validateSkillForm", () => {
     expect(validateSkillForm({ ...ok, description: "x".repeat(501) })).toBe("descriptionLong");
     expect(validateSkillForm({ ...ok, body: " \n" })).toBe("body");
     expect(validateSkillForm({ ...ok, body: "x".repeat(20_001) })).toBe("bodyLong");
+  });
+});
+
+describe("body helpers", () => {
+  it("approxTokens is chars / 4, rounded up", () => {
+    expect(approxTokens("")).toBe(0);
+    expect(approxTokens("abcde")).toBe(2);
+  });
+  it("bodyFileName makes a safe .md name", () => {
+    expect(bodyFileName("pr-quality-rubric")).toBe("pr-quality-rubric.md");
+    expect(bodyFileName("my skill/../x")).toBe("my-skill-..-x.md");
+    expect(bodyFileName("  ")).toBe("skill.md");
   });
 });

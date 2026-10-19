@@ -209,3 +209,15 @@ Status: implemented (2026-10-16); see "As built" at the end for where the code d
 - **Agent editor tests** now cover the Skills tab (`AgentEditor.test.tsx`) and `?tab=skills` parsing (`AgentEditorView/helpers.test.ts`).
 - **Migration `0011` is not changed.** It adds `UNIQUE(workspace_id, name)` without a dedupe step. *Rejected:* editing / regenerating `0011` (applied migrations are immutable; dev DBs already ran it), a new `0012` (`0011` fails first), and a `pr-self-review` waiver (only works on CRITICAL). Risk is theoretical: nothing created skills before `0011`. The WARNING stays visible in review reports as accepted.
 
+
+## Gaps (2026-10-19) — доробка за критеріями ДЗ
+
+Аудит за критеріями ДЗ знайшов прогалини в UI. Конвенції (38–42) і контрольний експеримент (17–18) свідомо відкладено.
+
+| Критерій | Рішення | Відхилена альтернатива (причина) |
+|---|---|---|
+| 11, 12 — створення скіла | «Add Skill → Create» відкриває `CreateSkillModal` (name, description, type, body з Edit/Preview); маршрут `/skills/new` і create-режим `SkillEditorView` прибрано; спільне для модалки й Config-вкладки (`SkillBodyField` + `CodeTextarea`, `validateSkillForm`, ліміти, `SKILL_TYPES`) винесено в `components/skill-form/`; `skill-editor/index.ts` експортує лише редактор | Лишити `/skills/new` поряд із модалкою — два шляхи створення, один з яких мертвий |
+| 22 — картка скіла | Показує `v{version}` поруч із типом | Версію лише в шапці редактора — на списку не видно, яка версія жива |
+| 23, 24, 34 — видалення | Кнопка Delete на картці скіла й плитці агента; підтвердження — спільний `components/confirm-dialog/ConfirmDialog` на `Modal` (✕ / Cancel / Delete, Esc; фокус на Cancel при відкритті, Tab по колу всередині, повернення фокусу на кнопку-відкривач — kit `Modal` цього не робить) | `window.confirm` — без хрестика, без i18n, блокує потік, не тестується RTL |
+| 31 — drag&drop | Тягнути/↑↓ можна лише увімкнені прив'язані скіли (`isOrderable`). Вимкнений лишається на своєму місці (на нього можна кинути увімкнений), тож рішення «порядок зберігається і для вимкнених» не порушено | (а) Дозволити тягати й вимкнені — їхня позиція не впливає на промпт, рух нічого не змінює й плутає; (б) переносити вимкнений у кінець прив'язаних — губить позицію, суперечить рішенню вище |
+| 32 — плитка агента | `GET /agents` повертає `AgentListItem = Agent & { skill_count }` (прив'язки з `agent_skills.enabled`, без урахування глобального тумблера — як `agent_count` на картці скіла); плитка показує `provider · model` | Рахувати на клієнті через `useAgentSkills` на кожну плитку — N запитів; (раніше було в «Out of scope») |

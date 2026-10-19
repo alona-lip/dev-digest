@@ -59,4 +59,23 @@ describe("SkillCard", () => {
     await userEvent.click(screen.getByText("pr-quality-rubric"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the current version", () => {
+    renderCard(<SkillCard skill={SKILL} />);
+    expect(screen.getByText("v5")).toBeInTheDocument();
+  });
+
+  it("Delete asks the parent (to confirm) without opening the card", async () => {
+    const onDelete = vi.fn();
+    const onClick = vi.fn();
+    renderCard(<SkillCard skill={SKILL} onDelete={onDelete} onClick={onClick} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete pr-quality-rubric" }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("has no Delete button when the parent does not handle it", () => {
+    renderCard(<SkillCard skill={SKILL} />);
+    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 /* /agents — Agents list (A2, L03). AgentCards + create. Selecting an agent
-   navigates to the 5-tab editor at /agents/:id. */
+   navigates to the editor at /agents/:id (tabs Config, Skills). */
 "use client";
 
 import React from "react";
@@ -86,6 +86,7 @@ export function AgentsListView() {
               <AgentCard
                 key={a.id}
                 ag={a}
+                skillCount={a.skill_count}
                 onClick={() => router.push(`/agents/${a.id}?tab=config`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />

@@ -8,7 +8,7 @@ react-markdown. Details — [README](./README.md).
 ## Commands
 
 `pnpm dev` (`:3000`) · `pnpm build` · `pnpm test` (vitest + jsdom, `fetch` mocked) · `pnpm typecheck` · `pnpm lint`
-The check gate is `pnpm typecheck` + `pnpm lint` + `pnpm test`. `pnpm lint` (`eslint.config.mjs`) = `next/core-web-vitals` + react-hooks + the import boundaries of the `frontend-ui-architecture` skill (no shared → `app/` imports, no cross-route `_components` imports, `@/` instead of `../../../`; `@messages/*` → `messages/*`).
+The check gate is `pnpm typecheck` + `pnpm lint` + `pnpm test`. `pnpm lint` (`eslint.config.mjs`) = `next/core-web-vitals` + react-hooks + the import boundaries of the `frontend-architecture` skill (no shared → `app/` imports, no cross-route `_components` imports, `@/` instead of `../../../`; `@messages/*` → `messages/*`).
 
 ## Map
 
