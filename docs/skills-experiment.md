@@ -8,8 +8,8 @@ is not an automated test.
 
 1. `./scripts/dev.sh`, open <http://localhost:3000>, and add the repo with the PRs below.
 2. **Skills → Add Skill** and add the examples from [skills-examples](./skills-examples/README.md):
-   - *Import from file*: `test-quality/branch-coverage.md`, `api-contract/route-breaking-change.md`.
-   - *Create skill* (paste the body): `test-quality/corner-cases.md`, `api-contract/contract-compat.md`.
+   - *Import from file*: `test-quality/branch-coverage.md`, `api-contract/breaking-change.md`, `api-contract/semver-discipline.md`.
+   - *Create skill* (paste the body): `test-quality/corner-cases.md`, `api-contract/response-schema.md`, `api-contract/deprecation-policy.md`.
    - *Import from file* a `.zip` of `test-quality/test-smells/` — the preview must list `scripts/run.sh` as **executable / ignored**. Confirm with **Save skill**.
 3. Do **not** bind any skill yet.
 
@@ -23,10 +23,12 @@ PR: adds a function with an `if`/error branch and a test that only covers the ha
 
 ## B. API Contract Reviewer
 
+> Status: not run yet. The skills are ready; the experiment PR has not been created.
+
 PR: changes a route signature (renames a field or makes a param required).
 
 1. Run **API Contract Reviewer** with no skills → breaking change missed.
-2. Bind `route-breaking-change` and `contract-compat` on its **Skills** tab → run again → the breaking change is reported.
+2. Bind `breaking-change`, `response-schema`, `deprecation-policy` and `semver-discipline` on its **Skills** tab (in that order) → run again → the breaking change is reported with the caller it breaks.
 
 ## Checks
 

@@ -9,12 +9,24 @@ They are **not seeded** — create or import them through the UI so the whole pa
 | `test-quality/branch-coverage.md` | Test Quality Reviewer | Skills → Add Skill → **Import from file** |
 | `test-quality/corner-cases.md` | Test Quality Reviewer | Add Skill → **Create skill**, paste the body |
 | `test-quality/test-smells/` | Test Quality Reviewer | `zip -r test-smells.zip test-smells` → **Import from file** (the zip carries a script that must show as *ignored*) |
-| `api-contract/route-breaking-change.md` | API Contract Reviewer | Import from file |
-| `api-contract/contract-compat.md` | API Contract Reviewer | Create skill, paste the body |
+| `api-contract/breaking-change.md` | API Contract Reviewer | Import from file |
+| `api-contract/response-schema.md` | API Contract Reviewer | Create skill, paste the body |
+| `api-contract/deprecation-policy.md` | API Contract Reviewer | Create skill, paste the body |
+| `api-contract/semver-discipline.md` | API Contract Reviewer | Import from file |
 
 Each `.md` has frontmatter (`name`, `description`, `type`) that the importer reads.
 The description is written as a directive — *when to apply the skill and what to do* —
-because it is the skill's interface.
+because it is the skill's interface. Each API Contract skill ends with a **Bad / Good**
+example and maps its findings onto the agent's `CRITICAL / WARNING / SUGGESTION` scale.
+
+Bind the API Contract skills in this order on the agent's **Skills** tab:
+`breaking-change` → `response-schema` → `deprecation-policy` → `semver-discipline`
+(what breaks first, then the policy around it). The order is the prompt order.
+
+The four replace the earlier `route-breaking-change` + `contract-compat` pair. Keeping
+those as well was rejected. They overlap the new four (a route rename hits three of them),
+so the agent would report the same issue twice, and Skills → Stats could no longer
+tell which skill produced a finding.
 
 > A skill is configuration text placed in the agent's system prompt. Read an
 > imported one before you save it: foreign skill = foreign instructions.
