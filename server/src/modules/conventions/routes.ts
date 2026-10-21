@@ -11,7 +11,7 @@ import { createConventionsService } from './service.js';
 
 /**
  * Conventions module — house rules extracted from a repo, triaged, merged into a skill.
- *   GET   /repos/:id/conventions              → candidates (all statuses)
+ *   GET   /repos/:id/conventions              → candidates (PENDING + ACCEPTED; REJECTED hidden)
  *   POST  /repos/:id/conventions/extract      → scan: sample → one LLM call → evidence gate
  *   PATCH /repos/:id/conventions              → one status for many ("Deselect all")
  *   PATCH /conventions/:id                    → accept / reject / edit rule + category

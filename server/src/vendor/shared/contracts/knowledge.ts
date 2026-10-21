@@ -272,8 +272,11 @@ export const ConventionCategory = z.enum([
 ]);
 export type ConventionCategory = z.infer<typeof ConventionCategory>;
 
-/** A new candidate starts ACCEPTED; only ACCEPTED rules go into the skill. */
-export const ConventionStatus = z.enum(['ACCEPTED', 'REJECTED']);
+/**
+ * A new candidate starts PENDING until the user accepts or rejects it; only
+ * ACCEPTED rules go into the skill, and REJECTED ones are left out of the list.
+ */
+export const ConventionStatus = z.enum(['PENDING', 'ACCEPTED', 'REJECTED']);
 export type ConventionStatus = z.infer<typeof ConventionStatus>;
 
 /**
@@ -307,7 +310,7 @@ export const UpdateConventionInput = z
   .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
 export type UpdateConventionInput = z.infer<typeof UpdateConventionInput>;
 
-/** Set one status on many candidates of a repo ("Deselect all" → REJECTED). */
+/** Set one status on many candidates of a repo ("Deselect all" → PENDING). */
 export const BulkConventionStatusInput = z.object({
   ids: z.array(z.string().uuid()).min(1).max(200),
   status: ConventionStatus,

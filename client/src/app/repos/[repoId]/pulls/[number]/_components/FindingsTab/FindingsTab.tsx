@@ -184,6 +184,7 @@ export function FindingsTab({
             targetNonce={target?.n ?? 0}
             severity={severity}
             onSeverityChange={onSeverityChange}
+            onOpenTrace={handleOpenTrace}
           />
         ))
       )}

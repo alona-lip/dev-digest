@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { ConventionStatus } from '@devdigest/shared';
 import type { Executor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
@@ -42,12 +42,28 @@ export class ConventionRepository {
     await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`conventions:${repoId}`}, 0))`);
   }
 
-  /** Newest scan first; inside one scan, the most confident first. */
+  /** Every row, REJECTED included (the scan dedupes against all of them). Newest scan
+   *  first; inside one scan, the most confident first. */
   async listByRepo(workspaceId: string, repoId: string): Promise<ConventionRow[]> {
     return this.db
       .select()
       .from(t.conventions)
       .where(and(eq(t.conventions.workspaceId, workspaceId), eq(t.conventions.repoId, repoId)))
+      .orderBy(desc(t.conventions.createdAt), desc(t.conventions.confidence));
+  }
+
+  /** What the triage list shows: everything except REJECTED, in `listByRepo` order. */
+  async listOpen(workspaceId: string, repoId: string): Promise<ConventionRow[]> {
+    return this.db
+      .select()
+      .from(t.conventions)
+      .where(
+        and(
+          eq(t.conventions.workspaceId, workspaceId),
+          eq(t.conventions.repoId, repoId),
+          ne(t.conventions.status, 'REJECTED'),
+        ),
+      )
       .orderBy(desc(t.conventions.createdAt), desc(t.conventions.confidence));
   }
 
@@ -65,7 +81,7 @@ export class ConventionRepository {
       .orderBy(desc(t.conventions.createdAt), desc(t.conventions.confidence));
   }
 
-  /** New candidates start ACCEPTED (column default). */
+  /** New candidates start PENDING (column default). */
   async insertMany(rows: InsertConvention[]): Promise<void> {
     if (rows.length === 0) return;
     await this.db.insert(t.conventions).values(rows);

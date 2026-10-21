@@ -51,9 +51,9 @@ export const conventions = pgTable(
     evidenceEndLine: integer('evidence_end_line').notNull(),
     evidenceSnippet: text('evidence_snippet').notNull(),
     confidence: doublePrecision('confidence').notNull(),
-    status: text('status', { enum: ['ACCEPTED', 'REJECTED'] })
+    status: text('status', { enum: ['PENDING', 'ACCEPTED', 'REJECTED'] })
       .notNull()
-      .default('ACCEPTED'),
+      .default('PENDING'),
     createdAt: now(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

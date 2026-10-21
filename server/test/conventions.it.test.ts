@@ -146,7 +146,7 @@ d('conventions module (Testcontainers pg)', () => {
     expect(body.candidates[0]).toMatchObject({
       rule: ASYNC_RULE.rule,
       category: 'ASYNC',
-      status: 'ACCEPTED',
+      status: 'PENDING',
       evidence_path: 'src/api/users.ts',
       evidence_start_line: 4,
       evidence_end_line: 5,
@@ -165,10 +165,13 @@ d('conventions module (Testcontainers pg)', () => {
     // Persisted: survives a fresh read.
     const list = await app.inject({ method: 'GET', url: `/repos/${repoId}/conventions` });
     expect(list.json<ConventionCandidate[]>().map((c) => c.rule)).toEqual([ASYNC_RULE.rule]);
+
+    // Nothing accepted yet → no skill to draft.
+    expect((await app.inject({ method: 'GET', url: `/repos/${repoId}/conventions/skill-draft` })).statusCode).toBe(422);
     await app.close();
   });
 
-  it('a rejected rule stays rejected: re-scan keeps existing rows and adds only new rules', async () => {
+  it('a rejected rule leaves the list and stays out: re-scan does not bring it back', async () => {
     const app = await makeApp({ conventions: [ASYNC_RULE, ESM_RULE] });
     const [asyncRow] = (await app.inject({ method: 'GET', url: `/repos/${repoId}/conventions` })).json<
       ConventionCandidate[]
@@ -184,7 +187,13 @@ d('conventions module (Testcontainers pg)', () => {
     const body = res.json<ExtractConventionsResult>();
     expect(body.stats.dropped_duplicate).toBe(1);
     const byRule = Object.fromEntries(body.candidates.map((c) => [c.rule, c.status]));
-    expect(byRule).toEqual({ [ASYNC_RULE.rule]: 'REJECTED', [ESM_RULE.rule]: 'ACCEPTED' });
+    expect(byRule).toEqual({ [ESM_RULE.rule]: 'PENDING' });
+
+    // A reload does not return it either; the row is still there, as REJECTED.
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repoId}/conventions` })).json<ConventionCandidate[]>();
+    expect(list.map((c) => c.rule)).toEqual([ESM_RULE.rule]);
+    const [stored] = await pg.handle.db.select().from(t.conventions).where(eq(t.conventions.id, asyncRow!.id));
+    expect(stored?.status).toBe('REJECTED');
     await app.close();
   });
 
@@ -198,7 +207,7 @@ d('conventions module (Testcontainers pg)', () => {
       payload: { rule: 'Ship ESM only', category: 'STYLE' },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json<ConventionCandidate>()).toMatchObject({ rule: 'Ship ESM only', category: 'STYLE', status: 'ACCEPTED' });
+    expect(res.json<ConventionCandidate>()).toMatchObject({ rule: 'Ship ESM only', category: 'STYLE', status: 'PENDING' });
 
     const empty = await app.inject({ method: 'PATCH', url: `/conventions/${esm.id}`, payload: {} });
     expect(empty.statusCode).toBe(422);
@@ -219,7 +228,7 @@ d('conventions module (Testcontainers pg)', () => {
       url: `/repos/${repoId}/conventions`,
       payload: { ids: list.map((c) => c.id), status: 'REJECTED' },
     });
-    expect(res.json<ConventionCandidate[]>().every((c) => c.status === 'REJECTED')).toBe(true);
+    expect(res.json<ConventionCandidate[]>()).toEqual([]);
 
     expect((await app.inject({ method: 'GET', url: `/repos/${repoId}/conventions/skill-draft` })).statusCode).toBe(422);
     const save = await app.inject({
@@ -229,7 +238,7 @@ d('conventions module (Testcontainers pg)', () => {
     });
     expect(save.statusCode).toBe(422);
 
-    // Accept the edited ESM rule again for the skill tests below.
+    // Accept the edited ESM rule for the skill tests below.
     const esm = list.find((c) => c.rule === 'Ship ESM only')!;
     await app.inject({ method: 'PATCH', url: `/conventions/${esm.id}`, payload: { status: 'ACCEPTED' } });
     await app.close();

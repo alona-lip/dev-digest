@@ -9,8 +9,6 @@ export const s = {
     border: "1px solid var(--border)",
     borderLeft: `3px solid ${accepted ? "var(--ok)" : "var(--border-strong)"}`,
     background: "var(--bg-surface)",
-    opacity: accepted ? 1 : 0.6,
-    transition: "opacity .15s",
   }),
   main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
   titleRow: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" } satisfies CSSProperties,

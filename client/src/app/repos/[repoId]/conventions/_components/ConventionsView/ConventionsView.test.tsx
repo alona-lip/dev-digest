@@ -96,7 +96,7 @@ describe("ConventionsView", () => {
   });
 
   it("with candidates: one card each, Re-scan in the header, the accepted count and Create skill", async () => {
-    LIST = [c("1", "ACCEPTED"), c("2", "REJECTED")];
+    LIST = [c("1", "ACCEPTED"), c("2", "PENDING")];
     renderView();
     expect(screen.getAllByTestId("convention-card")).toHaveLength(2);
     expect(screen.getByText("1 of 2 accepted")).toBeInTheDocument();
@@ -109,18 +109,18 @@ describe("ConventionsView", () => {
     expect(screen.getByText("modal for payments-api")).toBeInTheDocument();
   });
 
-  it("hides Create skill when nothing is accepted", () => {
-    LIST = [c("1", "REJECTED")];
+  it("right after a scan (all pending) there is no Create skill until one is accepted", () => {
+    LIST = [c("1", "PENDING"), c("2", "PENDING")];
     renderView();
     expect(screen.queryByRole("button", { name: /Create skill/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Deselect all/ })).toBeDisabled();
   });
 
-  it("Deselect all rejects every accepted candidate in one request", async () => {
-    LIST = [c("1", "ACCEPTED"), c("2", "REJECTED"), c("3", "ACCEPTED")];
+  it("Deselect all sets every accepted candidate back to pending in one request", async () => {
+    LIST = [c("1", "ACCEPTED"), c("2", "PENDING"), c("3", "ACCEPTED")];
     renderView();
     await userEvent.click(screen.getByRole("button", { name: /Deselect all/ }));
-    expect(bulk).toHaveBeenCalledWith({ ids: ["1", "3"], status: "REJECTED" });
+    expect(bulk).toHaveBeenCalledWith({ ids: ["1", "3"], status: "PENDING" });
   });
 
   it("a card's Reject goes to the update mutation for that candidate", async () => {

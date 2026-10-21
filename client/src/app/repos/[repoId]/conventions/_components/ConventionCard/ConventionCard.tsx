@@ -1,6 +1,7 @@
 /* ConventionCard — one candidate: the rule (editable inline), its category, the
-   evidence block, the confidence bar, and Accept / Reject / Edit. ACCEPTED rules are
-   the ones merged into the skill; a REJECTED card is dimmed and stays rejected. */
+   evidence block, the confidence bar, and Accept / Reject / Edit. A candidate starts
+   PENDING; Accept toggles it in and out of the skill, Reject drops it from the list
+   for good (the page never shows a REJECTED card). */
 "use client";
 
 import React from "react";
@@ -106,19 +107,12 @@ export function ConventionCard({
           icon="Check"
           full
           aria-pressed={accepted}
-          onClick={() => !accepted && onStatus("ACCEPTED")}
+          onClick={() => onStatus(accepted ? "PENDING" : "ACCEPTED")}
         >
           {accepted ? t("card.accepted") : t("card.accept")}
         </Button>
-        <Button
-          kind="secondary"
-          icon="X"
-          full
-          active={!accepted}
-          aria-pressed={!accepted}
-          onClick={() => accepted && onStatus("REJECTED")}
-        >
-          {accepted ? t("card.reject") : t("card.rejected")}
+        <Button kind="secondary" icon="X" full onClick={() => onStatus("REJECTED")}>
+          {t("card.reject")}
         </Button>
         <Button kind="ghost" icon="Edit" full onClick={startEdit} disabled={editing}>
           {t("card.edit")}

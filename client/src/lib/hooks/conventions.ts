@@ -36,7 +36,8 @@ export function useExtractConventions(repoId: string | null | undefined) {
   });
 }
 
-/** Accept / reject / inline edit — applied to the list at once, rolled back on error. */
+/** Accept / reject / inline edit — applied to the list at once, rolled back on error.
+    A rejected candidate leaves the list (the server no longer returns it). */
 export function useUpdateConvention(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -46,7 +47,9 @@ export function useUpdateConvention(repoId: string | null | undefined) {
       await qc.cancelQueries({ queryKey: keys.list(repoId) });
       const previous = qc.getQueryData<ConventionCandidate[]>(keys.list(repoId));
       qc.setQueryData<ConventionCandidate[]>(keys.list(repoId), (list) =>
-        list?.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        patch.status === "REJECTED"
+          ? list?.filter((c) => c.id !== id)
+          : list?.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       );
       return { previous };
     },
@@ -57,7 +60,7 @@ export function useUpdateConvention(repoId: string | null | undefined) {
   });
 }
 
-/** One status for many candidates ("Deselect all" → REJECTED). */
+/** One status for many candidates ("Deselect all" → PENDING). */
 export function useBulkConventionStatus(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({

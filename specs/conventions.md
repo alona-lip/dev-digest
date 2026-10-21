@@ -40,7 +40,7 @@ Status: implemented (2026-10-19); see "As built" at the end for where the code d
 | Виконання скану | Синхронний `POST /repos/:id/conventions/extract`: семпл → один structured-виклик → gate → запис; відповідь містить кандидатів і статистику | JobRunner + 202 + polling (як `resync`) — забагато механіки для одного дешевого виклику; лишається в roadmap, якщо скан стане багатокроковим |
 | Відбір зразків | Чистий код: `CONFIG_FILES` (package.json, tsconfig, eslint, prettier, editorconfig) + `getConventionSamples(repoId, 12)`; вміст читає новий facade-метод `repoIntel.readRepoFile` | Двокроковий діалог «модель обирає файли» — суперечить критерію 39; `container.git.readFile` — немає захисту від `..`/symlink |
 | Gate доказів | Код: (1) файл є серед прочитаних, (2) рядки в межах файлу, (3) сніпет (нормалізовані пробіли) є у файлі в межах ±3 рядків від цитованих — тоді рядки виправляються на фактичні; інакше — drop. Сніпет для UI вирізається **з файлу** | Другий LLM-виклик «перевір» — модель перевіряє модель; «low confidence» замість drop — вигаданий доказ лишився б у UI |
-| Тріаж | Два статуси: `ACCEPTED / REJECTED` замість булевого `accepted`. Новий кандидат — `ACCEPTED` (як на дизайні: «3 of 3 accepted» одразу після скану); Reject → `REJECTED`, Accept повертає назад; «Deselect all» → усі `REJECTED` | Третій статус `PENDING` — зайвий стан для юзера, дизайн показує кандидатів одразу прийнятими; новий = `REJECTED` (opt-in) — не відрізнити «відхилено за замовчуванням» від свідомого Reject |
+| Тріаж | *(перегляд 2026-10-21, [server/specs/conventions-pending-status.md](../server/specs/conventions-pending-status.md))* Три статуси `PENDING / ACCEPTED / REJECTED`. Новий кандидат — `PENDING`; Accept → `ACCEPTED` (повторний клік → `PENDING`); Reject → `REJECTED`, і картка зникає зі списку (GET його не повертає); «Deselect all» → прийняті назад у `PENDING` | Початкове рішення «новий = `ACCEPTED`, без `PENDING`» — «Create skill» з'являвся одразу після скану без жодного Accept (критерій 50), а відхилене поверталось після reload, лише приглушене (критерій 48); новий = `REJECTED` (opt-in) — не відрізнити «відхилено за замовчуванням» від свідомого Reject |
 | Re-scan | Існуючі рядки не чіпає; додає лише нові правила, яких ще немає в списку (дедуп з усіма ACCEPTED і REJECTED за нормалізованим текстом правила), тож відхилене не повертається (критерій 48) | Повна заміна — юзер втрачає тріаж і inline-правки; заміна лише ACCEPTED — губляться відредаговані прийняті правила |
 | Збирання скіла | Сервер: `GET …/conventions/skill-draft` будує тіло з ACCEPTED pure-хелпером; модалка лише редагує | Клієнтський хелпер — критерій 42 вимагає збирання на бекенді, формат скіла має належати серверу |
 | Один чи кілька скілів | Один скіл, ім'я за замовчуванням `repo-conventions` (редаговане) | Скіл на категорію — більше UI, не вимагається критеріями; у roadmap |
@@ -58,7 +58,7 @@ Status: implemented (2026-10-19); see "As built" at the end for where the code d
 ## Фаза 1 — Контракти (`server/src/vendor/shared/contracts/`, потім `./scripts/check-shared.sh --sync`)
 
 - `ConventionCategory` = `NAMING | STRUCTURE | ERROR_HANDLING | ASYNC | TYPING | IMPORTS | TESTING | STYLE | OTHER`.
-- `ConventionStatus` = `ACCEPTED | REJECTED`.
+- `ConventionStatus` = `PENDING | ACCEPTED | REJECTED` (новий — `PENDING`; список не повертає `REJECTED`).
 - `ConventionCandidate` = `{ id, repo_id, category, rule, evidence_path, evidence_start_line, evidence_end_line, evidence_snippet, confidence, status, created_at }` (поле `accepted` прибрано).
 - `UpdateConventionInput` = `{ rule?, category?, status? }` (мін. одне поле).
 - `BulkConventionStatusInput` = `{ ids: uuid[], status }`.
@@ -105,7 +105,7 @@ Status: implemented (2026-10-19); see "As built" at the end for where the code d
 | 45 | Окремі кнопки Run Scan і Re-scan | `ConventionsView`: Run Scan в empty state, Re-scan у хедері |
 | 46 | Картка: правило, файл, % впевненості | `ConventionCard` + `EvidenceBlock` |
 | 47 | Accept / Reject / Edit на картці | `ConventionCard` |
-| 48 | Reject зберігається, не повертається, не йде в скіл | `status = REJECTED`; re-scan не чіпає існуючих і дедуплікує з REJECTED; draft бере лише ACCEPTED |
+| 48 | Reject зберігається, не повертається, не йде в скіл | `status = REJECTED`; `GET` його не повертає (`listOpen`); re-scan не чіпає існуючих і дедуплікує з REJECTED; draft бере лише ACCEPTED |
 | 49 | Edit inline | `ConventionCard` edit-режим → `PATCH /conventions/:id` |
 | 50 | Create skill з'являється при ≥ 1 accepted | `ConventionsView` |
 | 51 | Модалка пояснює «створення з конвенцій», Name/Description, Cancel/Create | `CreateSkillFromConventionsModal` (банер) |
@@ -118,7 +118,7 @@ Status: implemented (2026-10-19); see "As built" at the end for where the code d
 |---|---|---|
 | `GET /repos/:id/conventions` | кандидати репо (усі статуси), новіші першими | `useConventions` → сторінка |
 | `POST /repos/:id/conventions/extract` | семпл → LLM → gate → додати нові (недубльовані) як ACCEPTED | `useExtractConventions` → Run Scan / Re-scan |
-| `PATCH /repos/:id/conventions` | масова зміна статусу (`ids`, `status`) | `useBulkConventionStatus` → Deselect all (→ REJECTED) |
+| `PATCH /repos/:id/conventions` | масова зміна статусу (`ids`, `status`) | `useBulkConventionStatus` → Deselect all (→ PENDING) |
 | `PATCH /conventions/:id` | accept / reject / edit rule + category | `useUpdateConvention` → картка |
 | `GET /repos/:id/conventions/skill-draft` | тіло й метадані скіла з ACCEPTED, нічого не пише | `useConventionSkillDraft` → модалка |
 | `POST /repos/:id/conventions/skill` | create або нова версія `repo-conventions` + лінк агента | `useCreateConventionSkill` → модалка |
@@ -139,7 +139,7 @@ Status: implemented (2026-10-19); see "As built" at the end for where the code d
 
 - server: `pnpm db:generate` (0012 містить лише очікуване), `pnpm db:migrate`, `pnpm typecheck && pnpm test:unit && pnpm arch:check`, `pnpm test:integration`:
   - `test/conventions-helpers.test.ts` — гуттер і бюджет; gate: немає файлу, рядок поза межами, вигаданий сніпет, зсунутий рядок (кандидат лишається з виправленими рядками); dedupe; `buildSkillDraft`;
-  - `test/conventions.it.test.ts` — вигаданий кандидат відкинуто; новий кандидат має статус ACCEPTED; GET після extract повертає збережене; re-scan не змінює існуючі рядки (зокрема відредаговані), додає лише нові й не повертає відхилене; bulk → REJECTED; PATCH edit; draft лише з ACCEPTED; skill: v1 + лінк, повторно — v2; 422 (без клону, нічого не accepted); 404 (чужий репо/агент).
+  - `test/conventions.it.test.ts` — вигаданий кандидат відкинуто; новий кандидат має статус PENDING і draft без Accept → 422; GET після extract повертає збережене; re-scan не змінює існуючі рядки (зокрема відредаговані), додає лише нові й не повертає відхилене (ні в extract, ні в GET); bulk → REJECTED (список порожній); PATCH edit; draft лише з ACCEPTED; skill: v1 + лінк, повторно — v2; 422 (без клону, нічого не accepted); 404 (чужий репо/агент).
 - client: `pnpm typecheck && pnpm lint && pnpm test` — `ConventionCard` (Accept/Reject/Edit inline), `ConventionsView` (Run Scan vs Re-scan, видимість Create skill), модалка (prefill з draft, payload з `agent_id`).
 - `./scripts/check-shared.sh`, `./scripts/e2e.sh`.
 - Вручну (`./scripts/dev.sh`): додати реальний репо (клон + індекс) → Conventions → Run Scan → Accept/Reject/Edit → reload (стан збережено) → Create skill → `/skills` показує `repo-conventions` v1 (convention, extracted), прив'язаний до General Reviewer → Re-scan → Create → v2 → рев'ю PR → блок скіла в трасі → Settings → Models → Conventions: інша модель використовується.

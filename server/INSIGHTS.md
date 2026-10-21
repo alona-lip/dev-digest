@@ -179,6 +179,19 @@ by hand in the same format.
   compares `version` and throws `ConflictError` if the body changed meanwhile. NEVER let the
   LLM verdict clear a pattern hit. (`server/src/modules/skills/service.ts`, `server/specs/skill-injection-scan.md`)
 
+- 2026-10-21 — conventions triage now has three states: a new candidate is `PENDING`, not
+  `ACCEPTED`. This supersedes the "new = ACCEPTED, no PENDING" choice in `specs/conventions.md`,
+  which let "Create skill" show right after a scan with nothing accepted (HW criterion 50).
+  Migration `0015` only changes the column default; rows that existed earlier keep their status.
+  ALWAYS gate anything skill-related on `ACCEPTED` (`listAccepted`), never on "not REJECTED".
+  (`server/src/db/migrations/0015_graceful_stone_men.sql`, `server/specs/conventions-pending-status.md`)
+- 2026-10-21 — the conventions repo has two list reads on purpose: `listOpen` (no `REJECTED`)
+  feeds `GET /repos/:id/conventions`, and `listByRepo` (every row) feeds the extract dedupe.
+  NEVER switch the dedupe to `listOpen`: rejected rules would come back as fresh `PENDING`
+  candidates on every re-scan (HW criterion 48). `conventions.it.test.ts` "a rejected rule leaves
+  the list…" guards it. (`server/src/modules/conventions/service.ts:124`,
+  `server/src/modules/conventions/repository/convention.repo.ts`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
   flag even though the current online CLI docs describe it, and

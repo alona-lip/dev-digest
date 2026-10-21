@@ -18,7 +18,7 @@ const candidate = (over: Partial<ConventionCandidate> = {}): ConventionCandidate
   evidence_end_line: 31,
   evidence_snippet: "const user = await db.users.find(id);",
   confidence: 0.91,
-  status: "ACCEPTED",
+  status: "PENDING",
   created_at: "2026-10-19T00:00:00.000Z",
   ...over,
 });
@@ -44,21 +44,22 @@ describe("ConventionCard", () => {
     expect(screen.getByText("91%")).toBeInTheDocument();
   });
 
-  it("an accepted card offers Reject (and Accept is a no-op)", async () => {
+  it("a new (pending) card is neither accepted nor rejected: Accept and Reject both decide", async () => {
     const { onStatus } = renderCard(candidate());
+    const accept = screen.getByRole("button", { name: "Accept" });
+    expect(accept).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(accept);
+    expect(onStatus).toHaveBeenLastCalledWith("ACCEPTED");
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(onStatus).toHaveBeenLastCalledWith("REJECTED");
+  });
+
+  it("an accepted card shows Accepted; clicking it again takes it back to pending", async () => {
+    const { onStatus } = renderCard(candidate({ status: "ACCEPTED" }));
     const accepted = screen.getByRole("button", { name: "Accepted" });
     expect(accepted).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(accepted);
-    expect(onStatus).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
-    expect(onStatus).toHaveBeenCalledWith("REJECTED");
-  });
-
-  it("a rejected card shows Rejected and can be accepted again", async () => {
-    const { onStatus } = renderCard(candidate({ status: "REJECTED" }));
-    expect(screen.getByRole("button", { name: "Rejected" })).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
-    expect(onStatus).toHaveBeenCalledWith("ACCEPTED");
+    expect(onStatus).toHaveBeenCalledWith("PENDING");
   });
 
   it("Edit changes the rule and category in place", async () => {

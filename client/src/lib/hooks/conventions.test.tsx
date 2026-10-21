@@ -33,16 +33,27 @@ describe("conventions hooks", () => {
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toMatch(/\/repos\/r1\/conventions\/extract$/);
   });
 
-  it("accept / reject shows at once and refetches the list after", async () => {
-    const { wrapper, qc, keys } = setup(c("1", "REJECTED"));
-    qc.setQueryData(LIST_KEY, [c("1", "ACCEPTED"), c("2", "ACCEPTED")]);
+  it("accept shows at once and refetches the list after", async () => {
+    const { wrapper, qc, keys } = setup(c("1", "ACCEPTED"));
+    qc.setQueryData(LIST_KEY, [c("1", "PENDING"), c("2", "PENDING")]);
     const { result } = renderHook(() => useUpdateConvention("r1"), { wrapper });
-    const pending = result.current.mutateAsync({ id: "1", patch: { status: "REJECTED" } });
+    const pending = result.current.mutateAsync({ id: "1", patch: { status: "ACCEPTED" } });
     await vi.waitFor(() =>
-      expect(qc.getQueryData<ConventionCandidate[]>(LIST_KEY)?.map((x) => x.status)).toEqual(["REJECTED", "ACCEPTED"]),
+      expect(qc.getQueryData<ConventionCandidate[]>(LIST_KEY)?.map((x) => x.status)).toEqual(["ACCEPTED", "PENDING"]),
     );
     await pending;
     expect(keys()).toEqual(expect.arrayContaining([LIST_KEY]));
+  });
+
+  it("a rejected candidate leaves the list at once", async () => {
+    const { wrapper, qc } = setup(c("1", "REJECTED"));
+    qc.setQueryData(LIST_KEY, [c("1", "PENDING"), c("2", "ACCEPTED")]);
+    const { result } = renderHook(() => useUpdateConvention("r1"), { wrapper });
+    const pending = result.current.mutateAsync({ id: "1", patch: { status: "REJECTED" } });
+    await vi.waitFor(() =>
+      expect(qc.getQueryData<ConventionCandidate[]>(LIST_KEY)?.map((x) => x.id)).toEqual(["2"]),
+    );
+    await pending;
   });
 
   it("rolls the list back when the server refuses the change", async () => {
@@ -55,10 +66,10 @@ describe("conventions hooks", () => {
   });
 
   it("Deselect all replaces the list with the server's answer", async () => {
-    const after = [c("1", "REJECTED"), c("2", "REJECTED")];
+    const after = [c("1", "PENDING"), c("2", "PENDING")];
     const { wrapper, qc } = setup(after);
     const { result } = renderHook(() => useBulkConventionStatus("r1"), { wrapper });
-    await result.current.mutateAsync({ ids: ["1", "2"], status: "REJECTED" });
+    await result.current.mutateAsync({ ids: ["1", "2"], status: "PENDING" });
     expect(qc.getQueryData(LIST_KEY)).toEqual(after);
   });
 

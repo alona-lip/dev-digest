@@ -2,7 +2,8 @@
    the PR). Header shows agent + verdict + counts + score + when it ran; the
    body holds that run's VerdictBanner summary and its own FindingsPanel. A PR
    can have many runs (different agents / re-runs over time) — each is separate
-   and collapsible so older runs don't bury the latest. */
+   and collapsible so older runs don't bury the latest. The header's log icon opens
+   that run's trace (prompt assembly, skill blocks, live log). */
 "use client";
 
 import React from "react";
@@ -34,6 +35,7 @@ export function ReviewRunAccordion({
   targetNonce = 0,
   severity = null,
   onSeverityChange,
+  onOpenTrace,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -47,6 +49,8 @@ export function ReviewRunAccordion({
   /** Active severity filter (one `?severity=` for the whole PR-detail page). */
   severity?: Severity | null;
   onSeverityChange?: (severity: Severity | null) => void;
+  /** Opens the run trace drawer for this review's run. */
+  onOpenTrace?: (runId: string) => void;
 }) {
   const t = useTranslations("prReview");
   const [open, setOpen] = React.useState(defaultOpen);
@@ -119,6 +123,28 @@ export function ReviewRunAccordion({
         <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
           {formatWhen(review.created_at)}
         </span>
+        {onOpenTrace && review.run_id && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenTrace(review.run_id!);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+            title={t("detail.accordion.openTrace")}
+            aria-label={t("detail.accordion.openTrace")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              display: "inline-flex",
+              padding: 4,
+            }}
+          >
+            <Icon.FileText size={14} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

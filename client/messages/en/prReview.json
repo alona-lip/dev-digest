@@ -163,6 +163,7 @@
       "agentFallback": "Agent",
       "findings": "{count, plural, one {# finding} other {# findings}}",
       "blockers": "{count, plural, one { · # blocker} other { · # blockers}}",
+      "openTrace": "Open run trace & logs",
       "deleteRun": "Delete this review run",
       "confirmDelete": "Delete this \"{agent}\" review run and its findings?",
       "agentLower": "agent"

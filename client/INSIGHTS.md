@@ -104,6 +104,12 @@ by hand in the same format.
 
 - 2026-10-16 — a component used by TWO sibling routes (`/skills/new` and `/skills/[id]` share the skill editor) cannot live in either route's `_components`: eslint `no-restricted-imports` rejects `../_components/…` ("Cross-route import of another route's private _components"). Put it in `src/components/<kebab-name>/` from the start (`@/components/skill-editor`); a layout-level pane shared by children can stay in the route's own `_components`. (`client/eslint.config.mjs`, `client/src/components/skill-editor/`)
 
+- 2026-10-21 — the `ReviewRunAccordion` header is a `div role="button"` that toggles on click
+  AND on Enter/Space keydown, so any control inside it (trace, delete) must call
+  `e.stopPropagation()` in `onClick` and `onKeyDown`. Otherwise opening the trace or confirming a
+  delete also folds the run open or closed. ALWAYS stop both events on a button nested in that
+  header. (`client/src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the local toolchain runs pnpm 12 while CI pins pnpm 10, and
   both write `lockfileVersion: '9.0'`. pnpm 10 refuses a `node_modules`

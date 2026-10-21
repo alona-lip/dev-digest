@@ -66,7 +66,7 @@ export class ConventionsService {
 
   async list(workspaceId: string, repoId: string): Promise<ConventionCandidate[]> {
     await this.repoOrThrow(workspaceId, repoId);
-    return (await this.deps.conventions.listByRepo(workspaceId, repoId)).map(toConventionDto);
+    return (await this.deps.conventions.listOpen(workspaceId, repoId)).map(toConventionDto);
   }
 
   async extract(workspaceId: string, repoId: string): Promise<ExtractConventionsResult> {

@@ -27,6 +27,9 @@ criteria, and what's explicitly out of scope.
 - [skill-injection-scan.md](./skill-injection-scan.md) — prompt-injection scan of
   skill bodies: pattern scan on every save + LLM Re-scan, saved-but-blocked,
   run-time drop; why it does not contradict `INJECTION_GUARD`.
+- [conventions-pending-status.md](./conventions-pending-status.md) — conventions
+  triage: new candidates start PENDING, the list hides REJECTED, the dedupe still
+  sees them; why the filter is server-side.
 - [onion-burn-down.md](./onion-burn-down.md) — the deliberate pass over the
   dependency-cruiser baseline: pulls/settings/polling/workspace onto
   service + repository, ports out of `src/adapters`, intended behaviour changes.

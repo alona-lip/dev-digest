@@ -1,7 +1,8 @@
 /* ConventionsView — body of /repos/:repoId/conventions. Run Scan (first scan, empty
    state) / Re-scan (header, once there are candidates) call the extractor; each
-   candidate card is accepted, rejected or edited in place; "Create skill" (shown once
-   at least one is accepted) opens the modal that merges the accepted ones into a skill. */
+   candidate starts pending and is accepted, rejected (and gone from the list) or edited
+   in place; "Create skill" (shown once at least one is accepted) opens the modal that
+   merges the accepted ones into a skill. */
 "use client";
 
 import React from "react";
@@ -106,7 +107,7 @@ export function ConventionsView({ repoId }: { repoId: string }) {
                 kind="secondary"
                 size="sm"
                 icon="X"
-                onClick={() => bulk.mutate({ ids: accepted, status: "REJECTED" })}
+                onClick={() => bulk.mutate({ ids: accepted, status: "PENDING" })}
                 disabled={accepted.length === 0 || bulk.isPending}
               >
                 {t("page.deselectAll")}
