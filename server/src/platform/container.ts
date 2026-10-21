@@ -6,6 +6,9 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  CodeParser,
+  Tokenizer,
+  UrlFetcher,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -19,16 +22,28 @@ import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
+import { SafeUrlFetcher } from '../adapters/http/safe-fetch.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { PullsRepository } from '../modules/pulls/repository.js';
+import { SettingsRepository } from '../modules/settings/repository.js';
+import { RepoRepository } from '../modules/repos/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
-import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { astGrepParser } from '../adapters/astgrep/index.js';
+
+/** Secret holding each LLM provider's API key. */
+const LLM_SECRET_BY_PROVIDER = {
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+} as const satisfies Record<'openai' | 'anthropic' | 'openrouter', string>;
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -51,6 +66,11 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  codeParser?: CodeParser;
+  /** Live model prices. Without this a test with OPENROUTER_API_KEY in its env would call OpenRouter. */
+  priceBook?: PriceBook;
+  /** Outbound fetch for skill import from URL — tests inject a mock (no network). */
+  urlFetcher?: UrlFetcher;
 }
 
 export class Container {
@@ -72,10 +92,14 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _pullsRepo?: PullsRepository;
+  private _settingsRepo?: SettingsRepository;
+  private _reposRepo?: RepoRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _urlFetcher?: UrlFetcher;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -88,7 +112,9 @@ export class Container {
 
   get git(): GitClient {
     if (this.overrides.git) return this.overrides.git;
-    this._git ??= new SimpleGitClient(this.config.cloneDir);
+    // The token is resolved per git command (not captured here), so a PAT saved
+    // in Settings applies to the next clone/fetch without a restart.
+    this._git ??= new SimpleGitClient(this.config.cloneDir, () => this.secrets.get('GITHUB_TOKEN'));
     return this._git;
   }
 
@@ -98,6 +124,21 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /** PRs + their files/commits; shared by the `pulls` and `polling` modules. */
+  get pullsRepo(): PullsRepository {
+    return (this._pullsRepo ??= new PullsRepository(this.db));
+  }
+
+  /** Non-secret workspace prefs; shared by `settings` and per-feature model resolution. */
+  get settingsRepo(): SettingsRepository {
+    return (this._settingsRepo ??= new SettingsRepository(this.db));
+  }
+
+  /** Repos of a workspace; shared by `repos` and the `workspace` overview. */
+  get reposRepo(): RepoRepository {
+    return (this._reposRepo ??= new RepoRepository(this.db));
   }
 
   get codeIndex(): CodeIndex {
@@ -131,6 +172,18 @@ export class Container {
     return this._tokenizer;
   }
 
+  /** SSRF-guarded https fetch for user-supplied URLs (skill import). */
+  get urlFetcher(): UrlFetcher {
+    if (this.overrides.urlFetcher) return this.overrides.urlFetcher;
+    this._urlFetcher ??= new SafeUrlFetcher();
+    return this._urlFetcher;
+  }
+
+  /** AST parser (ast-grep) for repo-intel: symbols, references, imports, invocation heads. */
+  get codeParser(): CodeParser {
+    return this.overrides.codeParser ?? astGrepParser;
+  }
+
   /**
    * Live OpenRouter pricing for cost attribution. The lister builds a bare
    * OpenRouter provider just for `/models` (no estimator needed) and degrades to
@@ -138,6 +191,7 @@ export class Container {
    * fallback for OpenAI/Anthropic and a cold/cold-failed cache.
    */
   get priceBook(): PriceBook {
+    if (this.overrides.priceBook) return this.overrides.priceBook;
     this._priceBook ??= new PriceBook(async () => {
       try {
         const key = await this.secrets.get('OPENROUTER_API_KEY');
@@ -171,25 +225,38 @@ export class Container {
   }
 
   private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
-    if (id === 'openai') {
-      const key = await this.secrets.get('OPENAI_API_KEY');
-      if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');
-      return new OpenAIProvider(key);
-    }
+    const secret = LLM_SECRET_BY_PROVIDER[id];
+    const key = await this.secrets.get(secret);
+    if (!key) throw new ConfigError(`${secret} is not configured`);
+    return this.llmFromKey(id, key);
+  }
+
+  private llmFromKey(id: 'openai' | 'anthropic' | 'openrouter', key: string): LLMProvider {
+    if (id === 'openai') return new OpenAIProvider(key);
     if (id === 'openrouter') {
       // Single OpenRouter provider lives in reviewer-core (shared with the CI
       // runner); inject the PriceBook so cost attribution uses LIVE OpenRouter
       // prices (with the static table as a fallback) rather than a hardcoded one.
-      const key = await this.secrets.get('OPENROUTER_API_KEY');
-      if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
       return new OpenRouterProvider(key, {
         estimateCost: (model, tokensIn, tokensOut) =>
           this.priceBook.estimate(model, tokensIn, tokensOut),
       });
     }
-    const key = await this.secrets.get('ANTHROPIC_API_KEY');
-    if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');
     return new AnthropicProvider(key);
+  }
+
+  /**
+   * A throwaway client built from a CANDIDATE key — not cached, not persisted —
+   * so Settings → "Test connection" can verify a key before it replaces the
+   * stored one. Injected test doubles still win.
+   */
+  probeLlm(id: 'openai' | 'anthropic' | 'openrouter', key: string): LLMProvider {
+    return this.overrides.llm?.[id] ?? this.llmFromKey(id, key);
+  }
+
+  /** GitHub counterpart of {@link probeLlm}. */
+  probeGitHub(token: string): GitHubClient {
+    return this.overrides.github ?? new OctokitGitHubClient(token);
   }
 
   async embedder(): Promise<Embedder> {

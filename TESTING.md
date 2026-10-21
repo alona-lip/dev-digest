@@ -31,6 +31,7 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
+| repo checks | root | vendored contracts in sync, `CLAUDE.md` symlinks | bash | `repo-checks.yml` | no |
 
 ## What each suite covers
 
@@ -39,9 +40,10 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 surface (list, diff, findings, run controls) and the agent editor.
 
 **server-unit** — the DB-free majority: adapters, prompt assembly, grounding,
-repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
-runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
-fails there if the win32 prebuilt is missing).
+repo-intel ranking & indexing, pricing, route smoke, repo-URL validation. The
+`typecheck` job runs on Linux only (see the workflow header for why) and also
+runs `pnpm arch:check` — the onion-architecture ratchet, which fails on any new
+layering violation.
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and
@@ -64,14 +66,20 @@ cd client        && pnpm test           # + pnpm typecheck
 cd reviewer-core && npm test
 
 # server — the unit/integration split (see note below)
-cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docker
-cd server && pnpm exec vitest run .it.test                      # integration, needs Docker
-cd server && pnpm test                                          # both
+cd server && pnpm test:unit          # unit, no Docker
+cd server && pnpm test:integration   # integration, needs Docker
+cd server && pnpm test               # both
+cd server && pnpm arch:check         # onion layering (dependency-cruiser)
 
-# browser e2e (needs the full stack + agent-browser CLI)
-./scripts/dev.sh
-npm i -g agent-browser && agent-browser install
-cd e2e && npm install && npm test
+# repo-level checks
+./scripts/check-shared.sh            # client/src/vendor/shared == server/src/vendor/shared
+./scripts/link-agents.sh --check     # every CLAUDE.md → AGENTS.md
+
+# browser e2e (needs Docker + the agent-browser CLI, pinned like CI)
+npm i -g agent-browser@0.39.0 && agent-browser install
+./scripts/e2e.sh        # hermetic (default): isolated stack on 5433/3101/3100
+# `cd e2e && npm test` runs against an already-running ./scripts/dev.sh stack,
+# but the flows assert seeded data, so a dev DB with other repos makes them fail.
 ```
 
 ## Conventions
@@ -80,10 +88,9 @@ cd e2e && npm install && npm test
   (`vitest run --exclude '**/*.it.test.ts'`); the integration lane selects only
   it (`vitest run .it.test`). A DB-backed test that imports `test/helpers/pg.ts`
   must use the `.it.test.ts` suffix.
-- **`server/package.json` is `skip-worktree`** (a local variant diverges from the
-  committed file). CI therefore invokes the split with
-  `pnpm exec vitest run …` rather than relying on committed `test:unit` /
-  `test:integration` scripts.
+- **`pnpm test:unit` / `pnpm test:integration`** are the split, in CI and
+  locally. (Older notes call `server/package.json` skip-worktree — it no longer
+  is, so the scripts are committed.)
 - **Hermetic by default.** Reach for `src/adapters/mocks.ts` (MockLLMProvider,
   MockGitClient) rather than real network/keys.
 - **E2E specs are deterministic batch JSON** (`e2e/specs/*.flow.json`) using

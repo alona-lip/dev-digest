@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunTrace } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
+import messages from "@messages/en/runs.json"; // apps/web/messages/en/runs.json
 
 // Mock the trace hooks so the drawer renders without a query client / SSE.
 const TRACE: RunTrace = {
@@ -19,16 +20,20 @@ const TRACE: RunTrace = {
   ],
 };
 
-vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+let traceOverride: RunTrace | null = null;
+vi.mock("@/lib/hooks/trace", () => ({
+  useRunTrace: () => ({ data: traceOverride ?? TRACE, isLoading: false }),
 }));
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
 }));
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  traceOverride = null;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -64,10 +69,50 @@ describe("A5 Run Trace drawer (smoke)", () => {
     TRACE.stats = { ...statsWithoutCost, cost_usd: 0.06 };
   });
 
-  it("switches to the live log tab", () => {
+  it("switches to the live log tab", async () => {
+    const user = userEvent.setup();
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
-    fireEvent.click(screen.getByText("log"));
+    await user.click(screen.getByRole("button", { name: "Live log" }));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — skills in the prompt assembly", () => {
+  const openPromptAssembly = () => userEvent.click(screen.getByText("Prompt assembly"));
+
+  const withSkills = (blocks: NonNullable<RunTrace["prompt_assembly"]["skill_blocks"]>): RunTrace => ({
+    ...TRACE,
+    prompt_assembly: { ...TRACE.prompt_assembly, skills: "joined", skill_blocks: blocks },
+  });
+
+  it("shows one block per enabled skill with the tokens it added, and a total", async () => {
+    traceOverride = withSkills([
+      { skill_id: "s1", name: "secret-leakage-gate", version: 3, text: "### Skill: secret-leakage-gate\nx", tokens: 180 },
+      { skill_id: "s2", name: "lethal-trifecta", version: 1, text: "### Skill: lethal-trifecta\ny", tokens: 232 },
+    ]);
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.getByText("Skill: secret-leakage-gate · v3")).toBeInTheDocument();
+    expect(screen.getByText("Skill: lethal-trifecta · v1")).toBeInTheDocument();
+    expect(screen.getByText("+180 tokens")).toBeInTheDocument();
+    expect(screen.getByText("+232 tokens")).toBeInTheDocument();
+    expect(screen.getByTestId("skills-summary")).toHaveTextContent("2 skills attached — +412 tokens");
+    // the legacy joined block is not rendered next to the per-skill ones
+    expect(screen.queryByText("Skills (dynamic)")).not.toBeInTheDocument();
+  });
+
+  it("renders no skills block at all when no skill was in the prompt", async () => {
+    traceOverride = { ...TRACE, prompt_assembly: { ...TRACE.prompt_assembly, skills: null, skill_blocks: [] } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.queryByTestId("skills-summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Skills (dynamic)")).not.toBeInTheDocument();
+  });
+
+  it("still renders an older trace that only has the joined skills string", async () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.getByText("Skills (dynamic)")).toBeInTheDocument();
   });
 });

@@ -13,8 +13,35 @@ import type {
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
+import { ExternalServiceError } from '../../platform/errors.js';
 
 const TIMEOUT = 30_000;
+
+/**
+ * A failed GitHub API call, as the rest of the app sees it: an AppError (so
+ * the API answers 502 with GitHub's message instead of a generic 500), that
+ * still carries GitHub's own HTTP `status` — `withRetry` reads `status` first,
+ * so a 404 stays non-retryable while a 5xx/429 is retried.
+ */
+export class GitHubRequestError extends ExternalServiceError {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message, { status });
+    this.name = 'GitHubRequestError';
+  }
+}
+
+/** Octokit RequestError → GitHubRequestError; anything else passes through. */
+export function toGitHubError(err: unknown): unknown {
+  const status = (err as { status?: unknown })?.status;
+  if (typeof status !== 'number') return err;
+  const raw = err instanceof Error ? err.message : String(err);
+  // Octokit appends a docs URL ("Not Found - https://docs.github.com/…").
+  const message = raw.replace(/\s+-\s+https:\/\/docs\.github\.com\S*$/, '');
+  return new GitHubRequestError(`GitHub: ${message} (${status})`, status);
+}
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -31,6 +58,11 @@ export class OctokitGitHubClient implements GitHubClient {
 
   constructor(token: string) {
     this.octokit = new Octokit({ auth: token });
+    // One place maps every failed request (adapter rule: SDK errors leave the
+    // adapter as ExternalServiceError, never as Octokit's own type).
+    this.octokit.hook.error('request', async (error) => {
+      throw toGitHubError(error);
+    });
   }
 
   async listPullRequests(repo: RepoRef): Promise<PrMeta[]> {

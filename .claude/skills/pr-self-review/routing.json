@@ -1,0 +1,111 @@
+{
+  "$comment": "Source of truth for pr-self-review routing. Each changed file lands in exactly ONE bucket (first match wins); it is reviewed by the bucket's core skills plus every matching extra. After editing run: node scripts/route.mjs --print-table > routing.md && node scripts/check-routing.mjs",
+  "required_core": {
+    "Frontend": ["frontend-architecture", "react-best-practices", "react-testing-library"],
+    "Backend": ["onion-architecture", "fastify-best-practices", "drizzle-orm-patterns"]
+  },
+  "buckets": [
+    {
+      "name": "Frontend",
+      "description": "Next.js studio — client/src",
+      "match": ["client/src/**/*.{ts,tsx}"],
+      "not": ["client/src/vendor/**"],
+      "core": ["frontend-architecture", "react-best-practices", "react-testing-library"],
+      "overrides": [
+        { "match": ["**/*.test.{ts,tsx}", "client/src/test/**"], "core": ["react-testing-library"] }
+      ],
+      "extras": [
+        { "match": ["client/src/app/**"], "not": ["**/*.test.{ts,tsx}"], "skills": ["next-best-practices"] },
+        { "label": "files importing zod", "match": ["**"], "contains": "from ['\"]zod['\"]", "skills": ["zod"] },
+        {
+          "label": "type-level code (infer, keyof, satisfies, guards, conditional types)",
+          "match": ["**"],
+          "not": ["**/*.test.{ts,tsx}"],
+          "contains": "\\b(infer\\s+\\w+|keyof\\s|satisfies\\s|asserts\\s+\\w+|is\\s+\\w+\\s*[;{)]|extends\\s+[^\\n]*\\?[^\\n]*:)",
+          "skills": ["typescript-expert"]
+        }
+      ],
+      "checks": ["client-typecheck-tests"]
+    },
+    {
+      "name": "Backend",
+      "description": "Fastify API + Drizzle — server/src",
+      "match": ["server/src/**/*.ts"],
+      "not": ["server/src/vendor/**", "server/src/db/migrations/**"],
+      "core": ["onion-architecture", "fastify-best-practices", "drizzle-orm-patterns"],
+      "extras": [
+        {
+          "match": [
+            "server/src/modules/*/routes.ts", "server/src/app.ts", "server/src/server.ts",
+            "server/src/platform/**", "server/src/adapters/**"
+          ],
+          "skills": ["security"]
+        },
+        { "match": ["server/src/db/schema.ts", "server/src/db/schema/**"], "skills": ["postgresql-table-design"] },
+        { "label": "files importing zod", "match": ["**"], "contains": "from ['\"]zod['\"]", "skills": ["zod"] },
+        {
+          "label": "type-level code (infer, keyof, satisfies, guards, conditional types)",
+          "match": ["**"],
+          "contains": "\\b(infer\\s+\\w+|keyof\\s|satisfies\\s|asserts\\s+\\w+|is\\s+\\w+\\s*[;{)]|extends\\s+[^\\n]*\\?[^\\n]*:)",
+          "skills": ["typescript-expert"]
+        }
+      ],
+      "checks": ["server-typecheck-tests", "arch-check"]
+    },
+    {
+      "name": "Database",
+      "description": "SQL migrations — server/src/db/migrations",
+      "match": ["server/src/db/migrations/*.sql"],
+      "core": ["postgresql-table-design"],
+      "checks": ["migrations"]
+    },
+    {
+      "name": "Engine",
+      "description": "Pure review engine — reviewer-core/src (no Fastify, no Drizzle)",
+      "match": ["reviewer-core/src/**/*.ts"],
+      "not": ["reviewer-core/src/vendor/**"],
+      "core": ["onion-architecture"],
+      "extras": [
+        { "match": ["reviewer-core/src/llm/**"], "skills": ["security"] },
+        { "label": "files importing zod", "match": ["**"], "contains": "from ['\"]zod['\"]", "skills": ["zod"] },
+        {
+          "label": "type-level code (infer, keyof, satisfies, guards, conditional types)",
+          "match": ["**"],
+          "contains": "\\b(infer\\s+\\w+|keyof\\s|satisfies\\s|asserts\\s+\\w+|is\\s+\\w+\\s*[;{)]|extends\\s+[^\\n]*\\?[^\\n]*:)",
+          "skills": ["typescript-expert"]
+        }
+      ],
+      "checks": ["reviewer-core-typecheck-tests", "arch-check"]
+    },
+    {
+      "name": "Shared contracts",
+      "description": "Wire contracts vendored into each package — */vendor/shared",
+      "match": ["{client,server,reviewer-core}/src/vendor/shared/**/*.ts"],
+      "core": ["zod"],
+      "checks": ["check-shared"]
+    }
+  ],
+  "checks": {
+    "migrations": { "on": ["server/src/db/migrations/**"] },
+    "lockfile": { "on": ["**/pnpm-lock.yaml", "**/package-lock.json"] },
+    "link-agents": { "on": ["AGENTS.md", "CLAUDE.md", "**/AGENTS.md", "**/CLAUDE.md"] },
+    "check-shared": { "on": ["{client,server}/src/vendor/shared/**"] },
+    "arch-check": { "on": ["server/src/**", "reviewer-core/src/**", "server/.dependency-cruiser*"] },
+    "server-typecheck-tests": { "on": ["server/src/**", "server/test/**", "server/package.json", "server/tsconfig*.json", "server/vitest*"] },
+    "client-typecheck-tests": { "on": ["client/src/**", "client/package.json", "client/tsconfig*.json", "client/vitest*"] },
+    "reviewer-core-typecheck-tests": { "on": ["reviewer-core/src/**", "reviewer-core/test/**", "reviewer-core/package.json", "reviewer-core/tsconfig*.json", "reviewer-core/vitest*"] }
+  },
+  "ignore": [
+    "*.md", "docs/**", "specs/**", "{client,server,reviewer-core,e2e}/**/*.md",
+    "**/pnpm-lock.yaml", "**/package-lock.json", "**/*.lock",
+    "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,pdf}",
+    "server/clones/**", "**/node_modules/**", "server/src/db/migrations/meta/**"
+  ],
+  "excluded": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "caps": { "typescript-expert": "WARNING" },
+  "focus": {
+    "react-testing-library": "For a non-test file: is the behaviour this diff changes covered by the colocated <Name>.test.tsx (changed or still valid)? A missing or now-stale test is a WARNING, never CRITICAL. For a test file: apply the skill's rules to the test itself.",
+    "fastify-best-practices": "Outside routes/plugins (services, helpers, repositories) judge only what this skill covers: error handling and status mapping, request/response validation, lifecycle, logging. Nothing relevant → return [].",
+    "drizzle-orm-patterns": "Judge only data access: queries, transactions, relations, schema usage, N+1, missing scope filters. A file with no data access → return []."
+  }
+}

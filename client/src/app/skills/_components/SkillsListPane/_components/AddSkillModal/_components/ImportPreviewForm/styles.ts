@@ -1,0 +1,35 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  scan: { marginBottom: 16, borderRadius: 8, border: "1px solid var(--crit)" } satisfies CSSProperties,
+  trust: {
+    display: "flex",
+    gap: 10,
+    padding: "12px 14px",
+    marginBottom: 20,
+    borderRadius: 8,
+    border: "1px solid var(--warn)",
+    background: "var(--warn-bg)",
+    color: "var(--text-primary)",
+    fontSize: 13,
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+  trustIcon: { flexShrink: 0, color: "var(--warn)" } satisfies CSSProperties,
+  source: { fontSize: 12, color: "var(--text-muted)", marginBottom: 16, overflowWrap: "anywhere" } satisfies CSSProperties,
+  bodyPreview: {
+    maxHeight: 220,
+    overflow: "auto",
+    padding: "12px 16px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-surface)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+  warnList: { margin: "0 0 16px", paddingLeft: 18, fontSize: 13, color: "var(--warn)" } satisfies CSSProperties,
+  ignored: { marginBottom: 20 } satisfies CSSProperties,
+  ignoredTitle: { fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 } satisfies CSSProperties,
+  ignoredNote: { fontSize: 12, color: "var(--text-muted)", marginBottom: 8 } satisfies CSSProperties,
+  ignoredRow: { display: "flex", alignItems: "center", gap: 10, padding: "5px 0", fontSize: 12 } satisfies CSSProperties,
+  ignoredPath: { flex: 1 } satisfies CSSProperties,
+  conflict: { fontSize: 12, color: "var(--crit)", marginTop: -12, marginBottom: 16 } satisfies CSSProperties,
+} as const;

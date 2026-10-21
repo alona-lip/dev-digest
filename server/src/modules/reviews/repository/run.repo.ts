@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, Executor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
 
@@ -80,32 +80,58 @@ export async function deleteAgentRun(
   workspaceId: string,
   runId: string,
 ): Promise<boolean> {
-  await db
-    .delete(t.reviews)
-    .where(and(eq(t.reviews.runId, runId), eq(t.reviews.workspaceId, workspaceId)));
-  const rows = await db
-    .delete(t.agentRuns)
-    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
-    .returning({ id: t.agentRuns.id });
-  return rows.length > 0;
+  // One transaction: the run's reviews and the run row go together, or neither.
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(t.reviews)
+      .where(and(eq(t.reviews.runId, runId), eq(t.reviews.workspaceId, workspaceId)));
+    const rows = await tx
+      .delete(t.agentRuns)
+      .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
+      .returning({ id: t.agentRuns.id });
+    return rows.length > 0;
+  });
 }
 
-/** Mark a still-running run as cancelled (no-op if it already finished). */
-export async function cancelRunIfRunning(db: Db, runId: string): Promise<boolean> {
+/** Whether a run exists in the workspace (any status). */
+export async function runInWorkspace(db: Db, workspaceId: string, runId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: t.agentRuns.id })
+    .from(t.agentRuns)
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)));
+  return row !== undefined;
+}
+
+/** Mark a still-running run of the workspace as cancelled (no-op if it already finished). */
+export async function cancelRunIfRunning(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<boolean> {
   const rows = await db
     .update(t.agentRuns)
     .set({ status: 'cancelled' })
-    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')))
+    .where(
+      and(
+        eq(t.agentRuns.id, runId),
+        eq(t.agentRuns.workspaceId, workspaceId),
+        eq(t.agentRuns.status, 'running'),
+      ),
+    )
     .returning({ id: t.agentRuns.id });
   return rows.length > 0;
 }
 
+/** Shown in the run history for runs the boot-time reaper closed. */
+export const ORPHANED_RUN_ERROR = 'Interrupted: the server restarted while this run was in progress';
+
 /** On boot: any run still 'running' is orphaned (its process died / restarted),
- *  so mark it failed. Prevents permanently stuck "running" runs in the UI. */
+ *  so mark it failed — with a reason, so the UI can say why. Prevents
+ *  permanently stuck "running" runs in the UI. */
 export async function reapStaleRunningRuns(db: Db): Promise<number> {
   const rows = await db
     .update(t.agentRuns)
-    .set({ status: 'failed' })
+    .set({ status: 'failed', error: ORPHANED_RUN_ERROR })
     .where(eq(t.agentRuns.status, 'running'))
     .returning({ id: t.agentRuns.id });
   return rows.length;
@@ -140,7 +166,7 @@ export async function createAgentRun(
 }
 
 export async function completeAgentRun(
-  db: Db,
+  db: Executor,
   runId: string,
   values: {
     status: 'done' | 'failed' | 'cancelled';
@@ -176,6 +202,23 @@ export async function completeAgentRun(
     .where(eq(t.agentRuns.id, runId));
 }
 
+/** One skill that was in a run's prompt (feeds the skill Stats tab). */
+export interface RunSkillInput {
+  skillId: string;
+  skillVersion: number;
+  order: number;
+  tokens: number;
+}
+
+export async function insertRunSkills(
+  db: Executor,
+  runId: string,
+  skills: RunSkillInput[],
+): Promise<void> {
+  if (skills.length === 0) return;
+  await db.insert(t.runSkills).values(skills.map((s) => ({ runId, ...s })));
+}
+
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */
 export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Promise<void> {
   await db
@@ -184,7 +227,16 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
     .onConflictDoUpdate({ target: t.runTraces.runId, set: { trace } });
 }
 
-export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
-  const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
+/** A run's trace, only when the run belongs to the workspace. */
+export async function getRunTrace(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<RunTrace | undefined> {
+  const [row] = await db
+    .select({ trace: t.runTraces.trace })
+    .from(t.runTraces)
+    .innerJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
+    .where(and(eq(t.runTraces.runId, runId), eq(t.agentRuns.workspaceId, workspaceId)));
   return row ? (row.trace as RunTrace) : undefined;
 }

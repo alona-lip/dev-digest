@@ -1,10 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
@@ -72,9 +73,10 @@ describe("FindingsPanel — severity pill count invariant (crit. 17)", () => {
     expect(pills.map((el) => el.textContent).sort()).toEqual(["1", "1", "2"]);
   });
 
-  it("still holds with 'hide low confidence' on — the pill recounts, not just the cards", () => {
+  it("still holds with 'hide low confidence' on — the pill recounts, not just the cards", async () => {
+    const user = userEvent.setup();
     const { container } = renderWithIntl(<FindingsPanel findings={MIXED_FINDINGS} prId="pr1" />);
-    fireEvent.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("switch"));
     // The low-confidence CRITICAL (c2) is now hidden — 3 cards, 1 CRITICAL pill.
     const cards = container.querySelectorAll("[data-finding-id]");
     expect(cards).toHaveLength(3);
@@ -94,7 +96,8 @@ describe("FindingsPanel — severity filter buttons (crit. 18)", () => {
     expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
   });
 
-  it("clicking the active filter chip clears it (calls onSeverityChange(null))", () => {
+  it("clicking the active filter chip clears it (calls onSeverityChange(null))", async () => {
+    const user = userEvent.setup();
     const onSeverityChange = vi.fn();
     renderWithIntl(
       <FindingsPanel
@@ -104,7 +107,7 @@ describe("FindingsPanel — severity filter buttons (crit. 18)", () => {
         onSeverityChange={onSeverityChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Warning 1" }));
+    await user.click(screen.getByRole("button", { name: "Warning 1" }));
     expect(onSeverityChange).toHaveBeenCalledWith(null);
   });
 
@@ -128,12 +131,13 @@ describe("FindingsPanel — one control is both counter and filter (crit. 16/18)
     expect(screen.getAllByRole("button", { name: /^Critical/ })).toHaveLength(1);
   });
 
-  it("clicking a chip asks for that severity", () => {
+  it("clicking a chip asks for that severity", async () => {
+    const user = userEvent.setup();
     const onSeverityChange = vi.fn();
     renderWithIntl(
       <FindingsPanel findings={MIXED_FINDINGS} prId="pr1" onSeverityChange={onSeverityChange} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
+    await user.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(onSeverityChange).toHaveBeenCalledWith("CRITICAL");
   });
 
@@ -179,12 +183,13 @@ describe("FindingsPanel — one control is both counter and filter (crit. 16/18)
 });
 
 describe("FindingsPanel — no LLM calls (crit. 19)", () => {
-  it("toggling the severity filter never touches the network", () => {
+  it("toggling the severity filter never touches the network", async () => {
+    const user = userEvent.setup();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     renderWithIntl(
       <FindingsPanel findings={MIXED_FINDINGS} prId="pr1" severity="WARNING" onSeverityChange={vi.fn()} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
+    await user.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });

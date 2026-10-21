@@ -16,9 +16,9 @@ nothing you can point at, it didn't happen.
 
 ## 1. Initiation
 
-Read before writing. Concretely: the module's [`INSIGHTS.md`](../CLAUDE.md#session-protocol)
+Read before writing. Concretely: the module's [`INSIGHTS.md`](../AGENTS.md#session-protocol)
 (entries are high-confidence unless the code contradicts them), its
-`CLAUDE.md` for the do-not-touch zones, and
+`AGENTS.md` for the do-not-touch zones, and
 [`docs/architecture.md`](./architecture.md) if the change crosses a package
 boundary.
 
@@ -62,6 +62,11 @@ Not "it looked right in the browser".
 - `cd reviewer-core && npm run typecheck && npm test`
 - Browser-level behaviour → an `e2e/specs/NN-name.flow.json` flow, run through
   `./scripts/e2e.sh` (hermetic).
+- Before calling it done → `/pr-self-review` on the uncommitted diff (manual-only:
+  the user starts it, Claude asks): a second
+  pass where the skills of each touched bucket review the change
+  ([what is checked](../.claude/skills/pr-self-review/routing.md)). BLOCK means
+  the task is not done.
 
 The test must encode the *invariant*, not the current output. "Pill count
 equals the number of cards rendered below" survives a redesign; "renders the

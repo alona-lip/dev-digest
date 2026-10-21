@@ -42,16 +42,18 @@ export class OpenRouterProvider implements LLMProvider {
   private baseURL: string;
   private apiKey: string;
   private estimateCost?: OpenRouterProviderOptions['estimateCost'];
+  private timeoutMs: number;
 
   constructor(apiKey: string, opts: OpenRouterProviderOptions = {}) {
     this.id = opts.id ?? 'openrouter';
     this.apiKey = apiKey;
     this.baseURL = opts.baseURL ?? 'https://openrouter.ai/api/v1';
     this.estimateCost = opts.estimateCost;
+    this.timeoutMs = opts.timeoutMs ?? 90_000;
     this.client = new OpenAI({
       apiKey,
       baseURL: this.baseURL,
-      timeout: opts.timeoutMs ?? 90_000,
+      timeout: this.timeoutMs,
       maxRetries: opts.maxRetries ?? 2,
     });
   }
@@ -63,7 +65,13 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let costFromApi: number | null = null;
+    // Null-poisoning (reviewer-core/INSIGHTS.md): the provider's cost is the
+    // total only if EVERY attempt reported one; a sum of the priced attempts
+    // would understate spend, so then fall back to estimating all tokens.
+    let everyAttemptPriced = true;
     let lastRaw = '';
+    // The request's own timeout wins over the client default (was ignored).
+    const requestOptions = req.timeoutMs ? { timeout: req.timeoutMs } : undefined;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({
@@ -81,7 +89,7 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter usage accounting — ask it to return the REAL generation
         // cost (USD) in `usage.cost`, instead of estimating from a price book.
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
-      });
+      }, requestOptions);
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
       // error / moderation / free-tier limit in the body) — surface it.
@@ -96,15 +104,17 @@ export class OpenRouterProvider implements LLMProvider {
       // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.
       const apiCost = (res.usage as { cost?: number } | null | undefined)?.cost;
       if (typeof apiCost === 'number') costFromApi = (costFromApi ?? 0) + apiCost;
+      else everyAttemptPriced = false;
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {
+        const providerTotal = everyAttemptPriced ? costFromApi : null;
         return {
           data: parsed.data,
           model: req.model,
           tokensIn,
           tokensOut,
-          costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          costUsd: providerTotal ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
           raw: lastRaw,
           attempts: attempt,
         };
@@ -123,6 +133,9 @@ export class OpenRouterProvider implements LLMProvider {
   async listModels(): Promise<ModelInfo[]> {
     const res = await fetch(`${this.baseURL}/models`, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
+      // Raw fetch bypasses the SDK's timeout — bound it the same way, so a
+      // hung endpoint can't stall Settings or the price book.
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!res.ok) throw new Error(`OpenRouter /models returned ${res.status}`);
     const json = (await res.json()) as {

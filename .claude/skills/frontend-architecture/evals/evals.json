@@ -1,0 +1,53 @@
+{
+  "skill_name": "frontend-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-feature-placement",
+      "prompt": "Хочу додати на сторінку PR у client (src/app/repos/[repoId]/pulls/[number]) нову панель «Cost breakdown» — таблицю витрат по кожному агенту за всі прогони цього PR, з кольоровим підсвічуванням: зелене до $0.05, жовте до $0.20, червоне вище. Дані вже приходять з API у списку прогонів (cost_usd, agent_name). Напиши, які файли створити і де, що в кожному лежатиме (компонент, пороги, функція агрегації, хук даних, тести), з короткими фрагментами коду. Код у репо не змінюй — тільки план.",
+      "expected_output": "A file-by-file plan: a route-local _components/CostBreakdown folder with role files, thresholds in constants.ts, aggregation as a pure helper, data from the existing runs hook in lib/hooks/reviews.ts, colocated test.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Places the new component in the route-local folder app/repos/[repoId]/pulls/[number]/_components/<Name>/ (not src/components, not a new features/ tree)"},
+        {"id": "a2", "text": "Puts the color thresholds as named constants in the component's own constants.ts"},
+        {"id": "a3", "text": "Implements per-agent aggregation as a pure function in the component's helpers.ts with no React import"},
+        {"id": "a4", "text": "Gets data from the existing data hook in src/lib/hooks (e.g. usePrRuns in reviews.ts) — no fetch/api call inside the component and no new one-file-per-hook module"},
+        {"id": "a5", "text": "Does not create a new global utils/ file or shared component for code with a single consumer"},
+        {"id": "a6", "text": "Includes index.ts re-export and a colocated <Name>.test.tsx (and/or helper tests)"},
+        {"id": "a7", "text": "Cross-folder imports use the @/ alias (or @devdigest/shared), not long ../../../ relative chains"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refactor-large-component",
+      "prompt": "Компонент client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx розрісся до ~290 рядків. Запропонуй, як його розбити: які файли й підкомпоненти створити, куди перенести функції, типи, стилі. Опиши цільове дерево файлів і що куди переїжджає. Код не змінюй — тільки план.",
+      "expected_output": "A target file tree for RunHistory/ with helpers.ts (outcomeOf, tsOf, timeline building), styles.ts (s object), a nested _components/RunTile/, index.ts, and tests kept colocated.",
+      "files": ["client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx"],
+      "assertions": [
+        {"id": "b1", "text": "Moves the pure functions (outcomeOf, tsOf and/or timeline building) into RunHistory/helpers.ts"},
+        {"id": "b2", "text": "Moves the style constants and repeated inline styles into RunHistory/styles.ts (the repo's `s` object pattern)"},
+        {"id": "b3", "text": "Extracts RunTile into a nested private folder RunHistory/_components/RunTile/"},
+        {"id": "b4", "text": "Adds an index.ts that re-exports RunHistory"},
+        {"id": "b5", "text": "Keeps single-consumer code inside RunHistory/ — nothing moved to src/components or a global lib/utils"},
+        {"id": "b6", "text": "Keeps or extends colocated tests (RunHistory.test.tsx, helper tests)"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "greenfield-nextjs-structure",
+      "prompt": "Починаю новий проєкт: Next.js 15 App Router + TypeScript, дашборд для виставлення рахунків (invoices, clients, payments), Postgres через Drizzle прямо з Next (окремого бекенду немає). Запропонуй структуру папок і правила: де компоненти, де константи (статуси інвойсу тощо), що в utils vs helpers, де бізнес-логіка (розрахунок податків, прострочення), як влаштувати доступ до БД і Server Actions.",
+      "expected_output": "A folder structure with thin app/ routes and colocated route code, a server-only data access layer, thin server actions, as-const statuses, pure domain functions, dependency direction rules and leaf-level use client.",
+      "files": [],
+      "assertions": [
+        {"id": "c1", "text": "app/ holds routing with thin pages, and route-specific code is colocated (_components or features/)"},
+        {"id": "c2", "text": "Database access lives in a data access layer marked `import 'server-only'`, never in components"},
+        {"id": "c3", "text": "Server Actions are thin and delegate to the DAL, with auth/validation in the action or DAL"},
+        {"id": "c4", "text": "Invoice statuses are an `as const` object plus a derived union type, explicitly preferred over a TS enum"},
+        {"id": "c5", "text": "Business rules (tax calculation, overdue) are pure, framework-free functions separate from components"},
+        {"id": "c6", "text": "States a one-way dependency rule (shared → features → app) or forbids cross-feature imports"},
+        {"id": "c7", "text": "Says to put 'use client' on interactive leaf components rather than whole pages/layouts"},
+        {"id": "c8", "text": "Distinguishes domain-specific helpers from domain-agnostic utils and warns against a catch-all utils file / premature promotion"}
+      ]
+    }
+  ]
+}

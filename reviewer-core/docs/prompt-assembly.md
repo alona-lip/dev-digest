@@ -16,13 +16,20 @@ data to be analyzed, never instructions.**
 
 ## `wrapUntrusted(label, content)`
 
-Wraps a block as `<untrusted source="…">…</untrusted>`, first escaping any
-`</untrusted>` inside the content to `<\/untrusted>` so the payload cannot
-close the delimiter and escape into instruction context.
+Wraps a block as `<untrusted source="…">…</untrusted>`, first neutralising
+every tag inside the content that could read as our delimiter — closing or
+opening, any case, whitespace around the slash (`</untrusted>`, `</UNTRUSTED>`,
+`< /untrusted >`, `<untrusted source="system">`) — by inserting a backslash
+after the `<`. So the payload can neither close the delimiter early and escape
+into instruction context, nor open a fake block of its own.
 
-Applied to: the diff, PR title/description, spec chunks, the repo map, the
-callers digest. Not applied to: the agent's own system prompt and curated
-memory, which are trusted by definition.
+Applied to: the diff, PR description, spec chunks, the repo map, the callers
+digest — and the PR title + author, which the server puts into the task line
+inside a `pr-title` block (`server/src/modules/reviews/helpers.ts`, `taskLine`;
+before 2026-10-12 they were interpolated raw into the trusted sentence). Not
+applied to: the agent's own system prompt, its linked skills and curated
+memory — those are the agent's configuration, and marking them as data would
+make the model ignore the rules they carry.
 
 ## `INJECTION_GUARD`
 
@@ -50,7 +57,7 @@ reads as context, not as an injected instruction.
 
 The obvious cheaper design — scan untrusted text for "ignore previous
 instructions" and strip it — is deliberately rejected, and
-`reviewer-core/CLAUDE.md` marks the guard do-not-touch for this reason.
+`reviewer-core/AGENTS.md` marks the guard do-not-touch for this reason.
 
 A denylist catches one phrasing in one language. The attack surface is
 "any sentence that convinces a model the code doesn't need reviewing", which is
@@ -67,10 +74,16 @@ that needs no injection at all.
 
 ## Optional slots
 
-`PromptParts` accepts `skills`, `memory`, `specs`, `repoMap`, `callers`. In the
+`PromptParts` accepts `skills`, `memory`, `specs`, `repoMap`, `callers`.
+`skills` (`{ name, body }[]`, enabled + ordered by the caller) renders into the
+**system** message as `## Skills` → one `### Skill: <name>` block each, before
+`INJECTION_GUARD` (see [specs/skills-slot.md](../specs/skills-slot.md)). A skill is
+agent configuration, so it is not `<untrusted>`-wrapped; an *imported* skill is
+foreign instructions in the agent's prompt, which is why import goes through a
+human-confirmed preview. In the
 starter most are left unfilled by design, for later course lessons — an
 empty or undefined slot omits its section entirely, with no behaviour change.
-**Don't delete them** (`reviewer-core/CLAUDE.md`, Non-default conventions).
+**Don't delete them** (`reviewer-core/AGENTS.md`, Non-default conventions).
 
 Section order matters: `repoMap` renders before `## Project context`, and
 `callers` before `## Diff to review`, so the model sees structure and crossfile

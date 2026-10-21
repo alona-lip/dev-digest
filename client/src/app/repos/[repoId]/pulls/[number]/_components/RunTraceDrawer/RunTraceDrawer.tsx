@@ -86,7 +86,12 @@ export default function RunTraceDrawer({
         </div>
       }
     >
-      <Tabs tabs={[...TABS]} value={tab} onChange={setTab} pad="0" />
+      <Tabs
+        tabs={TABS.map((key) => ({ key, label: t(`drawer.tabs.${key}`) }))}
+        value={tab}
+        onChange={setTab}
+        pad="0"
+      />
       <div style={s.tabBody}>
         {tab === "trace" ? (
           isLoading && !trace ? (

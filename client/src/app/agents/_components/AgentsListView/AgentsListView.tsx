@@ -1,14 +1,14 @@
 /* /agents — Agents list (A2, L03). AgentCards + create. Selecting an agent
-   navigates to the 5-tab editor at /agents/:id. */
+   navigates to the editor at /agents/:id (tabs Config, Skills). */
 "use client";
 
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Skeleton, Icon } from "@devdigest/ui";
-import { AppShell } from "../../../../components/app-shell";
-import { useAgents, useUpdateAgent } from "../../../../lib/hooks/agents";
-import { AgentCard } from "../AgentCard";
+import { AppShell } from "@/components/app-shell";
+import { useAgents, useUpdateAgent } from "@/lib/hooks/agents";
+import { AgentCard } from "@/components/agent-card";
 import { CreateAgentModal } from "./_components/CreateAgentModal";
 import { TEMPLATES } from "./constants";
 import { filterAgents } from "./helpers";
@@ -86,6 +86,7 @@ export function AgentsListView() {
               <AgentCard
                 key={a.id}
                 ag={a}
+                skillCount={a.skill_count}
                 onClick={() => router.push(`/agents/${a.id}?tab=config`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />

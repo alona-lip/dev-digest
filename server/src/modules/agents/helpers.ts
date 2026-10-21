@@ -1,4 +1,4 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Agent, AgentListItem, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
 
@@ -24,6 +24,11 @@ export function toAgentDto(row: AgentRow): Agent {
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
   };
+}
+
+/** List tile DTO: the agent + how many skills are enabled for it (0 when none). */
+export function toAgentListItemDto(row: AgentRow, skillCounts: Map<string, number>): AgentListItem {
+  return { ...toAgentDto(row), skill_count: skillCounts.get(row.id) ?? 0 };
 }
 
 /**

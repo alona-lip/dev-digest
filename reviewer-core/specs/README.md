@@ -11,3 +11,8 @@ explicitly out of scope.
 
 - [grounding.md](./grounding.md) — the citation gate: the intersection rule, the
   full-file exception, and why it's mechanical rather than a second LLM call.
+- [engine-hardening.md](./engine-hardening.md) — delimiter escaping, untrusted PR
+  title, grounding bounded by the diff, exact `sliceDiff`, provider timeouts
+  and the cost rule across repair attempts; rejected alternatives.
+- [skills-slot.md](./skills-slot.md) — skills move from the user message into the system
+  message as ordered `### Skill: <name>` blocks, before `INJECTION_GUARD`.

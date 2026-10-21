@@ -4,6 +4,16 @@ import { schema } from './schema.js';
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
+/** The `tx` handed to a `db.transaction(async (tx) => …)` callback. */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * What a repository function runs its SQL on: the pool, or an open
+ * transaction. Taking this as the first argument is what lets a service
+ * compose several repository writes into one transaction.
+ */
+export type Executor = Db | Tx;
+
 export interface DbHandle {
   db: Db;
   sql: postgres.Sql;

@@ -1,0 +1,79 @@
+{
+  "skill_name": "onion-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-module-placement",
+      "prompt": "Хочу додати в server новий модуль `notes`: користувач може залишати текстові нотатки до PR (CRUD: GET /pulls/:id/notes, POST /pulls/:id/notes, DELETE /notes/:id), нотатки зберігаються в Postgres у таблиці pr_notes, а при створенні нотатки треба перевіряти, що PR належить воркспейсу користувача. Напиши, які файли створити і де, що лежатиме в кожному, з короткими фрагментами коду. Код у репо не змінюй — тільки план.",
+      "expected_output": "A file-by-file plan under server/src/modules/notes/ with role-named files: thin routes.ts with zod schemas, service.ts orchestrating, repository with Drizzle queries taking db first, pure helpers for mapping, contracts in vendor/shared, registration in modules/index.ts, a new migration via pnpm db:generate, tests per ring, and pnpm arch:check in the check gate.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Creates server/src/modules/notes/ with role-named files: routes.ts, service.ts, repository (repository.ts and/or repository/note.repo.ts) and helpers.ts — no domain/application/infrastructure folders"},
+        {"id": "a2", "text": "routes.ts only resolves context (getContext), calls one service method and returns the result; it validates params/body with zod schemas on the route and contains no drizzle-orm, db/schema or container.db"},
+        {"id": "a3", "text": "All Drizzle/SQL code is in the notes repository; query functions take the db executor as the first argument and filter by workspaceId"},
+        {"id": "a4", "text": "The PR-ownership check goes through an existing repository or facade (e.g. container.reviewRepo.getPull or a notes repository query), not by importing another module's internal file"},
+        {"id": "a5", "text": "Wire contract(s) for a note are placed in server/src/vendor/shared/contracts (snake_case fields) and the plan mentions mirroring them into client/src/vendor/shared"},
+        {"id": "a6", "text": "The schema change is a NEW migration via pnpm db:generate (no editing existing migrations)"},
+        {"id": "a7", "text": "Mentions running pnpm arch:check (alongside typecheck/tests) and/or names the arch rules the plan respects"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "new-external-integration",
+      "prompt": "Треба, щоб після завершення кожного review сервер відправляв коротке повідомлення в Slack (назва PR, score, кількість CRITICAL). Токен Slack користувач вводить у Settings. Як це правильно вбудувати в server? Покажи, куди що класти, і фрагменти коду. Нічого не змінюй у репо.",
+      "expected_output": "A port (e.g. Notifier) in vendor/shared/adapters.ts, a Slack adapter in src/adapters/notifier/, lazy construction in platform/container.ts reading the token from SecretsProvider, a ContainerOverrides entry plus a mock, and the review service/executor calling the port after persisting (outside any DB transaction).",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Defines a port/interface (e.g. Notifier) in server/src/vendor/shared/adapters.ts whose input is a plain contract, not a Slack-specific payload"},
+        {"id": "a2", "text": "Implements the Slack client in server/src/adapters/<kind>/ and states the Slack SDK/HTTP call is imported only there"},
+        {"id": "a3", "text": "Constructs the adapter in server/src/platform/container.ts, lazily, reading the token via SecretsProvider (not AppConfig / not process.env directly in the service)"},
+        {"id": "a4", "text": "Adds the notifier to ContainerOverrides and a mock implementation for tests"},
+        {"id": "a5", "text": "The review service/run-executor depends on the port (interface), not the concrete Slack class, and calls it after the review is persisted"},
+        {"id": "a6", "text": "Slack failures are caught/logged or mapped to ExternalServiceError so they don't fail the review run"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "where-does-logic-live",
+      "prompt": "Хочу показувати в списку PR колонку 'Risk' — HIGH, якщо в останньому review хоча б одного агента є CRITICAL або загальна сума WARNING > 5, MEDIUM, якщо є хоч один WARNING, інакше LOW. Де має жити ця логіка в server і як її тестувати? Коротко, з фрагментами коду, без змін у репо.",
+      "expected_output": "Risk classification as a pure function in pulls/status.ts (or helpers.ts) over severity counts, unit-tested in server/test without a DB; the route/service only gathers data (reusing latestReviewPerAgent / rollupSeverities) and maps; the wire contract gets a risk field.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Puts the HIGH/MEDIUM/LOW decision in a pure function in server/src/modules/pulls/status.ts or helpers.ts, with no DB/Fastify imports"},
+        {"id": "a2", "text": "Reuses or references the existing per-agent rollup helpers (latestReviewPerAgent / rollupSeverities) instead of writing a new SQL-side classification"},
+        {"id": "a3", "text": "Unit tests the classifier in server/test (e.g. pulls-status.test.ts) without Docker/Postgres, covering the boundary cases (exactly 5 vs 6 warnings, CRITICAL present, no reviews)"},
+        {"id": "a4", "text": "Does not put the classification inside SQL or inline in the route handler"},
+        {"id": "a5", "text": "Uses UPPER_CASE enum values on the wire (HIGH/MEDIUM/LOW) and adds the field to the shared contract"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "review-layering-violations",
+      "prompt": "Подивись на цей фрагмент з нового PR у server і скажи, що не так з точки зору архітектури та як виправити:\n\n```ts\n// server/src/modules/digest/routes.ts\nimport { eq, desc } from 'drizzle-orm';\nimport * as t from '../../db/schema.js';\nimport { OctokitGitHubClient } from '../../adapters/github/octokit.js';\nimport { toAgentDto } from '../agents/helpers.js';\n\nexport default async function digestRoutes(app: FastifyInstance) {\n  app.get('/repos/:id/digest', async (req, reply) => {\n    const id = (req.params as any).id;\n    const gh = new OctokitGitHubClient(process.env.GITHUB_TOKEN!);\n    const reviews = await app.container.db.select().from(t.reviews).where(eq(t.reviews.repoId, id)).orderBy(desc(t.reviews.createdAt));\n    const critical = reviews.filter(r => r.score < 50);\n    if (critical.length > 3) reply.status(409);\n    return { critical, agents: (await app.container.agentsRepo.list(id)).map(toAgentDto) };\n  });\n}\n```",
+      "expected_output": "A review naming each violation with its rule: Drizzle/schema in a route (routes-are-thin, db-only-in-repositories), concrete adapter + process.env in a route (sdk/adapters via container, secrets via SecretsProvider), cross-module import of agents/helpers (no-cross-module-internals), hand-parsed params (zod schema), business rule and HTTP status decided inline, with a corrected routes/service/repository/helpers split.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Flags drizzle-orm / db/schema / container.db in routes.ts and moves the query to a repository (names routes-are-thin and/or db-only-in-repositories)"},
+        {"id": "a2", "text": "Flags constructing OctokitGitHubClient in the route and reading GITHUB_TOKEN from process.env; says to use container.github() (port) and SecretsProvider"},
+        {"id": "a3", "text": "Flags the import of ../agents/helpers.js as a cross-module internal import and proposes a facade/_shared/container alternative"},
+        {"id": "a4", "text": "Flags `(req.params as any).id` and proposes a zod params schema with withTypeProvider<ZodTypeProvider>()"},
+        {"id": "a5", "text": "Moves the score<50 / >3 rule into a pure helper and replaces reply.status(409) with throwing an AppError subclass from the service"},
+        {"id": "a6", "text": "Suggests running pnpm arch:check to confirm, and does not suggest adding these to the known-violations baseline"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "reviewer-core-io-request",
+      "prompt": "Хочу, щоб reviewer-core під час review сам читав файл CODEOWNERS з клонованого репозиторію і додавав у промпт, хто власник змінених файлів. Додай це в reviewer-core/src/prompt.ts через fs.readFileSync — як це краще зробити? Покажи план і фрагменти, без змін у репо.",
+      "expected_output": "Push back on fs inside reviewer-core (reviewer-core-no-node-io); server reads CODEOWNERS (via GitClient/codeindex port in a service) and passes plain owner data into an optional prompt slot/argument exported via src/index.ts; tests in reviewer-core stay hermetic.",
+      "files": [],
+      "assertions": [
+        {"id": "a1", "text": "Does not add fs/readFileSync (or any Node I/O) to reviewer-core and explains it must stay pure / names reviewer-core-no-node-io"},
+        {"id": "a2", "text": "Reads CODEOWNERS on the server side (a service using the GitClient/CodeIndex port or the clone dir via an adapter), not in a route"},
+        {"id": "a3", "text": "Passes the owners into reviewer-core as plain data through an optional parameter / prompt slot, keeping existing slots intact"},
+        {"id": "a4", "text": "Any new reviewer-core function or type is exported from reviewer-core/src/index.ts and server imports @devdigest/reviewer-core, not a deep path"},
+        {"id": "a5", "text": "Proposes a hermetic reviewer-core unit test with plain input data (no filesystem fixture needed)"}
+      ]
+    }
+  ]
+}

@@ -5,22 +5,58 @@
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "scanSummary": "Detected from {files, plural, one {# sample file} other {# sample files}} · {proposed} proposed · {dropped} dropped without evidence · {duplicates} already listed",
     "scanning": "Scanning…",
+    "runScan": "Run Scan",
     "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
-    "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill",
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
-    },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill."
+    }
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "rule": "Rule",
+    "ruleRequired": "The rule can't be empty.",
+    "category": "Category",
+    "copy": "Copy code",
+    "copied": "Copied",
+    "categories": {
+      "NAMING": "Naming",
+      "STRUCTURE": "Structure",
+      "ERROR_HANDLING": "Error handling",
+      "ASYNC": "Async",
+      "TYPING": "Typing",
+      "IMPORTS": "Imports",
+      "TESTING": "Testing",
+      "STYLE": "Style",
+      "OTHER": "Other"
+    }
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from <b>{count, plural, one {# accepted convention} other {# accepted conventions}}</b> in <mono>{repo}</mono>. Everything below is editable before you save.",
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "agent": "Link to agent",
+    "agentHint": "The skill is added to this agent's prompt; the agent keeps its other skills.",
+    "agentRequired": "Pick an agent to link the skill to.",
+    "savedAs": "Saved as v{version} · added to Skills Lab",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "{name} saved as v{version} and linked to {agent}",
+    "loadError": "Could not build the skill draft."
   }
 }

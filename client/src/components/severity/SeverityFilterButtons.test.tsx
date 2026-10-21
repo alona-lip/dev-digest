@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 import { SeverityFilterButtons } from "./SeverityFilterButtons";
 
 afterEach(cleanup);
@@ -66,21 +67,23 @@ describe("SeverityFilterButtons", () => {
     );
   });
 
-  it("clicking an inactive chip selects it", () => {
+  it("clicking an inactive chip selects it", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     renderWithIntl(
       <SeverityFilterButtons counts={MIXED} active={null} onSelect={onSelect} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
+    await user.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(onSelect).toHaveBeenCalledWith("CRITICAL");
   });
 
-  it("clicking the already-active chip clears the filter", () => {
+  it("clicking the already-active chip clears the filter", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     renderWithIntl(
       <SeverityFilterButtons counts={MIXED} active="CRITICAL" onSelect={onSelect} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
+    await user.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 });

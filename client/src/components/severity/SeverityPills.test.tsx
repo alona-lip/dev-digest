@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 import { SeverityPills } from "./SeverityPills";
 
 afterEach(cleanup);
@@ -39,14 +40,15 @@ describe("SeverityPills", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("with onSelect, each non-zero pill is a real button that calls back with its severity", () => {
+  it("with onSelect, each non-zero pill is a real button that calls back with its severity", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     renderWithIntl(
       <SeverityPills counts={{ CRITICAL: 1, WARNING: 2, SUGGESTION: 0 }} onSelect={onSelect} />,
     );
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(2);
-    fireEvent.click(screen.getByLabelText("Show only Critical findings"));
+    await user.click(screen.getByLabelText("Show only Critical findings"));
     expect(onSelect).toHaveBeenCalledWith("CRITICAL");
   });
 
@@ -57,7 +59,8 @@ describe("SeverityPills", () => {
     expect(screen.getByRole("button")).not.toHaveAttribute("aria-pressed");
   });
 
-  it("stops the click from bubbling (a parent row's onClick must not also fire)", () => {
+  it("stops the click from bubbling (a parent row's onClick must not also fire)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const onRowClick = vi.fn();
     renderWithIntl(
@@ -65,7 +68,7 @@ describe("SeverityPills", () => {
         <SeverityPills counts={{ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 }} onSelect={onSelect} />
       </div>,
     );
-    fireEvent.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onRowClick).not.toHaveBeenCalled();
   });

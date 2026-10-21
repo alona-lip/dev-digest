@@ -1,24 +1,45 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  jsonb,
+  primaryKey,
+  unique,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import type { SkillScanFinding } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 
-export const skills = pgTable('skills', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  description: text('description').notNull(),
-  type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
-  source: text('source', {
-    enum: ['manual', 'imported_url', 'extracted', 'community'],
-  }).notNull(),
-  body: text('body').notNull(),
-  enabled: boolean('enabled').notNull().default(true),
-  version: integer('version').notNull().default(1),
-  evidenceFiles: jsonb('evidence_files').$type<string[]>(),
-  createdAt: now(),
-});
+export const skills = pgTable(
+  'skills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    type: text('type', { enum: ['rubric', 'convention', 'security', 'custom'] }).notNull(),
+    source: text('source', {
+      enum: ['manual', 'imported_url', 'imported_file', 'extracted', 'community'],
+    }).notNull(),
+    body: text('body').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    version: integer('version').notNull().default(1),
+    evidenceFiles: jsonb('evidence_files').$type<string[]>(),
+    /** Prompt-injection scan of the current body; `injection` = blocked (kept disabled). */
+    scanStatus: text('scan_status', { enum: ['clean', 'injection'] }).notNull().default('clean'),
+    scanMethod: text('scan_method', { enum: ['pattern', 'llm'] }).notNull().default('pattern'),
+    scanFindings: jsonb('scan_findings').$type<SkillScanFinding[]>().notNull().default([]),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }),
+    createdAt: now(),
+  },
+  // A skill is addressed by name inside a workspace (import preview flags clashes).
+  (t) => ({ uniqName: unique('skills_workspace_name_uniq').on(t.workspaceId, t.name) }),
+);
 
 export const skillVersions = pgTable(
   'skill_versions',
@@ -28,6 +49,8 @@ export const skillVersions = pgTable(
       .references(() => skills.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     body: text('body').notNull(),
+    /** Change note shown in the Versions tab. */
+    message: text('message').notNull().default(''),
     createdAt: now(),
   },
   (t) => ({ pk: primaryKey({ columns: [t.skillId, t.version] }) }),

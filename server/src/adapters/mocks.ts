@@ -31,8 +31,12 @@ import type {
   AuthWorkspace,
   SecretsProvider,
   SecretKey,
+  UrlFetcher,
+  UrlFetchOptions,
+  UrlFetchResult,
 } from '@devdigest/shared';
-import { parseUnifiedDiff } from './git/diff-parser.js';
+import { parseUnifiedDiff } from '@devdigest/shared';
+import { ValidationError } from '../platform/errors.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -300,7 +304,7 @@ export class MockCodeIndex implements CodeIndex {
   async grep(_repo: RepoRef, pattern: string): Promise<CodeMatch[]> {
     return [{ path: 'src/config.ts', line: 12, text: `match for ${pattern}` }];
   }
-  async symbols(): Promise<CodeSymbol[]> {
+  async symbols(_repo: RepoRef): Promise<CodeSymbol[]> {
     return [{ path: 'src/middleware/ratelimit.ts', name: 'rateLimit', kind: 'function', line: 25 }];
   }
   async references(_repo: RepoRef, symbol: string): Promise<CodeReference[]> {
@@ -326,5 +330,26 @@ export class MockSecretsProvider implements SecretsProvider {
   constructor(private secrets: Partial<Record<string, string>> = {}) {}
   async get(key: SecretKey): Promise<string | undefined> {
     return this.secrets[key as string];
+  }
+}
+
+// ---------- Mock URL fetcher ----------
+export interface MockUrlResponse {
+  body: string | Uint8Array;
+  contentType?: string | null;
+  /** URL after redirects (defaults to the requested one). */
+  finalUrl?: string;
+}
+
+/** Serves canned bodies by exact URL; anything else is a 404 (as a ValidationError, like the real one). */
+export class MockUrlFetcher implements UrlFetcher {
+  public calls: string[] = [];
+  constructor(private responses: Record<string, MockUrlResponse> = {}) {}
+  async fetch(url: string, _opts: UrlFetchOptions): Promise<UrlFetchResult> {
+    this.calls.push(url);
+    const r = this.responses[url];
+    if (!r) throw new ValidationError('The URL returned HTTP 404');
+    const bytes = typeof r.body === 'string' ? new TextEncoder().encode(r.body) : r.body;
+    return { bytes, finalUrl: r.finalUrl ?? url, contentType: r.contentType ?? 'text/plain; charset=utf-8' };
   }
 }

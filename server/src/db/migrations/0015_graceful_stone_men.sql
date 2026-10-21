@@ -1,0 +1,1 @@
+ALTER TABLE "conventions" ALTER COLUMN "status" SET DEFAULT 'PENDING';

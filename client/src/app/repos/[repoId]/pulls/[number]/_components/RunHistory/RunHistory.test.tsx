@@ -6,9 +6,13 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+// Clicks and hovers go through userEvent. The popover tests below keep
+// fireEvent on purpose: `scroll` has no userEvent API, and the "cursor in
+// transit" cases step exact mouseLeave/mouseEnter sequences under fake timers.
 import { NextIntlClientProvider } from "next-intl";
 import type { RunSummary, FindingRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
 afterEach(cleanup);
@@ -137,7 +141,8 @@ describe("RunHistory — Timeline severity icons (crit. 16)", () => {
 });
 
 describe("RunHistory — Timeline hover popover (крит. 20/21 pattern reused on the Timeline)", () => {
-  it("hovering the findings area opens a popover listing ALL of that run's findings, unlimited, scrollable", () => {
+  it("hovering the findings area opens a popover listing ALL of that run's findings, unlimited, scrollable", async () => {
+    const user = userEvent.setup();
     const findingsByRun = new Map([
       [
         "run-1",
@@ -152,7 +157,7 @@ describe("RunHistory — Timeline hover popover (крит. 20/21 pattern reused 
     expect(screen.queryByText("3 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
 
     const anchor = screen.getByText(/finding\(s\)/).parentElement!;
-    fireEvent.mouseEnter(anchor);
+    await user.hover(anchor);
 
     expect(screen.getByText("3 FINDINGS IN THIS RUN")).toBeInTheDocument();
     expect(screen.getByText("All analytics endpoints are unauthenticated")).toBeInTheDocument();
@@ -224,20 +229,22 @@ describe("RunHistory — Timeline hover popover (крит. 20/21 pattern reused 
     expect(screen.queryByText("1 FINDINGS IN THIS RUN")).not.toBeInTheDocument();
   });
 
-  it("the popover is rendered in document.body (portal), not clipped inside the tile", () => {
+  it("the popover is rendered in document.body (portal), not clipped inside the tile", async () => {
+    const user = userEvent.setup();
     const findingsByRun = new Map([["run-1", [finding({ id: "c1" })]]]);
     const { container } = renderRuns([run({ status: "done", findings_count: 1 })], findingsByRun);
     const anchor = screen.getByText(/finding\(s\)/).parentElement!;
-    fireEvent.mouseEnter(anchor);
+    await user.hover(anchor);
     const tooltip = screen.getByRole("tooltip");
     expect(container.contains(tooltip)).toBe(false);
     expect(document.body.contains(tooltip)).toBe(true);
   });
 
-  it("a run with no findings shows no popover on hover", () => {
+  it("a run with no findings shows no popover on hover", async () => {
+    const user = userEvent.setup();
     renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 95 })]);
     const anchor = screen.getByText(/finding\(s\)/).parentElement!;
-    fireEvent.mouseEnter(anchor);
+    await user.hover(anchor);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });

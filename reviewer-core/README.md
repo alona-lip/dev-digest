@@ -45,6 +45,8 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 ## Testing
 
 `npm test` (vitest) — hermetic units with a stubbed `LLMProvider`: prompt
-assembly, the grounding gate, `toReview` selection, and a full `run`. No keys,
-no network. `npm run typecheck` doubles as the build. See
+assembly + delimiter escaping, structured-output repair, the grounding gate,
+`sliceDiff` / `reduceReviews`, `toReview` selection, a full `run`, and the
+OpenRouter provider against a local HTTP stub (cost rule, timeouts). No keys,
+no network. `npm run typecheck` checks src + test (`build` checks src). See
 [`../TESTING.md`](../TESTING.md).

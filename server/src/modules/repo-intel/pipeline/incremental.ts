@@ -19,8 +19,7 @@ import { extname, join } from 'node:path';
 import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { withTimeout } from '../../../platform/resilience.js';
-import { parseSymbols, parseReferences, langForFile } from '../../../adapters/astgrep/index.js';
-import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
+import { extractEndpoints, extractCrons } from '../extract.js';
 import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEXER_VERSION,
@@ -136,6 +135,7 @@ export async function runIncremental(
   }
 
   // (5) Slice path: delete then reparse the changed files.
+  const { parseSymbols, parseReferences, langForFile } = container.codeParser;
   const symbolsBuf: IndexerSymbolRow[] = [];
   const refsBuf: IndexerReferenceRow[] = [];
   const factsBuf: IndexerFileFactsRow[] = [];

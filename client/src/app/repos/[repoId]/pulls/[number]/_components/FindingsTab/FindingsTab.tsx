@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
-import { RunHistory } from "../RunHistory/RunHistory";
+import { RunHistory } from "../RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { useCancelRun } from "@/lib/hooks/reviews";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
-import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
   prId: string | null;
@@ -17,7 +18,6 @@ interface FindingsTabProps {
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
@@ -37,7 +37,6 @@ export function FindingsTab({
   runs,
   prRuns,
   prCommits,
-  cancelMutation,
   repoFullName,
   headSha,
   severity,
@@ -46,6 +45,8 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  const t = useTranslations("prReview");
+  const cancelMutation = useCancelRun(prId);
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
@@ -104,15 +105,15 @@ export function FindingsTab({
                   loading={cancelMutation.isPending}
                   onClick={handleCancelAll}
                 >
-                  Cancel
+                  {t("detail.runs.cancel")}
                 </Button>
                 <Button kind="ghost" size="sm" icon="FileText" onClick={handleOpenFirstTrace}>
-                  Open run trace
+                  {t("detail.runs.openTrace")}
                 </Button>
               </div>
             }
           >
-            Live review
+            {t("detail.runs.liveReview")}
           </SectionLabel>
           <RunStatus runIds={liveRunIds} onDone={onRunDone} />
         </div>
@@ -121,19 +122,17 @@ export function FindingsTab({
       {reviewRunning && (
         <div style={s.reviewInProgress}>
           <Icon.RefreshCw size={16} style={{ color: "var(--accent)", animation: "ddspin 1s linear infinite" }} />
-          <span style={s.reviewInProgressText}>Review in progress…</span>
-          <span style={s.reviewInProgressSub}>
-            the agent is analyzing the diff — this can take a while on large PRs.
-          </span>
+          <span style={s.reviewInProgressText}>{t("detail.runs.inProgress")}</span>
+          <span style={s.reviewInProgressSub}>{t("detail.runs.inProgressHint")}</span>
         </div>
       )}
 
       {lethalTrifecta.length > 0 && (
         <div style={s.lethalTrifecta}>
           <Icon.Shield size={16} style={{ color: "var(--crit)" }} />
-          <span style={s.lethalTrifectaTitle}>Lethal Trifecta detected</span>
+          <span style={s.lethalTrifectaTitle}>{t("detail.runs.trifectaDetected")}</span>
           <Badge color="var(--crit)" bg="transparent">
-            {lethalTrifecta.length} finding(s)
+            {t("detail.runs.trifectaCount", { count: lethalTrifecta.length })}
           </Badge>
         </div>
       )}
@@ -142,9 +141,9 @@ export function FindingsTab({
         <div style={s.timelineSection}>
           <SectionLabel
             icon="Activity"
-            right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>runs &amp; commits · newest first</span>}
+            right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("detail.runs.timelineHint")}</span>}
           >
-            Timeline
+            {t("detail.runs.timeline")}
           </SectionLabel>
           <RunHistory
             runs={prRuns ?? []}
@@ -159,16 +158,16 @@ export function FindingsTab({
 
       <SectionLabel
         icon="AlertOctagon"
-        right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>grouped by run · newest first</span>}
+        right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("detail.runs.reviewRunsHint")}</span>}
       >
-        Review runs
+        {t("detail.runs.reviewRuns")}
       </SectionLabel>
       {runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
             icon="Sparkles"
-            title="No findings yet"
-            body="Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
+            title={t("detail.runs.emptyTitle")}
+            body={t("detail.runs.emptyBody")}
           />
         )
       ) : (
@@ -185,6 +184,7 @@ export function FindingsTab({
             targetNonce={target?.n ?? 0}
             severity={severity}
             onSeverityChange={onSeverityChange}
+            onOpenTrace={handleOpenTrace}
           />
         ))
       )}

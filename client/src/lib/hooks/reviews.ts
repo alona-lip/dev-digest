@@ -15,6 +15,33 @@ import type {
   RunSummary,
 } from "@devdigest/shared";
 
+/** Query keys for this domain — private: components use the hooks below. */
+const keys = {
+  activeRuns: (prId: string | null | undefined) => ["pr-active-runs", prId] as const,
+  runs: (prId: string | null | undefined) => ["pr-runs", prId] as const,
+  reviews: (prId: string | null | undefined) => ["reviews", prId] as const,
+  allReviews: ["reviews"] as const,
+  comments: (prId: string | null | undefined) => ["pr-comments", prId] as const,
+};
+
+/**
+ * Everything a run's lifecycle changes for one PR: what's in flight, the run
+ * history (a failed run must appear without a reload) and the persisted
+ * reviews + findings.
+ */
+function invalidatePrRuns(qc: ReturnType<typeof useQueryClient>, prId: string | null | undefined) {
+  if (!prId) return;
+  qc.invalidateQueries({ queryKey: keys.activeRuns(prId) });
+  qc.invalidateQueries({ queryKey: keys.runs(prId) });
+  qc.invalidateQueries({ queryKey: keys.reviews(prId) });
+}
+
+/** A callback that refreshes a PR's runs + reviews — e.g. when a live run settles. */
+export function useRefreshPrRuns(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return React.useCallback(() => invalidatePrRuns(qc, prId), [qc, prId]);
+}
+
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
   run_id: string;
@@ -27,7 +54,7 @@ export interface ActiveRun {
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-active-runs", prId],
+    queryKey: keys.activeRuns(prId),
     queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
     enabled: !!prId,
     refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
@@ -39,7 +66,7 @@ export function usePrActiveRuns(prId: string | null | undefined) {
    reload (DB-backed). Polls while anything is running so it self-updates. */
 export function usePrRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-runs", prId],
+    queryKey: keys.runs(prId),
     queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
     enabled: !!prId,
     refetchInterval: (query) =>
@@ -50,7 +77,7 @@ export function usePrRuns(prId: string | null | undefined) {
 // ---- Persisted reviews + findings for a PR ----
 export function usePrReviews(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["reviews", prId],
+    queryKey: keys.reviews(prId),
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId,
   });
@@ -62,18 +89,21 @@ export function useDeleteRun(prId: string | null | undefined) {
   return useMutation({
     mutationFn: (runId: string) => api.del<{ ok: boolean }>(`/runs/${runId}`),
     // Deleting a run also deletes the review it produced (server-side), so drop
-    // both the timeline and the Review Runs list from cache.
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
-    },
+    // the timeline, the Review Runs list and the in-flight list from cache.
+    onSuccess: () => invalidatePrRuns(qc, prId),
   });
 }
 
-/** Request cancellation of an in-flight run (takes effect at the next step). */
-export function useCancelRun() {
+/**
+ * Request cancellation of an in-flight run (takes effect at the next step).
+ * The server marks it cancelled immediately, so the PR's run lists are
+ * refreshed right away instead of waiting for the next poll.
+ */
+export function useCancelRun(prId: string | null | undefined) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (runId: string) => api.post<{ ok: boolean }>(`/runs/${runId}/cancel`),
+    onSuccess: () => invalidatePrRuns(qc, prId),
   });
 }
 
@@ -82,7 +112,7 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.reviews(prId) }),
   });
 }
 
@@ -90,7 +120,7 @@ export function useDeleteReview(prId: string | null | undefined) {
 /** Existing GitHub PR review comments, fetched live. */
 export function usePrComments(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-comments", prId],
+    queryKey: keys.comments(prId),
     queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
     enabled: !!prId,
   });
@@ -110,7 +140,7 @@ export function useCreatePrComment(prId: string | null | undefined) {
   return useMutation({
     mutationFn: (input: CreateCommentInput) =>
       api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.comments(prId) }),
   });
 }
 
@@ -132,9 +162,9 @@ export function useRunReview() {
         ...(agentIds?.length ? { agentIds } : {}),
         ...(all ? { all } : {}),
       }),
-    onSuccess: (_d, { prId }) => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
-    },
+    // The new runs are 'running' now — refresh the in-flight list (which starts
+    // its own polling) and the run history, not just the reviews.
+    onSuccess: (_d, { prId }) => invalidatePrRuns(qc, prId),
   });
 }
 
@@ -157,9 +187,10 @@ export function useFindingAction() {
         `/findings/${findingId}/${action}`,
         reply ? { reply } : undefined,
       ),
-    onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
-    },
+    // Without a prId we can't know which PR's list holds the finding — refresh
+    // every cached review list rather than leave a stale accept/dismiss state.
+    onSuccess: (_d, { prId }) =>
+      qc.invalidateQueries({ queryKey: prId ? keys.reviews(prId) : keys.allReviews }),
   });
 }
 

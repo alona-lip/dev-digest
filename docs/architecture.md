@@ -1,7 +1,7 @@
 # Pipeline architecture
 
 The single source of truth for how DevDigest's 4 packages talk to each other.
-Module-level `CLAUDE.md` files link here instead of duplicating this text.
+Module-level `AGENTS.md` files link here instead of duplicating this text.
 
 ## Why this isn't a monorepo
 
@@ -55,6 +55,6 @@ the response, and provides types on the frontend.
   on the host (`./scripts/dev.sh`).
 - **Never run `docker compose down -v`** — it deletes the `devdigest_pgdata`
   volume along with every real imported repo and review, not just test data.
-- Each package's detailed gotchas live in its own `CLAUDE.md`
-  (`server/CLAUDE.md`, `client/CLAUDE.md`, `reviewer-core/CLAUDE.md`,
-  `e2e/CLAUDE.md`) and aren't duplicated here.
+- Each package's detailed gotchas live in its own `AGENTS.md`
+  (`server/AGENTS.md`, `client/AGENTS.md`, `reviewer-core/AGENTS.md`,
+  `e2e/AGENTS.md`) and aren't duplicated here.

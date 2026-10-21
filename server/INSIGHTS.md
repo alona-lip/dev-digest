@@ -21,12 +21,45 @@ by hand in the same format.
   rather than from `reviews.it.test.ts`, which drives the whole pipeline.
   (`server/test/pulls-list.it.test.ts`)
 
+
+- 2026-10-16 — a skills-in-the-prompt test needs no real LLM: build the app with
+  `overrides.llm = { openai: mock }`, keep the `MockLLMProvider` instance in a
+  variable, run a review, then read `mock.calls.find(c => c.method ===
+  'completeStructured').req.messages[0].content` — that IS the system message the
+  model got. Combine with `GET /runs/:id/trace` for `skill_blocks` and `log`.
+  (`server/test/skills.it.test.ts`)
+
 ## What Doesn't Work
 
 <!--
 - 2026-09-18 — example entry: state what turned out to be true, then what to do
   or avoid next time, and point at the evidence. (`path/to/file.ts:42`)
 -->
+- 2026-10-12 — writing the dependency-cruiser baseline before triaging the
+  first run freezes false positives as "known violations": the first cut of the
+  onion rules reported 49 errors, 15 of them false — reviewer-core's
+  `@devdigest/shared` resolves to `server/src/vendor/shared` (looked like
+  "reviewer-core imports server"), `reviewer-core/src/llm/structured.ts`
+  legitimately imports `openai/helpers/zod`, and type-only cycles
+  (`agents/helpers.ts` ↔ `agents/repository.ts`) tripped `no-circular`. ALWAYS
+  run with `--no-ignore-known`, fix the rules until every hit is a real
+  violation, and only then `pnpm arch:baseline`. (`server/.dependency-cruiser.cjs`)
+
+- 2026-10-21 — telling "with / without skills" runs apart by agent `config.version` only works
+  for the per-agent switch: `replaceSkills` bumps the version when the set of bound+enabled
+  skill ids changes, but the global `skills.enabled` toggle (Skills → card) also changes the
+  prompt and bumps NOTHING. Seen in the skills experiment: Test Quality runs `05b77db7`
+  (3 skill blocks) and `f0bbf4ed` (2 blocks, `test-smells` off globally) both report
+  `config.version` 8. ALWAYS compare runs by `prompt_assembly.skill_blocks` in
+  `GET /runs/:id/trace` (or `run_skills`), never by version alone.
+  (`server/src/modules/agents/repository.ts:345`, `docs/skills-experiment.md` Checks)
+- 2026-10-21 — a renamed field in a request contract (`RunRequest.agentId` → `agent_id`,
+  experiment PR alona-lip/dev-digest#4) yields NO callers digest: there is no changed callable
+  signature to look up, so the trace's `prompt_assembly.callers` is empty and the log has no
+  `callers digest:` line. The client caller (`useRunReview`) reached the model only through
+  the repo map. NEVER count on the callers digest for wire-shape changes; the repo must be
+  indexed (repo map present) or the reviewer can only say "any existing caller".
+  (`docs/skills-experiment.md` B results)
 
 ## Codebase Patterns
 
@@ -118,8 +151,98 @@ by hand in the same format.
   map-reduce run, not a rule for combining agents — don't cite it for a
   multi-agent mean. (`server/src/modules/pulls/routes.ts:278`,
   `server/specs/pr-list-findings-by-agent.md`)
+- 2026-10-12 — `pnpm arch:check` only sees imports, so `container.db` used in a
+  route or service without a `drizzle-orm`/`db/schema` import (e.g.
+  `container.db.query.*`, or a service holding `this.container`) passes the
+  check while still bypassing the repository ring. Because the tool is green,
+  NEVER treat a passing arch:check as proof a handler is thin — grep the diff
+  for `container.db` and apply the onion-architecture skill's review checklist.
+  (`server/src/modules/pulls/routes.ts:44`, `.claude/skills/onion-architecture/SKILL.md`)
+- 2026-10-12 — `withRetry`'s default `isRetryable` reads `err.status` BEFORE
+  `err.statusCode`, and retries anything ≥500. So wrapping an SDK error in an
+  `AppError` subclass (whose `statusCode` is the HTTP answer, e.g. 502 for
+  `ExternalServiceError`) silently makes every upstream 404/422 retryable —
+  unless the mapped error keeps the upstream code on `status`. ALWAYS carry
+  the provider's own status on `status` when mapping adapter errors, as
+  `GitHubRequestError` does. (`server/src/platform/resilience.ts:35`,
+  `server/src/adapters/github/octokit.ts:26`)
+
+- 2026-10-17 — a repository that aggregates over tables another module owns (skill stats read `agent_runs`, `reviews`, `findings`) must use the typed Drizzle builder with the shared `db/schema` tables, never `db.execute(sql\`… raw names …\`)`: `arch:check` only sees imports, so a raw string breaks at runtime when a column is renamed, while a typed query fails `tsc` (checked by renaming `findings.acceptedAt`: error at `skill-stats.repo.ts`). Short `sql` fragments are fine when they interpolate typed columns (`count(*) filter (where ${t.agentSkills.enabled})`); use `countDistinct`/`count` + `.mapWith(Number)` so counts arrive as numbers, not bigint strings. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
+- 2026-10-17 — migration `0011` adds `UNIQUE(workspace_id, name)` to `skills` with no dedupe step, on purpose: before it nothing created skills (the only `INSERT` into `skills` is `SkillRepository.insert`), so no database can hold duplicate names, and editing an applied migration is forbidden. If a database ever fails `db:migrate` at `0011` with a duplicate-key error (skills inserted by hand), clean the duplicates in the data and re-run — do not edit `0011`. A `pr-self-review` waiver cannot silence this WARNING: `waivers.mjs` only applies to CRITICAL findings, so it stays in the report as accepted. (`server/src/db/migrations/0011_rare_carnage.sql`, `.claude/skills/pr-self-review/scripts/waivers.mjs`)
+
+- 2026-10-19 — `container.git.readFile` joins the path onto the clone with no `..` / symlink
+  guard (`server/src/adapters/git/simple-git.ts:198`), so it is unsafe for any path derived from
+  repo content or a model. Feature code reads clone files through
+  `repoIntel.readRepoFile(repoId, path)` (realpath check via `readClone`, null when the file is
+  missing or escapes the clone; not gated by `REPO_INTEL_ENABLED`). Note also that
+  `getConventionSamples` returns repo-relative PATHS only and filters configs out (eslint,
+  prettier, `*.config.*`), so a caller that wants configs must list them itself.
+  (`server/src/modules/repo-intel/service.ts:636`)
+- 2026-10-19 — a module that needs to write another module's data goes through that module's
+  `index.ts` facade, never its repository: conventions saves `repo-conventions` via
+  `skills/index.ts` → `SkillsService.upsertByName` (create, or the next body version), so
+  versioning and name-clash rules live in one place; feature models come from
+  `settings/index.ts` → `resolveFeatureModel`. A new service takes narrow constructor deps and
+  is wired by a `createXService(container)` factory in its own `service.ts`, because a route may
+  not import a repository. (`server/src/modules/conventions/service.ts:197`)
+
+- 2026-10-20 — the skill prompt-injection scan is a gate on STORED config, separate from
+  `INJECTION_GUARD` (skills are deliberately not wrapped as untrusted, decision L3), so it does
+  not break the "guard is not a keyword filter" rule. On update, a NEW flagged body is forced
+  `enabled = false` rather than rejected, because conventions writes through
+  `SkillsService.upsertByName` and must never fail on it; only `enabled: true` on an UNCHANGED
+  flagged body is a 422. Re-scan's model call runs outside the transaction, and the write
+  compares `version` and throws `ConflictError` if the body changed meanwhile. NEVER let the
+  LLM verdict clear a pattern hit. (`server/src/modules/skills/service.ts`, `server/specs/skill-injection-scan.md`)
+
+- 2026-10-21 — conventions triage now has three states: a new candidate is `PENDING`, not
+  `ACCEPTED`. This supersedes the "new = ACCEPTED, no PENDING" choice in `specs/conventions.md`,
+  which let "Create skill" show right after a scan with nothing accepted (HW criterion 50).
+  Migration `0015` only changes the column default; rows that existed earlier keep their status.
+  ALWAYS gate anything skill-related on `ACCEPTED` (`listAccepted`), never on "not REJECTED".
+  (`server/src/db/migrations/0015_graceful_stone_men.sql`, `server/specs/conventions-pending-status.md`)
+- 2026-10-21 — the conventions repo has two list reads on purpose: `listOpen` (no `REJECTED`)
+  feeds `GET /repos/:id/conventions`, and `listByRepo` (every row) feeds the extract dedupe.
+  NEVER switch the dedupe to `listOpen`: rejected rules would come back as fresh `PENDING`
+  candidates on every re-scan (HW criterion 48). `conventions.it.test.ts` "a rejected rule leaves
+  the list…" guards it. (`server/src/modules/conventions/service.ts:124`,
+  `server/src/modules/conventions/repository/convention.repo.ts`)
 
 ## Tool & Library Notes
+- 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
+  flag even though the current online CLI docs describe it, and
+  `depcruise-baseline` is a deprecated alias. Write the known-violations file
+  with `-T baseline --output-to .dependency-cruiser-known-violations.json`
+  (wrapped as `pnpm arch:baseline`) and read it with `--ignore-known`. The
+  `err-long` reporter prints each rule's `comment`, so put the fix in the
+  comment. (`server/package.json`, `server/.dependency-cruiser.cjs`)
+- 2026-10-12 — macOS (BSD) `grep` and `file` classify some TS files in this
+  repo as binary (`file` says `data`; UTF-8 em-dashes in comments), and
+  `grep -r` then SILENTLY drops their matches — a search for importers of
+  `repo-intel/constants` missed `adapters/depgraph/index.ts` entirely. Use
+  `grep -a` (or ripgrep) for any "who uses X" search before moving code.
+  (`server/src/adapters/depgraph/index.ts:20`)
+
+- 2026-10-16 — `pnpm` is not on PATH in some shells, and the lockfile/`node_modules`
+  here were written by pnpm 12.4.1: `npx -y pnpm@10 add …` fails with "node_modules was
+  installed with a different major version", and `pnpm@12.4.1 add` reformats
+  `engines` in `package.json` (restore that line by hand to keep the diff clean).
+  Use `npx -y pnpm@12.4.1 <cmd>`. (`server/package.json`)
+
+- 2026-10-19 — `pnpm db:generate` (drizzle-kit, `strict: true`) asks interactively whether a
+  dropped column was RENAMED when the same schema change both adds and drops columns of one
+  table (here: add `conventions.status`, drop `accepted`). Without a TTY it waits for an
+  answer nobody can give. Split such a change into two generate runs — add first, then drop /
+  tighten — which is why `0012_vengeful_slapstick.sql` (ADD COLUMNs + index) and
+  `0013_melodic_network.sql` (SET NOT NULL + DROP COLUMN) are separate.
+  (`server/src/db/migrations/0013_melodic_network.sql`)
+
+- 2026-10-20 — `node:https` does NOT call a custom `lookup` when the URL host is an IP
+  literal, so an SSRF check placed only in `lookup` lets `https://169.254.169.254/` and
+  `https://[::1]/` straight through. Check literal hosts with `net.isIP` before the request,
+  AND keep the `lookup` check for hostnames (it sees the address the socket actually connects
+  to, so DNS rebinding can't swap it). `net.BlockList` does not unwrap IPv4-mapped IPv6
+  (`::ffff:7f00:1` = 127.0.0.1); unwrap it by hand first. (`server/src/adapters/http/safe-fetch.ts`)
 
 ## Recurring Errors & Fixes
 
@@ -130,6 +253,31 @@ by hand in the same format.
   row already exists so the insert is skipped entirely. To see a new seeded
   finding on an existing dev DB, insert it by hand (or drop the PR's review
   row) rather than just re-seeding. (`server/src/db/seed.ts:99`)
+
+- 2026-10-16 — `agent_runs.status` is `'done'` (not `'completed'`); a raw-SQL rollup
+  filtering on the wrong word silently returns nothing. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
+
+- 2026-10-20 — a body that fails the route's zod schema returns **422**, not 400 (same as
+  `ValidationError` from a service). A test expecting 400 for "not a url" fails; assert 422.
+  (`server/test/skills.it.test.ts`, `import from URL` block)
+
+- 2026-10-21 — `seed.ts` binds the `docs/skills-examples` skills only to an agent with ZERO
+  `agent_skills` rows, and only then creates its skills. A dev DB where someone already bound
+  anything (this one had the old `route-breaking-change` + `contract-compat` set) gets nothing
+  from a re-seed, and an edited skill file never reaches an existing skill. To get the seeded
+  set, clear that agent's links on the Skills tab (and delete the stale skills) and re-seed.
+  Seed reads the files via `import.meta.url` → `../../../docs/`, so it only works from a full
+  checkout on the host. (`server/src/db/seed.ts`, `server/specs/seed-skill-bindings.md`)
+
+- 2026-10-21 — supersedes the path note in the entry above: `seed.ts` is ALSO bundled into
+  `dist/server.js` (`src/adapters/auth/local.ts` imports its constants), so an
+  `import.meta.url`-relative path in it resolves from `server/dist/`, not `server/src/db/`.
+  It now reads `docs/skills-examples` via `process.cwd()` (= `server/`). NEVER resolve files
+  in seed.ts from `import.meta.url`. Also: bind skills through `AgentsRepository.replaceSkills`,
+  never by inserting into `agent_skills` directly, or the agent version is not bumped
+  and its `agent_versions` snapshot lists no skills.
+  An agent cleared of ALL links is re-bound by the next seed (no tombstone; see the spec's
+  Known limitation). (`server/src/db/seed.ts`, `server/specs/seed-skill-bindings.md`)
 
 ## Session Notes
 
@@ -148,3 +296,10 @@ by hand in the same format.
   (`/repos/:id/multi-agent/:prId`, Sheet 07), which this repo doesn't have.
   Revisit if multi-agent scores look implausibly low.
   (`server/specs/pr-list-findings-by-agent.md`)
+- 2026-10-21 — an example caller written in a skill body is repeated by the model as a fact:
+  `breaking-change` lists "the web client in `client/`, the CI runner, `reviewer-core`" as
+  callers to check, and 2/3 runs with that skill on PR #4 named `reviewer-core` as a broken
+  caller although it has no copy of `RunRequest` and never calls the route (0/3 without the
+  skill). Open: should skill examples avoid naming concrete modules, or should the rubric
+  say "only report a caller you can cite from the diff / repo map"? (low confidence, n=3,
+  one model) (`docs/skills-examples/api-contract/breaking-change.md`, `docs/skills-experiment.md`)

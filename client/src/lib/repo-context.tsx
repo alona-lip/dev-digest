@@ -43,16 +43,17 @@ export function RepoProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const list = repos ?? [];
   const fromPath = repoIdFromPath(pathname);
-  const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
-  const activeRepo = list.find((r) => r.id === repoId) ?? null;
+  // Memoised: every component that reads the active repo re-renders when this
+  // object's identity changes, so only build a new one when an input changes.
+  const value = React.useMemo(() => {
+    const list = repos ?? [];
+    const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
+    const activeRepo = list.find((r) => r.id === repoId) ?? null;
+    return { repoId, setRepoId, repos: list, activeRepo, reposLoaded };
+  }, [repos, fromPath, stored, setRepoId, reposLoaded]);
 
-  return (
-    <RepoCtx.Provider value={{ repoId, setRepoId, repos: list, activeRepo, reposLoaded }}>
-      {children}
-    </RepoCtx.Provider>
-  );
+  return <RepoCtx.Provider value={value}>{children}</RepoCtx.Provider>;
 }
 
 export function useActiveRepo() {

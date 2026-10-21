@@ -1,7 +1,7 @@
 # The DI container and the adapter ports
 
 What `src/platform/container.ts` is for, and why every outbound dependency goes
-through it. This is the file `server/CLAUDE.md` points at when it says
+through it. This is the file `server/AGENTS.md` points at when it says
 "adapters get swapped for mocks in tests".
 
 ## The shape
@@ -87,4 +87,4 @@ touching that path needs real credentials.
   requests.
 - `REPO_INTEL_ENABLED=true` (default) — but the repo map stays empty until the
   repo is indexed, which is a **silent degrade to diff-only review**, not an
-  error. See `server/CLAUDE.md` gotchas.
+  error. See `server/AGENTS.md` gotchas.

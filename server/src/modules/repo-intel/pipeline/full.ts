@@ -26,8 +26,7 @@ import PQueue from 'p-queue';
 import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { withTimeout } from '../../../platform/resilience.js';
-import { parseSymbols, parseReferences, langForFile } from '../../../adapters/astgrep/index.js';
-import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
+import { extractEndpoints, extractCrons } from '../extract.js';
 import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEX_SOFT_BUDGET_MS,
@@ -114,6 +113,7 @@ export async function runFullIndex(
   }
 
   // Parse phase ---------------------------------------------------------
+  const { parseSymbols, parseReferences, langForFile } = container.codeParser;
   const symbolsBuf: IndexerSymbolRow[] = [];
   const refsBuf: IndexerReferenceRow[] = [];
   const factsBuf: IndexerFileFactsRow[] = [];

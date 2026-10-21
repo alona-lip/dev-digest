@@ -6,11 +6,6 @@
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
-    "menu": {
-      "fromFile": "Import from file",
-      "fromUrl": "Import from URL",
-      "community": "Search community skills…"
-    },
     "empty": {
       "title": "No skills yet",
       "body": "Import a skill from a file, a URL, or the community catalog.",
@@ -57,7 +52,9 @@
     "placeholder": "https://example.com/skills/security.md",
     "fetching": "Fetching…",
     "import": "Import from URL",
-    "success": "Imported \"{name}\". Disabled until you vet + enable it."
+    "success": "Imported \"{name}\". Disabled until you vet + enable it.",
+    "fetch": "Fetch",
+    "failed": "Could not fetch this URL."
   },
   "community": {
     "searchPlaceholder": "Search community skills (e.g. security)…",
@@ -84,7 +81,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported file"
     }
   },
   "preview": {
@@ -96,6 +94,139 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it."
+  },
+  "card": {
+    "agents": "{count, plural, one {# agent} other {# agents}}",
+    "pull": "{rate} pull",
+    "accept": "{rate} accept",
+    "delete": "Delete {name}"
+  },
+  "tabs": {
+    "config": "Config",
+    "preview": "Preview",
+    "evals": "Evals",
+    "stats": "Stats",
+    "versions": "Versions"
+  },
+  "editor": {
+    "configTitle": "Configuration",
+    "runOnEvals": "Run on evals",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "Write it as a directive: when the agent should apply this skill and what to do. The description is the skill's interface.",
+    "type": "Type",
+    "body": "Skill body",
+    "bodyHint": "Markdown. Becomes a separate block in the agent's system prompt.",
+    "modeEdit": "Edit",
+    "modePreview": "Preview",
+    "unsaved": "unsaved",
+    "tokens": "{count} tokens",
+    "tokensApprox": "~{count} tokens",
+    "changeNote": "What changed?",
+    "changeNoteHint": "Saved with the new version in the history.",
+    "changeNotePlaceholder": "e.g. Tightened scope rule",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete skill",
+    "deleteConfirm": "It is removed from every agent that uses it. This cannot be undone.",
+    "savedToast": "Saved (v{version})",
+    "createdToast": "Created \"{name}\"",
+    "errors": {
+      "name": "Name is required.",
+      "nameLong": "Name is too long (max 80).",
+      "description": "Description is required.",
+      "descriptionLong": "Description is too long (max 500).",
+      "body": "The skill body is required.",
+      "bodyLong": "The body is too long (max 20,000 characters)."
+    },
+    "deleteTitle": "Delete skill \"{name}\"?"
+  },
+  "evals": {
+    "title": "Evals",
+    "comingSoon": "Coming in the Evals lesson"
+  },
+  "stats": {
+    "note": "Based on runs from the last 30 days where this skill was in the prompt. A correlation, not proof.",
+    "usedBy": "Used by",
+    "agentsSuffix": "{count, plural, one {agent} other {agents}}",
+    "pullFrequency": "Pull frequency",
+    "acceptRate": "Accept rate",
+    "findings30d": "Findings (30d)",
+    "agentsUsing": "Agents using this skill",
+    "noAgents": "No agent uses this skill yet.",
+    "open": "Open",
+    "byCategory": "Findings by category",
+    "noFindings": "No findings yet.",
+    "loadError": "Could not load stats."
+  },
+  "versions": {
+    "title": "Version history",
+    "count": "{count, plural, one {# version} other {# versions}}",
+    "subtitle": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "current": "Current",
+    "diff": "Diff",
+    "diffLabel": "Changes from v{version} to the current body",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? This saves its body as a new version.",
+    "restoredToast": "Restored v{from} as v{to}",
+    "noNote": "No note",
+    "loadError": "Could not load versions."
+  },
+  "import": {
+    "drop": "Drop a .md or .zip here, or click to choose",
+    "reading": "Reading…",
+    "dropHint": "Up to 512 KB. Only the SKILL.md is read.",
+    "badType": "Only .md and .zip files can be imported.",
+    "tooLarge": "File is larger than {kb} KB.",
+    "failed": "Could not read this file.",
+    "trustNotice": "A foreign skill is foreign instructions in your agent's prompt. Read the body below before you save it.",
+    "source": "Source: {file}",
+    "nameConflict": "A skill with this name already exists — rename it to continue.",
+    "bodyPreview": "Body",
+    "ignoredTitle": "Ignored files ({count})",
+    "ignoredNote": "Never read, extracted or run.",
+    "reason": {
+      "executable": "executable",
+      "not_core": "not the skill core",
+      "binary": "binary",
+      "too_large": "too large"
+    },
+    "save": "Save skill",
+    "saving": "Saving…",
+    "saved": "Imported \"{name}\""
+  },
+  "create": {
+    "save": "Create skill",
+    "saving": "Creating…"
+  },
+  "add": {
+    "title": "Add skill",
+    "tabs": {
+      "create": "Create",
+      "file": "From file",
+      "url": "Import from URL"
+    }
+  },
+  "scan": {
+    "title": "Injection detected — do not enable",
+    "body": "This skill contains prompt injection patterns. It has been automatically blocked.",
+    "previewBody": "This skill contains prompt injection patterns. It will be saved disabled and cannot be enabled until the body is clean.",
+    "badge": "Injection detected",
+    "line": "line {line}",
+    "source": {
+      "pattern": "pattern",
+      "llm": "LLM"
+    },
+    "rescan": "Re-scan",
+    "rescanTitle": "Check the body for prompt injection again, with a model as well as the patterns",
+    "rescanClean": "No prompt injection found.",
+    "rescanBlocked": "Prompt injection found — the skill is blocked.",
+    "rescanFailed": "Re-scan failed.",
+    "toggleBlocked": "Blocked: prompt injection detected",
+    "savedBlocked": "\"{name}\" was saved but blocked: prompt injection detected."
   }
 }

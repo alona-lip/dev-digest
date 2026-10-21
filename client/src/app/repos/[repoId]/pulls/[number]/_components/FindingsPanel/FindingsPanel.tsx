@@ -8,9 +8,10 @@ import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { SeverityFilterButtons } from "@/components/severity";
 import { FindingCard } from "../FindingCard";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings, countBySeverity } from "./helpers";
+import { countBySeverity } from "@/components/severity";
+import { visibleFindings } from "./helpers";
 import { s } from "./styles";
 
 export function FindingsPanel({

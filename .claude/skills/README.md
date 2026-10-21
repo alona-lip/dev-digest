@@ -9,14 +9,17 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [onion-architecture](onion-architecture/README.md) | Backend | Onion rings for server + reviewer-core: where routes, services, repositories, adapters and helpers live; ports & DI; enforced by `pnpm arch:check` (v1.0.0, [sources](onion-architecture/README.md#sources)) |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
+| [frontend-architecture](frontend-architecture/README.md) | Frontend | Where components, constants, helpers, hooks and business logic live; component splitting; import boundaries (v1.0.0, [sources](frontend-architecture/README.md#sources)) |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Capture non-obvious findings into the touched module's `INSIGHTS.md` |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Second-pass review before "done" (uncommitted diff) and before a PR (`--scope branch`): files grouped into buckets — Frontend: UI-arch + react + RTL, Backend: Onion + fastify + drizzle, Database, Engine, Shared contracts ([what is checked](pr-self-review/routing.md)); BLOCK on a confirmed CRITICAL; manual-only, optional `pre-push` gate ([spec](../../specs/pr-self-review.md)) |
 
 ## What Are Skills?
 

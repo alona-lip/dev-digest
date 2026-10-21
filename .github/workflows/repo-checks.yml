@@ -1,0 +1,48 @@
+# Repo-level consistency checks — no package install, a few seconds.
+#
+#  - shared contracts: client/src/vendor/shared must equal the canonical
+#    server/src/vendor/shared. Each package compiles against its own copy, so
+#    drift otherwise surfaces later as a client-side validation error.
+#  - agent instructions: every CLAUDE.md must be a symlink to its AGENTS.md
+#    (specs/agents-md.md).
+name: repo checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - 'scripts/check-shared.sh'
+      - 'scripts/link-agents.sh'
+      - '.github/workflows/repo-checks.yml'
+  pull_request:
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - 'scripts/check-shared.sh'
+      - 'scripts/link-agents.sh'
+      - '.github/workflows/repo-checks.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vendored contracts in sync
+        run: ./scripts/check-shared.sh
+
+      - name: CLAUDE.md symlinks
+        run: ./scripts/link-agents.sh --check

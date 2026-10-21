@@ -1,0 +1,6 @@
+{
+  // Type-checks the tests too: the main tsconfig only includes src/**, so a
+  // test could drift from the code it exercises and still pass at runtime.
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

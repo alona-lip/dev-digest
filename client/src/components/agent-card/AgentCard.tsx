@@ -1,0 +1,82 @@
+/* AgentCard — name, enabled toggle, delete, description, provider + model chip and
+   the count of skills enabled for the agent. Delete asks for confirmation in a modal
+   (rendered next to the card, so its clicks never reach the card's onClick). */
+"use client";
+
+import React from "react";
+import { useTranslations } from "next-intl";
+import { Icon, Badge, Toggle } from "@devdigest/ui";
+import type { Agent } from "@devdigest/shared";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useDeleteAgent } from "@/lib/hooks/agents";
+import { modelColor } from "./helpers";
+import { s } from "./styles";
+
+export function AgentCard({
+  ag,
+  active,
+  skillCount,
+  onClick,
+  onToggle,
+}: {
+  ag: Agent;
+  active?: boolean;
+  skillCount?: number;
+  onClick?: () => void;
+  onToggle?: (enabled: boolean) => void;
+}) {
+  const t = useTranslations("agents");
+  const del = useDeleteAgent();
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const color = modelColor(ag.model);
+  return (
+    <>
+      <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+        <div style={s.headerRow}>
+          <div style={s.iconBox}>
+            <Icon.Cpu size={15} />
+          </div>
+          <span style={s.name}>{ag.name}</span>
+          {onToggle && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Toggle on={ag.enabled} onChange={onToggle} size={14} />
+            </div>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirmDelete(true);
+            }}
+            disabled={del.isPending}
+            title={t("card.delete", { name: ag.name })}
+            aria-label={t("card.delete", { name: ag.name })}
+            style={s.deleteBtn(del.isPending)}
+          >
+            <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
+          </button>
+        </div>
+        <div style={s.description}>{ag.description || t("card.noDescription")}</div>
+        <div style={s.metaRow}>
+          <span style={s.provider}>{ag.provider}</span>
+          <span className="mono" style={s.modelChip(color)}>
+            {ag.model}
+          </span>
+          {skillCount != null && (
+            <Badge color="var(--text-secondary)" icon="Sparkles">
+              {t("card.skillCount", { count: skillCount })}
+            </Badge>
+          )}
+        </div>
+      </div>
+      {confirmDelete && (
+        <ConfirmDialog
+          title={t("card.deleteTitle", { name: ag.name })}
+          body={t("card.deleteBody")}
+          pending={del.isPending}
+          onClose={() => setConfirmDelete(false)}
+          onConfirm={() => del.mutate(ag.id, { onSuccess: () => setConfirmDelete(false) })}
+        />
+      )}
+    </>
+  );
+}

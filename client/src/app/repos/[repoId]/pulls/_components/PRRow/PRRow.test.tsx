@@ -5,9 +5,13 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+// Clicks and hovers go through userEvent. The popover tests below keep
+// fireEvent on purpose: `scroll` has no userEvent API, and the "cursor in
+// transit" cases step exact mouseLeave/mouseEnter sequences under fake timers.
 import { NextIntlClientProvider } from "next-intl";
 import type { PrMeta } from "@/lib/types";
-import messages from "../../../../../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -138,34 +142,37 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
     expect(screen.getAllByText("1")).toHaveLength(2);
   });
 
-  it("clicking a severity icon navigates to the filtered PR-detail view, not the row's own link", () => {
+  it("clicking a severity icon navigates to the filtered PR-detail view, not the row's own link", async () => {
+    const user = userEvent.setup();
     renderRow(
       pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
-    fireEvent.click(screen.getByLabelText("Show only Critical findings"));
+    await user.click(screen.getByLabelText("Show only Critical findings"));
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith("/repos/repo-1/pulls/482?tab=findings&severity=CRITICAL");
   });
 
-  it("the popover is closed by default and opens on hover, titled 'N FINDINGS · M AGENTS', read-only", () => {
+  it("the popover is closed by default and opens on hover, titled 'N FINDINGS · M AGENTS', read-only", async () => {
+    const user = userEvent.setup();
     renderRow(
       pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     expect(screen.queryByText(POPOVER_TITLE)).not.toBeInTheDocument();
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
-    fireEvent.mouseEnter(cell);
+    await user.hover(cell);
     expect(screen.getByText(POPOVER_TITLE)).toBeInTheDocument();
     expect(screen.getByText("N+1 query in user list endpoint")).toBeInTheDocument();
     // Only the two severity-icon buttons exist — none inside the popover.
     expect(screen.getAllByRole("button")).toHaveLength(2);
   });
 
-  it("the popover groups findings under each agent's name", () => {
+  it("the popover groups findings under each agent's name", async () => {
+    const user = userEvent.setup();
     renderRow(
       pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
-    fireEvent.mouseEnter(cell);
+    await user.hover(cell);
     const sec = screen.getByRole("region", { name: "Security Reviewer" });
     const perf = screen.getByRole("region", { name: "Perf Reviewer" });
     expect(sec).toHaveTextContent("Hardcoded Stripe secret key in commit");
@@ -218,12 +225,13 @@ describe("PRRow — FINDINGS column (crit. 16, 20, 21)", () => {
     }
   });
 
-  it("the popover accepts mouse interaction (not pointer-events: none) so wheel-scroll works", () => {
+  it("the popover accepts mouse interaction (not pointer-events: none) so wheel-scroll works", async () => {
+    const user = userEvent.setup();
     renderRow(
       pr({ findings_by_severity: FINDINGS_BY_SEVERITY, findings_by_agent: FINDINGS_BY_AGENT }),
     );
     const cell = screen.getByLabelText("Show only Critical findings").closest("div")!.parentElement!;
-    fireEvent.mouseEnter(cell);
+    await user.hover(cell);
     const popover = screen.getByRole("tooltip");
     expect(popover.style.pointerEvents).not.toBe("none");
   });

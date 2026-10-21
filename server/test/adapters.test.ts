@@ -105,3 +105,23 @@ describe('pricing / cost discipline', () => {
     expect(estimateCost('some-future-model', 1000, 1000)).toBeNull();
   });
 });
+
+describe('GitHub error mapping', () => {
+  it('maps an Octokit RequestError to a 502 AppError that keeps GitHub status for retries', async () => {
+    const { toGitHubError, GitHubRequestError } = await import('../src/adapters/github/octokit.js');
+    const octo = Object.assign(new Error('Not Found - https://docs.github.com/rest/pulls/pulls#list-pull-requests'), {
+      status: 404,
+    });
+    const mapped = toGitHubError(octo) as InstanceType<typeof GitHubRequestError>;
+    expect(mapped).toBeInstanceOf(GitHubRequestError);
+    expect(mapped.statusCode).toBe(502);
+    expect(mapped.status).toBe(404);
+    expect(mapped.message).toBe('GitHub: Not Found (404)');
+  });
+
+  it('leaves errors without an HTTP status untouched', async () => {
+    const { toGitHubError } = await import('../src/adapters/github/octokit.js');
+    const net = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+    expect(toGitHubError(net)).toBe(net);
+  });
+});

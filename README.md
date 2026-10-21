@@ -101,7 +101,8 @@ These are intentionally **not** in the starter — each lesson adds one back:
 This script:
 1. starts Postgres (`docker compose up -d`) and waits until it's healthy,
 2. creates `server/.env` and `client/.env` from `.env.example` if missing,
-3. installs deps in `server/` and `client/` (only when `node_modules` is absent),
+3. installs deps (only when `node_modules` is absent, from the lockfile):
+   `server/` and `client/` with pnpm, `reviewer-core/` with npm,
 4. applies DB migrations and seeds demo data,
 5. launches the API (`:3001`) and the web app (`:3000`).
 
@@ -110,8 +111,9 @@ Postgres keeps running (`docker compose down` to stop it).
 
 Flags: `--no-seed` · `--no-client` · `--db-only` · `--help`.
 
-> Add your keys in `server/.env` (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY`,
-> `GITHUB_TOKEN`) or via the Settings UI at runtime.
+> Add your keys in `server/.env` (`OPENROUTER_API_KEY` / `OPENAI_API_KEY` /
+> `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`) or via Settings → API Keys at runtime
+> (a key entered there is saved only after its connection test passes).
 
 ## Manual steps (what the script does)
 
@@ -131,6 +133,30 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 `server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
+`scripts/link-agents.sh` — agent instructions live in `AGENTS.md` (root + each package);
+every `CLAUDE.md` is a symlink to it. The script repairs the links (e.g. after a Windows
+checkout without `core.symlinks`), `--check` only verifies.
+
+## Self-review before a PR
+
+`/pr-self-review` is a second-pass review of your own changes. Run it **before
+calling a task done** (on the uncommitted diff, the default) and **before a PR**
+(`--scope branch`, after committing). Changed files are grouped into buckets —
+Frontend (UI architecture + react + RTL), Backend (Onion + fastify + drizzle),
+Database, Engine, Shared contracts — and reviewed by those skills plus
+deterministic checks ([what is checked](.claude/skills/pr-self-review/routing.md)).
+One confirmed CRITICAL finding means **BLOCK**. A branch PASS drafts the PR
+description (`gh pr create --body-file …`).
+
+Nothing runs it automatically: there is no Claude Code hook (removed
+2026-10-19, see the spec). An optional git `pre-push` gate refuses to push until
+`HEAD` has a PASS verdict — enable it per clone with
+`git config core.hooksPath scripts/git-hooks` (`git push --no-verify` bypasses
+it; it is a local safety net, not a server-side control). False positives:
+`.pr-self-review-waivers.json` (reason + expiry). Details:
+[`specs/pr-self-review.md`](specs/pr-self-review.md),
+[`.claude/skills/pr-self-review/SKILL.md`](.claude/skills/pr-self-review/SKILL.md).
+Tests: `node --test .claude/skills/pr-self-review/scripts/`.
 
 ## Testing & CI
 
@@ -157,5 +183,8 @@ Postgres); everything else is hermetic. The browser e2e flows live in
   host port in `docker-compose.yml`.
 - **`vector` type errors** — the pgvector extension is enabled by migration `0000`;
   make sure migrations ran against the Dockerized DB, not a different one.
-- **Reset everything** — `docker compose down -v` drops the volume, then re-run
-  `./scripts/dev.sh`.
+- **Reset the demo data** — re-run `cd server && pnpm db:seed` (it upserts).
+  **Never** `docker compose down -v` to "reset": `-v` deletes the
+  `devdigest_pgdata` volume with every repo and review you imported
+  ([docs/architecture.md](docs/architecture.md)). For a throwaway stack use the
+  hermetic e2e runner (`cd e2e && npm run e2e:hermetic`).

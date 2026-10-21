@@ -35,6 +35,15 @@ by hand in the same format.
   Worked example: the Run Review agent picker.
   (`client/src/vendor/ui/kit/Dropdown.tsx:12`,
   `client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/RunReviewDropdown.tsx:1`)
+- 2026-10-12 — a `<Suspense>` around ALL providers in the root layout makes
+  every response start streaming before the page runs, so `notFound()` from a
+  page renders the 404 UI but the HTTP status is already **200** (seen with
+  `curl -w '%{http_code}'` on `/settings/nope` against `next start`; unit
+  tests can't see it). NEVER put an app-wide Suspense in `app/layout.tsx`;
+  wrap only the views that call `useSearchParams`, at their `page.tsx`.
+  (`client/src/app/layout.tsx:29`, `client/src/app/settings/[section]/page.tsx`)
+
+- 2026-10-19 — the vendored `Modal` is NOT a portal: it renders where it is mounted, so a dialog placed INSIDE a clickable card bubbles every click in the dialog (Cancel, Delete, the X, the backdrop) through the React tree to the card's `onClick` — on `AgentCard` that navigates to the agent while you are confirming a delete. NEVER mount a `Modal`/`ConfirmDialog` inside an element with its own `onClick`; render it as a fragment sibling of the card (`<>…card…{open && <ConfirmDialog/>}</>`; it is `position: fixed`, so a grid parent is unaffected), or own it in the list parent. `Modal` also ignores Esc — `ConfirmDialog` adds that itself. (`client/src/components/agent-card/AgentCard.tsx:33`, `client/src/components/confirm-dialog/ConfirmDialog.tsx:34`)
 
 ## Codebase Patterns
 
@@ -93,7 +102,33 @@ by hand in the same format.
   (`client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/helpers.ts:17`,
   `client/specs/multi-agent-selection.md`)
 
+- 2026-10-16 — a component used by TWO sibling routes (`/skills/new` and `/skills/[id]` share the skill editor) cannot live in either route's `_components`: eslint `no-restricted-imports` rejects `../_components/…` ("Cross-route import of another route's private _components"). Put it in `src/components/<kebab-name>/` from the start (`@/components/skill-editor`); a layout-level pane shared by children can stay in the route's own `_components`. (`client/eslint.config.mjs`, `client/src/components/skill-editor/`)
+
+- 2026-10-21 — the `ReviewRunAccordion` header is a `div role="button"` that toggles on click
+  AND on Enter/Space keydown, so any control inside it (trace, delete) must call
+  `e.stopPropagation()` in `onClick` and `onKeyDown`. Otherwise opening the trace or confirming a
+  delete also folds the run open or closed. ALWAYS stop both events on a button nested in that
+  header. (`client/src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx`)
+
 ## Tool & Library Notes
+- 2026-10-12 — the local toolchain runs pnpm 12 while CI pins pnpm 10, and
+  both write `lockfileVersion: '9.0'`. pnpm 10 refuses a `node_modules`
+  installed from the newer store (`ERR_PNPM_UNEXPECTED_STORE`) and changes
+  nothing, so install with the local pnpm, then prove CI will accept the
+  lockfile with `npx -y pnpm@10 install --frozen-lockfile --lockfile-only`.
+  pnpm 12 also writes a literal `unrs-resolver: set this to true or false`
+  placeholder into `pnpm-workspace.yaml` `allowBuilds` when a new dep has a
+  build script — replace it with a real boolean before committing. Do NOT
+  add `packageManager: pnpm@10` to package.json: pnpm would then switch the
+  local run to v10 and hit the store error. (`client/pnpm-workspace.yaml`,
+  `.github/workflows/client.yml`)
+
+- 2026-10-19 — `client/` has NO prettier config, while the code is formatted at ~120 columns. A bare `npx prettier --write <file>` uses the default width 80 and rewraps the whole file, so a 3-line change shows up as a 100-line diff. Run it as `npx prettier --print-width 120 --write <file>` (matches the existing code), or don't run prettier at all; lint (`pnpm lint`) does not check formatting. (`client/package.json`, `client/eslint.config.mjs`)
+
+- 2026-10-20 — the vendored `Toggle` (`src/vendor/ui/primitives/Toggle.tsx`) has no `disabled`
+  prop, and `vendor/ui` is do-not-touch. Lock it with a guard in `onChange` plus a `title` and
+  a dimmed wrapper (`s.locked`). Do NOT use `pointer-events: none`: `userEvent.click` then throws
+  instead of proving the click does nothing. (`client/src/components/skill-editor/_components/ConfigTab/ConfigTab.tsx`)
 
 ## Recurring Errors & Fixes
 
@@ -169,7 +204,37 @@ by hand in the same format.
   until someone makes it dynamic, and vitest/jsdom never reports it (the
   warning comes from the Next dev overlay, not from React DOM in tests).
   (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:9`)
+- 2026-10-12 — `pnpm build` (or any `next build`) writes the SAME
+  `client/.next` a running `pnpm dev` serves from; building while the dev
+  server is up left :3000 accepting connections but never answering (curl
+  timed out, `.next` held `BUILD_ID` + `export-marker.json` from the build).
+  NEVER run `next build` in `client/` while a dev server may be running —
+  check `lsof -iTCP:3000` first. Fix: stop the dev server, `rm -rf .next`,
+  `pnpm dev`. If Ctrl-C can't reach it (an orphaned `next dev` reparented to
+  PID 1 keeps the port, and a new `pnpm dev` fails with `EADDRINUSE :::3000`),
+  kill the PID that `lsof -nP -iTCP:3000 -sTCP:LISTEN` reports.
+  (`client/package.json` `build`/`dev` scripts)
+
+- 2026-10-16 — jsdom's `File` has no `arrayBuffer()`, so a file-upload component that calls it throws `file.arrayBuffer is not a function` as an UNHANDLED rejection (the test itself may look fine). Read bytes through a helper that falls back to `FileReader` (also covers older Safari); upload with `userEvent.upload(input, file, { applyAccept: false })` to test the type/size rejection of a file the `accept` attribute would filter out. (`client/src/app/skills/_components/SkillsListPane/_components/ImportSkillModal/helpers.ts`)
+
+- 2026-10-19 — every route 500ing with `Module not found: Can't resolve './contracts/findings.js'`
+  (pointing at `src/vendor/shared/index.ts:19`) means some client file imports a VALUE from
+  `@devdigest/shared` (a zod enum such as `ConventionCategory.options`), not only types. The
+  vendored contracts are the server's NodeNext-style TS and import siblings as `./x.js`;
+  tsc and vitest resolve that, Next's webpack did not — so typecheck/lint/tests stay green
+  while `next dev` breaks the whole app. Fixed once with `resolve.extensionAlias`
+  (`.js` → `.ts`/`.tsx`/`.js`) in `next.config.mjs`; value imports from the contracts are fine
+  now. NEVER work around it by copying enum values into the client. Not the 2026-09-21
+  `.next` vendor-chunk poisoning: that one names `.next/server/vendor-chunks/*`, this one names
+  `src/vendor/shared/*`, and restarting `pnpm dev` does not fix it. (`client/next.config.mjs:15`)
 
 ## Session Notes
 
 ## Open Questions
+
+- 2026-10-21 — the agent Skills tab has no unbind: a switched-off link and a never-bound skill
+  render identically (toggle off), told apart only by position (bound block first, in prompt
+  order; the rest alphabetical). Stale links (e.g. an old `route-breaking-change` set that
+  `pnpm db:seed` does not replace) can only be left off, not removed, from the UI; the only
+  way out is `PUT /agents/:id/skills` with the wanted list. Open: add an unbind action and a
+  visual "bound" marker? (`client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/helpers.ts:13`)

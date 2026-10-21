@@ -7,7 +7,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Finding, PrAgentFindings } from "@devdigest/shared";
-import messages from "../../../messages/en/prReview.json";
+import messages from "@messages/en/prReview.json";
 import { FindingsPopover } from "./FindingsPopover";
 
 afterEach(cleanup);

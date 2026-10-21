@@ -16,6 +16,9 @@ function clockTime(): string {
   return new Date().toTimeString().slice(0, 8);
 }
 
+/** How long a finished run's event buffer stays replayable for late SSE subscribers. */
+export const COMPLETED_BUFFER_RETENTION_MS = 10 * 60_000;
+
 export class RunBus {
   private emitters = new Map<string, EventEmitter>();
   private buffers = new Map<string, RunEvent[]>();
@@ -61,8 +64,11 @@ export class RunBus {
 
   /** Subscribe to live events. Replays any buffered events first. */
   subscribe(runId: string, listener: (e: RunEvent) => void): () => void {
-    const e = this.emitterFor(runId);
     for (const buffered of this.buffers.get(runId) ?? []) listener(buffered);
+    // A finished run gets no more events: replay only, and don't create an
+    // emitter that nothing would ever remove.
+    if (this.completed.has(runId)) return () => undefined;
+    const e = this.emitterFor(runId);
     e.on('event', listener);
     return () => e.off('event', listener);
   }
@@ -80,6 +86,14 @@ export class RunBus {
     e?.emit('done');
     // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);
+    // …then free it: the full log is persisted in run_traces by now, and
+    // keeping every run's buffer grew memory for the life of the process.
+    // The `completed` mark stays (one id), so a late SSE subscriber still ends
+    // its stream instead of waiting forever.
+    setTimeout(() => {
+      this.buffers.delete(runId);
+      this.seq.delete(runId);
+    }, COMPLETED_BUFFER_RETENTION_MS).unref();
   }
 
   /** Whether a run has already completed (for replay-then-end late subscribers). */
