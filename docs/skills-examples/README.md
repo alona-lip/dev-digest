@@ -1,10 +1,16 @@
 # Skill examples
 
 Ready-to-use skill texts for the control experiment ([../skills-experiment.md](../skills-experiment.md)).
-They are **not seeded** — create or import them through the UI so the whole path
-(create / import → preview → save → bind to an agent → run → trace) is exercised.
+`pnpm db:seed` creates all of them from these files and binds them, switched on and
+in the order below, to their agents
+([../../server/specs/seed-skill-bindings.md](../../server/specs/seed-skill-bindings.md)).
+The seed reads the files directly, so an edit here takes effect on the next clean seed.
+A skill that already exists is never overwritten.
 
-| File | Agent | How to add it |
+To go through the UI path by hand (create / import → preview → save → bind → run → trace),
+first delete the seeded skill: the import preview flags a name that is already taken.
+
+| File | Agent | How to add it by hand |
 |---|---|---|
 | `test-quality/branch-coverage.md` | Test Quality Reviewer | Skills → Add Skill → **Import from file** |
 | `test-quality/corner-cases.md` | Test Quality Reviewer | Add Skill → **Create skill**, paste the body |
@@ -19,7 +25,7 @@ The description is written as a directive — *when to apply the skill and what 
 because it is the skill's interface. Each API Contract skill ends with a **Bad / Good**
 example and maps its findings onto the agent's `CRITICAL / WARNING / SUGGESTION` scale.
 
-Bind the API Contract skills in this order on the agent's **Skills** tab:
+The seed binds the API Contract skills in this order on the agent's **Skills** tab:
 `breaking-change` → `response-schema` → `deprecation-policy` → `semver-discipline`
 (what breaks first, then the policy around it). The order is the prompt order.
 

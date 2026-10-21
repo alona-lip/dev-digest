@@ -245,6 +245,24 @@ by hand in the same format.
   `ValidationError` from a service). A test expecting 400 for "not a url" fails; assert 422.
   (`server/test/skills.it.test.ts`, `import from URL` block)
 
+- 2026-10-21 — `seed.ts` binds the `docs/skills-examples` skills only to an agent with ZERO
+  `agent_skills` rows, and only then creates its skills. A dev DB where someone already bound
+  anything (this one had the old `route-breaking-change` + `contract-compat` set) gets nothing
+  from a re-seed, and an edited skill file never reaches an existing skill. To get the seeded
+  set, clear that agent's links on the Skills tab (and delete the stale skills) and re-seed.
+  Seed reads the files via `import.meta.url` → `../../../docs/`, so it only works from a full
+  checkout on the host. (`server/src/db/seed.ts`, `server/specs/seed-skill-bindings.md`)
+
+- 2026-10-21 — supersedes the path note in the entry above: `seed.ts` is ALSO bundled into
+  `dist/server.js` (`src/adapters/auth/local.ts` imports its constants), so an
+  `import.meta.url`-relative path in it resolves from `server/dist/`, not `server/src/db/`.
+  It now reads `docs/skills-examples` via `process.cwd()` (= `server/`). NEVER resolve files
+  in seed.ts from `import.meta.url`. Also: bind skills through `AgentsRepository.replaceSkills`,
+  never by inserting into `agent_skills` directly, or the agent version is not bumped
+  and its `agent_versions` snapshot lists no skills.
+  An agent cleared of ALL links is re-bound by the next seed (no tombstone; see the spec's
+  Known limitation). (`server/src/db/seed.ts`, `server/specs/seed-skill-bindings.md`)
+
 ## Session Notes
 
 ## Open Questions

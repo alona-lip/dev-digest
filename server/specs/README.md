@@ -33,3 +33,6 @@ criteria, and what's explicitly out of scope.
 - [onion-burn-down.md](./onion-burn-down.md) — the deliberate pass over the
   dependency-cruiser baseline: pulls/settings/polling/workspace onto
   service + repository, ports out of `src/adapters`, intended behaviour changes.
+- [seed-skill-bindings.md](./seed-skill-bindings.md) — `db:seed` creates the
+  `docs/skills-examples` skills and binds them (enabled, in order) to Test
+  Quality / API Contract Reviewer, linking only agents that have no links yet.

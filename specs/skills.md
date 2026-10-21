@@ -36,6 +36,8 @@ Status: implemented (2026-10-16); see "As built" at the end for where the code d
 | Evals | Вкладка Evals і «Run on evals» видимі, але disabled з підказкою «Coming in the Evals lesson» | Приховати — розходиться з дизайном |
 | Редактор тіла | Власний `CodeTextarea`: mono textarea + гутер номерів рядків, шапка файлу, бейдж `unsaved`, лічильник токенів; підсвітки немає — її роль виконує вкладка Preview | CodeMirror 6 — важка нова залежність, ризик pnpm 10/12 (client INSIGHTS) |
 
+> 2026-10-21 — рішення «Нові агенти» переглянуто: seed тепер створює скіли з `docs/skills-examples/` і прив'язує їх (увімкненими, по порядку) до обох агентів, бо після чистого seed агенти лишалися без скілів. Деталі й відхилені альтернативи — [server/specs/seed-skill-bindings.md](../server/specs/seed-skill-bindings.md).
+
 Додаткові рішення (підуть у spec):
 - **Парсинг імпорту на сервері** (`fflate`, pure JS); клієнт шле файл base64 у JSON (`src/lib/api.ts` без multipart, `bodyLimit` 1 МБ). Відхилено: jszip у браузері — безпекова логіка поза серверними тестами.
 - **Прев'ю імпорту stateless**: нічого не пише; збереження = `POST /skills` після підтвердження.

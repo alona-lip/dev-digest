@@ -109,7 +109,10 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
 (`acme/payments-api`, PR #482, the built-in agents — General, Security, Performance,
-Test Quality and API Contract; no skills, add them through the UI).
+Test Quality and API Contract, the last two with the `docs/skills-examples` skills
+bound and switched on. Links are only written for an agent that has none, so a re-seed
+leaves a curated skill set alone; an agent cleared of ALL skills is re-bound, see
+`specs/seed-skill-bindings.md`).
 
 ## Skills (non-obvious)
 

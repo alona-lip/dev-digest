@@ -6,11 +6,13 @@ spec: [../../../specs/skills.md](../../../specs/skills.md).
 ## What it proves (read-only — the flow-contract forbids writing seeded data)
 
 1. The sidebar has the **SKILLS LAB** section and `/skills` renders the empty
-   detail pane ("Select a skill") — the seed ships no skills.
+   detail pane ("Select a skill") — nothing is selected yet.
 2. **Add Skill** is one button (no menu) that opens the **Add skill** modal on `/skills` (no separate route).
 3. The modal has three tabs: *Create* (the default: directive hint under *Description*, markdown *Skill body*), *From file* (the drop zone) and *Import from URL* (the URL field, fetched server-side).
 4. The two new seeded agents (**Test Quality Reviewer**, **API Contract Reviewer**) exist.
-5. An agent's editor has a **Skills** tab (`?tab=skills`).
+5. An agent's editor has a **Skills** tab (`?tab=skills`), and the Test Quality
+   Reviewer's tab lists `branch-coverage`: the seed binds the example skills
+   (`server/specs/seed-skill-bindings.md`).
 
 ## What it deliberately does not do
 

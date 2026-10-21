@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { zipSync, strToU8 } from 'fflate';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { waitForPrRuns } from './helpers/runs.js';
@@ -553,6 +553,79 @@ d('skills module (Testcontainers pg)', () => {
 
       const item = (await app.inject({ method: 'GET', url: '/skills' })).json().find((s: { id: string }) => s.id === a.id);
       expect(item).toMatchObject({ agent_count: 0, pull_rate: 0.5, accept_rate: 1 });
+      await app.close();
+    });
+  });
+
+  describe('seed', () => {
+    const SEEDED = {
+      'Test Quality Reviewer': ['branch-coverage', 'corner-cases', 'test-smells'],
+      'API Contract Reviewer': ['breaking-change', 'response-schema', 'deprecation-policy', 'semver-discipline'],
+    };
+
+    async function agentId(name: string) {
+      const [agent] = await pg.handle.db.select().from(t.agents).where(eq(t.agents.name, name));
+      return agent!.id;
+    }
+
+    /** The agent's links as skill names, in prompt order. */
+    async function linkedNames(app: Awaited<ReturnType<typeof makeApp>>, id: string) {
+      const links = (await app.inject({ method: 'GET', url: `/agents/${id}/skills` })).json<
+        { skill_id: string; order: number; enabled: boolean }[]
+      >();
+      const skills = await pg.handle.db.select().from(t.skills);
+      return [...links]
+        .sort((x, y) => x.order - y.order)
+        .map((l) => ({ name: skills.find((s) => s.id === l.skill_id)!.name, enabled: l.enabled }));
+    }
+
+    it('binds the example skills to their agents, in order and enabled', async () => {
+      const app = await makeApp();
+      for (const [agent, names] of Object.entries(SEEDED)) {
+        const id = await agentId(agent);
+        expect(await linkedNames(app, id)).toEqual(names.map((name) => ({ name, enabled: true })));
+        // Bound like a Skills-tab save: the version moved on and its snapshot lists the skills.
+        const [row] = await pg.handle.db.select().from(t.agents).where(eq(t.agents.id, id));
+        const [snap] = await pg.handle.db
+          .select()
+          .from(t.agentVersions)
+          .where(and(eq(t.agentVersions.agentId, id), eq(t.agentVersions.version, row!.version)));
+        expect(row!.version).toBe(2);
+        expect((snap!.configJson as { skills: string[] }).skills).toHaveLength(names.length);
+      }
+      const all = Object.values(SEEDED).flat();
+      const rows = (await pg.handle.db.select().from(t.skills)).filter((s) => all.includes(s.name));
+      expect(rows).toHaveLength(all.length);
+      for (const row of rows) {
+        expect(row).toMatchObject({ source: 'imported_file', version: 1, enabled: true, scanStatus: 'clean' });
+        const versions = await pg.handle.db.select().from(t.skillVersions).where(eq(t.skillVersions.skillId, row.id));
+        expect(versions).toHaveLength(1);
+      }
+      await app.close();
+    });
+
+    it('a re-seed leaves an agent that has links alone: no unbind undone, no deleted skill recreated', async () => {
+      const app = await makeApp();
+      const id = await agentId('Test Quality Reviewer');
+      const links = (await app.inject({ method: 'GET', url: `/agents/${id}/skills` })).json<
+        { skill_id: string; order: number; enabled: boolean }[]
+      >();
+      const kept = [...links].sort((x, y) => x.order - y.order).slice(1);
+      await app.inject({
+        method: 'PUT',
+        url: `/agents/${id}/skills`,
+        payload: { skills: kept.map((l) => ({ skill_id: l.skill_id, enabled: l.enabled })) },
+      });
+      await pg.handle.db.delete(t.skills).where(eq(t.skills.name, 'branch-coverage'));
+      const skillCount = (await pg.handle.db.select().from(t.skills)).length;
+
+      await seed(pg.handle.db);
+
+      expect((await pg.handle.db.select().from(t.skills)).length).toBe(skillCount);
+      expect((await linkedNames(app, id)).map((l) => l.name)).toEqual(['corner-cases', 'test-smells']);
+      expect((await linkedNames(app, await agentId('API Contract Reviewer'))).map((l) => l.name)).toEqual(
+        SEEDED['API Contract Reviewer'],
+      );
       await app.close();
     });
   });
