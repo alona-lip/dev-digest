@@ -7,7 +7,9 @@ import {
   jsonb,
   primaryKey,
   unique,
+  timestamp,
 } from 'drizzle-orm/pg-core';
+import type { SkillScanFinding } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 
@@ -28,6 +30,11 @@ export const skills = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     version: integer('version').notNull().default(1),
     evidenceFiles: jsonb('evidence_files').$type<string[]>(),
+    /** Prompt-injection scan of the current body; `injection` = blocked (kept disabled). */
+    scanStatus: text('scan_status', { enum: ['clean', 'injection'] }).notNull().default('clean'),
+    scanMethod: text('scan_method', { enum: ['pattern', 'llm'] }).notNull().default('pattern'),
+    scanFindings: jsonb('scan_findings').$type<SkillScanFinding[]>().notNull().default([]),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }),
     createdAt: now(),
   },
   // A skill is addressed by name inside a workspace (import preview flags clashes).

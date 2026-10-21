@@ -2,7 +2,8 @@
    existing skill. Creating a skill is the Create-skill modal on /skills.
    Form state is seeded once; the parent keys this by id:version, so a restore or
    a saved body change remounts it with fresh values. The Enabled switch writes
-   immediately (same mutation as the list card) so the two can never disagree. */
+   immediately (same mutation as the list card) so the two can never disagree;
+   it is locked while the injection scan blocks the skill (the server refuses too). */
 "use client";
 
 import React from "react";
@@ -38,6 +39,7 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   const [touched, setTouched] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
+  const blocked = skill.scan.status === "injection";
   const bodyChanged = body !== skill.body;
   const dirty =
     name !== skill.name || description !== skill.description || type !== skill.type || body !== skill.body;
@@ -99,13 +101,15 @@ export function ConfigTab({ skill }: { skill: Skill }) {
         <Badge icon="GitCommit" mono>
           {t("preview.version", { version: skill.version })}
         </Badge>
-        <label style={s.enabledLabel}>
+        <label style={s.enabledLabel} title={blocked ? t("scan.toggleBlocked") : undefined}>
           {t("preview.enabled")}
-          <Toggle
-            on={skill.enabled}
-            onChange={(v) => update.mutate({ id: skill.id, patch: { enabled: v } })}
-            size={16}
-          />
+          <span style={blocked ? s.locked : undefined}>
+            <Toggle
+              on={skill.enabled}
+              onChange={(v) => !blocked && update.mutate({ id: skill.id, patch: { enabled: v } })}
+              size={16}
+            />
+          </span>
         </label>
       </div>
 

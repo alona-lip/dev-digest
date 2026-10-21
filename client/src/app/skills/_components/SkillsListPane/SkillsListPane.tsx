@@ -1,18 +1,18 @@
-/* SkillsListPane — left column of /skills/*: title, "Add Skill" (create / import,
-   both modals), search and the skill cards. A card toggle is the GLOBAL switch for
-   that skill; a card's Delete asks for confirmation first. */
+/* SkillsListPane — left column of /skills/*: title, "Add Skill" (one modal with
+   Create / From file / Import from URL tabs), search and the skill cards. A card
+   toggle is the GLOBAL switch for that skill; a card's Delete asks for
+   confirmation first. */
 "use client";
 
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, Dropdown, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { Button, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { SkillListItem } from "@devdigest/shared";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SkillCard, filterSkills } from "../SkillCard";
 import { useDeleteSkill, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
-import { CreateSkillModal } from "./_components/CreateSkillModal";
-import { ImportSkillModal } from "./_components/ImportSkillModal";
+import { AddSkillModal, type AddSkillTab } from "./_components/AddSkillModal";
 import { s } from "./styles";
 
 export function SkillsListPane() {
@@ -23,16 +23,14 @@ export function SkillsListPane() {
   const update = useUpdateSkill();
   const del = useDeleteSkill();
   const [search, setSearch] = React.useState("");
-  const [importing, setImporting] = React.useState(false);
-  const [creating, setCreating] = React.useState(false);
+  const [addTab, setAddTab] = React.useState<AddSkillTab | null>(null);
   const [deleting, setDeleting] = React.useState<SkillListItem | null>(null);
 
   const list = filterSkills(skills ?? [], search);
 
   return (
     <div style={s.pane}>
-      {importing && <ImportSkillModal onClose={() => setImporting(false)} />}
-      {creating && <CreateSkillModal onClose={() => setCreating(false)} />}
+      {addTab && <AddSkillModal initialTab={addTab} onClose={() => setAddTab(null)} />}
       {deleting && (
         <ConfirmDialog
           title={t("editor.deleteTitle", { name: deleting.name })}
@@ -52,19 +50,9 @@ export function SkillsListPane() {
       <div style={s.header}>
         <div style={s.titleRow}>
           <h1 style={s.title}>{t("page.heading")}</h1>
-          <Dropdown
-            width={210}
-            align="right"
-            trigger={
-              <Button kind="primary" size="sm" icon="Plus" iconRight="ChevronDown">
-                {t("page.addSkill")}
-              </Button>
-            }
-            items={[
-              { label: t("page.menu.create"), icon: "Edit", onClick: () => setCreating(true) },
-              { label: t("page.menu.importFile"), icon: "Upload", onClick: () => setImporting(true) },
-            ]}
-          />
+          <Button kind="primary" size="sm" icon="Plus" onClick={() => setAddTab("create")}>
+            {t("page.addSkill")}
+          </Button>
         </div>
         <div style={s.search}>
           <Icon.Search size={13} style={s.searchIcon} />
@@ -91,7 +79,7 @@ export function SkillsListPane() {
             title={t("page.empty.title")}
             body={t("page.empty.body")}
             cta={t("page.empty.cta")}
-            onCta={() => setImporting(true)}
+            onCta={() => setAddTab("file")}
           />
         ) : (
           list.map((sk) => (

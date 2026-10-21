@@ -8,6 +8,7 @@ import type {
   LLMProvider,
   CodeParser,
   Tokenizer,
+  UrlFetcher,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -21,6 +22,7 @@ import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
+import { SafeUrlFetcher } from '../adapters/http/safe-fetch.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
@@ -67,6 +69,8 @@ export interface ContainerOverrides {
   codeParser?: CodeParser;
   /** Live model prices. Without this a test with OPENROUTER_API_KEY in its env would call OpenRouter. */
   priceBook?: PriceBook;
+  /** Outbound fetch for skill import from URL — tests inject a mock (no network). */
+  urlFetcher?: UrlFetcher;
 }
 
 export class Container {
@@ -95,6 +99,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _urlFetcher?: UrlFetcher;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -165,6 +170,13 @@ export class Container {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();
     return this._tokenizer;
+  }
+
+  /** SSRF-guarded https fetch for user-supplied URLs (skill import). */
+  get urlFetcher(): UrlFetcher {
+    if (this.overrides.urlFetcher) return this.overrides.urlFetcher;
+    this._urlFetcher ??= new SafeUrlFetcher();
+    return this._urlFetcher;
   }
 
   /** AST parser (ast-grep) for repo-intel: symbols, references, imports, invocation heads. */

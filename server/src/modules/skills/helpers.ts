@@ -1,17 +1,22 @@
 import { unzipSync } from 'fflate';
 import { SkillType, type IgnoredFileReason, type SkillImportPreview } from '@devdigest/shared';
 import type { SkillRow, SkillVersionRow } from '../../db/rows.js';
-import type { Skill, SkillVersion } from '@devdigest/shared';
+import type { Skill, SkillScan, SkillScanFinding, SkillVersion } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
 import {
   BINARY_EXT,
   EXECUTABLE_EXT,
+  INJECTION_PATTERNS,
+  MARKDOWN_CONTENT_TYPES,
   MAX_ARCHIVE_ENTRIES,
   MAX_BODY_CHARS,
   MAX_DESCRIPTION_CHARS,
   MAX_IMPORT_FILE_BYTES,
   MAX_NAME_CHARS,
+  MAX_SCAN_EXCERPT_CHARS,
+  MAX_SCAN_FINDINGS,
   MAX_SKILL_MD_BYTES,
+  ZIP_CONTENT_TYPES,
 } from './constants.js';
 
 /**
@@ -33,6 +38,12 @@ export function toSkillDto(row: SkillRow, tokens: number): Skill {
     evidence_files: row.evidenceFiles ?? null,
     tokens,
     created_at: row.createdAt.toISOString(),
+    scan: {
+      status: row.scanStatus,
+      method: row.scanMethod,
+      findings: row.scanFindings ?? [],
+      scanned_at: row.scannedAt ? row.scannedAt.toISOString() : null,
+    },
   };
 }
 
@@ -210,11 +221,11 @@ export function readSkillArchive(bytes: Uint8Array): ArchiveCore {
   return { path: corePath, text, ignored, warnings };
 }
 
-/** Build the (unsaved) import preview from an uploaded file. `name_conflict` is set by the service. */
+/** Build the (unsaved) import preview from an uploaded file. `name_conflict` and `scan` are set by the service. */
 export function buildImportPreview(
   filename: string,
   bytes: Uint8Array,
-): Omit<SkillImportPreview, 'name_conflict'> {
+): Omit<SkillImportPreview, 'name_conflict' | 'scan'> {
   if (bytes.byteLength === 0) throw new ValidationError('The file is empty');
   if (bytes.byteLength > MAX_IMPORT_FILE_BYTES) {
     throw new ValidationError(`File is larger than ${MAX_IMPORT_FILE_BYTES / 1024} KB`);
@@ -247,3 +258,120 @@ export function buildImportPreview(
   }
   throw new ValidationError('Only .md and .zip files can be imported');
 }
+
+// ---- Import from URL -----------------------------------------------------
+
+const GITHUB_BLOB_RE = /^\/([^/]+)\/([^/]+)\/blob\/(.+)$/;
+
+/**
+ * Validate a user-supplied skill URL and make it fetchable as RAW text:
+ * https only, no credentials, and a github.com "blob" page (HTML) rewritten to
+ * raw.githubusercontent.com. The address check is the fetcher's job.
+ */
+export function normalizeSkillUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new ValidationError('Not a valid URL');
+  }
+  if (url.protocol !== 'https:') throw new ValidationError('Only https:// URLs can be imported');
+  if (url.username || url.password) throw new ValidationError('URLs with credentials are not allowed');
+  url.hash = '';
+  const blob = url.hostname === 'github.com' ? GITHUB_BLOB_RE.exec(url.pathname) : null;
+  if (blob) return `https://raw.githubusercontent.com/${blob[1]}/${blob[2]}/${blob[3]}`;
+  return url.toString();
+}
+
+/**
+ * The filename `buildImportPreview` branches on, from the fetched URL and its
+ * content type. The path's extension wins. Without one, the content type
+ * decides. An HTML page is never a skill, whatever the path says.
+ */
+export function filenameFromUrl(finalUrl: string, contentType: string | null): string {
+  const ct = contentType?.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (ct === 'text/html' || ct === 'application/xhtml+xml') {
+    throw new ValidationError('The URL returned an HTML page — link the raw .md or .zip file');
+  }
+  let segment = '';
+  try {
+    segment = decodeURIComponent(new URL(finalUrl).pathname.split('/').pop() ?? '');
+  } catch {
+    segment = '';
+  }
+  segment = segment.slice(-100);
+  if (/\.(md|markdown|zip)$/i.test(segment)) return segment;
+  if (ZIP_CONTENT_TYPES.has(ct)) return `${segment || 'skill'}.zip`;
+  if (MARKDOWN_CONTENT_TYPES.has(ct)) return `${segment || 'SKILL'}.md`;
+  throw new ValidationError(`The URL must point to a raw .md or .zip file (got ${ct || 'no content type'})`);
+}
+
+// ---- Prompt-injection scan -----------------------------------------------
+
+function lineAt(starts: number[], index: number): number {
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid]! <= index) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo + 1;
+}
+
+function excerpt(text: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  return t.length > MAX_SCAN_EXCERPT_CHARS ? `${t.slice(0, MAX_SCAN_EXCERPT_CHARS - 1)}…` : t;
+}
+
+/**
+ * Deterministic prompt-injection scan of a skill body: every pattern hit with
+ * its 1-based line, one finding per (rule, line). The whole body is matched,
+ * not line by line, so a phrase split across a line break is still caught.
+ */
+export function scanSkillBody(body: string): Omit<SkillScan, 'scanned_at'> {
+  const text = body.replace(/\r\n?/g, '\n');
+  const lines = text.split('\n');
+  const starts: number[] = [];
+  let offset = 0;
+  for (const l of lines) {
+    starts.push(offset);
+    offset += l.length + 1;
+  }
+  const seen = new Set<string>();
+  const findings: SkillScanFinding[] = [];
+  for (const p of INJECTION_PATTERNS) {
+    for (const m of text.matchAll(p.re)) {
+      const line = lineAt(starts, m.index ?? 0);
+      const key = `${p.rule}:${line}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({ rule: p.rule, label: p.label, line, excerpt: excerpt(lines[line - 1] ?? m[0]), source: 'pattern' });
+    }
+  }
+  findings.sort((a, b) => (a.line ?? 0) - (b.line ?? 0));
+  return {
+    status: findings.length > 0 ? 'injection' : 'clean',
+    method: 'pattern',
+    findings: findings.slice(0, MAX_SCAN_FINDINGS),
+  };
+}
+
+/** 1-based line of the first occurrence of `snippet` in `body`, or null. */
+export function findLine(body: string, snippet: string): number | null {
+  const needle = snippet.trim();
+  if (!needle) return null;
+  const i = body.indexOf(needle);
+  return i < 0 ? null : body.slice(0, i).split('\n').length;
+}
+
+/** Columns that store a scan result (`skills.scan_*`). */
+export function toScanColumns(scan: Omit<SkillScan, 'scanned_at'>, at: Date) {
+  return {
+    scanStatus: scan.status,
+    scanMethod: scan.method,
+    scanFindings: scan.findings,
+    scannedAt: at,
+  };
+}
+

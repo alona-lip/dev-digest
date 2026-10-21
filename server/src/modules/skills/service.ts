@@ -4,16 +4,39 @@ import type {
   Skill,
   SkillImportPreview,
   SkillImportRequest,
+  SkillImportUrlRequest,
   SkillListItem,
+  SkillScanFinding,
   SkillStats,
   SkillVersion,
   UpdateSkillInput,
 } from '@devdigest/shared';
-import { ConflictError, NotFoundError } from '../../platform/errors.js';
-import { DEFAULT_UPDATE_NOTE, INITIAL_VERSION_NOTE } from './constants.js';
-import { buildImportPreview, rate, toSkillDto, toSkillVersionDto } from './helpers.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
+import { wrapUntrusted } from '../../platform/prompt.js';
+import { renderPrompt } from '../../platform/prompts.js';
+import { resolveFeatureModel } from '../settings/index.js';
+import {
+  DEFAULT_UPDATE_NOTE,
+  INITIAL_VERSION_NOTE,
+  MAX_IMPORT_FILE_BYTES,
+  MAX_SCAN_FINDINGS,
+  SKILL_SCAN_TEMPERATURE,
+  URL_FETCH_TIMEOUT_MS,
+} from './constants.js';
+import {
+  buildImportPreview,
+  filenameFromUrl,
+  findLine,
+  normalizeSkillUrl,
+  rate,
+  scanSkillBody,
+  toScanColumns,
+  toSkillDto,
+  toSkillVersionDto,
+} from './helpers.js';
 import { SkillRepository, type SkillRow } from './repository/skill.repo.js';
 import { SkillStatsRepository } from './repository/skill-stats.repo.js';
+import { SkillInjectionVerdict } from './schema.js';
 
 /** Postgres unique_violation, possibly wrapped by the driver/ORM. */
 function isUniqueViolation(err: unknown): boolean {
@@ -22,10 +45,17 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 const nameTaken = (name: string) => new ConflictError(`A skill named "${name}" already exists`);
+const blockedSkill = () =>
+  new ValidationError('This skill is blocked: prompt injection detected. Remove it from the body before enabling.');
 
 /**
  * Skills service. A skill is reusable, text-only agent configuration — this
- * module never executes or fetches anything. The DB is the source of truth.
+ * module never executes anything. It fetches only for an import from URL, via
+ * the SSRF-guarded `container.urlFetcher`. The DB is the source of truth.
+ *
+ * Every write of a body stores its prompt-injection scan; a flagged body is
+ * saved but forced disabled, and cannot be enabled until it is clean
+ * (server/specs/skill-injection-scan.md).
  */
 export class SkillsService {
   private repo: SkillRepository;
@@ -64,6 +94,8 @@ export class SkillsService {
 
   async create(workspaceId: string, input: CreateSkillInput): Promise<Skill> {
     if (await this.repo.findByName(workspaceId, input.name)) throw nameTaken(input.name);
+    const scan = scanSkillBody(input.body);
+    const blocked = scan.status === 'injection';
     try {
       const row = await this.repo.inTransaction((repo) =>
         repo.insert(
@@ -74,7 +106,8 @@ export class SkillsService {
             type: input.type,
             source: input.source ?? 'manual',
             body: input.body,
-            enabled: input.enabled ?? true,
+            enabled: blocked ? false : (input.enabled ?? true),
+            ...toScanColumns(scan, new Date()),
           },
           INITIAL_VERSION_NOTE,
         ),
@@ -95,24 +128,33 @@ export class SkillsService {
         if (input.name !== undefined && input.name !== existing.name) {
           if (await repo.findByName(workspaceId, input.name)) throw nameTaken(input.name);
         }
+        // A new body is scanned here. A flagged one is forced disabled (so a
+        // generated upsert never fails on it). Asking to enable a body that is
+        // ALREADY flagged and stays unchanged is refused.
+        const bodyChanged = input.body !== undefined && input.body !== existing.body;
+        const scan = bodyChanged ? scanSkillBody(input.body!) : null;
+        const blocked = scan ? scan.status === 'injection' : existing.scanStatus === 'injection';
+        if (!scan && blocked && input.enabled === true) throw blockedSkill();
+        const enabled = blocked ? false : input.enabled;
         const fields = {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.type !== undefined ? { type: input.type } : {}),
-          ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+          ...(enabled !== undefined ? { enabled } : {}),
         };
         let current = existing;
         if (Object.keys(fields).length > 0) current = await repo.updateFields(workspaceId, id, fields);
 
         // Only a changed body is a new version — toggling `enabled` or fixing the
         // description must not pollute the history evals are reproduced against.
-        if (input.body !== undefined && input.body !== existing.body) {
+        if (bodyChanged && scan) {
           current = await repo.writeBodyVersion(
             workspaceId,
             id,
-            input.body,
+            input.body!,
             existing.version + 1,
             input.change_note || DEFAULT_UPDATE_NOTE,
+            toScanColumns(scan, new Date()),
           );
         }
         return current;
@@ -177,12 +219,17 @@ export class SkillsService {
       if (version === existing.version) throw new ConflictError('That version is already current');
       const old = await repo.getVersion(id, version);
       if (!old) throw new NotFoundError('Version not found');
+      const scan = scanSkillBody(old.body);
       return repo.writeBodyVersion(
         workspaceId,
         id,
         old.body,
         existing.version + 1,
         `Restored from v${version}`,
+        {
+          ...toScanColumns(scan, new Date()),
+          ...(scan.status === 'injection' ? { enabled: false } : {}),
+        },
       );
     });
     return this.dto(row);
@@ -204,7 +251,88 @@ export class SkillsService {
   /** Parse an uploaded file into an editable preview. Writes NOTHING. */
   async importPreview(workspaceId: string, req: SkillImportRequest): Promise<SkillImportPreview> {
     const preview = buildImportPreview(req.filename, new Uint8Array(Buffer.from(req.content_base64, 'base64')));
+    return this.finishPreview(workspaceId, preview);
+  }
+
+  /** Fetch a URL server-side and parse it like an uploaded file. Writes NOTHING. */
+  async importUrlPreview(workspaceId: string, req: SkillImportUrlRequest): Promise<SkillImportPreview> {
+    const res = await this.container.urlFetcher.fetch(normalizeSkillUrl(req.url), {
+      maxBytes: MAX_IMPORT_FILE_BYTES,
+      timeoutMs: URL_FETCH_TIMEOUT_MS,
+    });
+    const filename = filenameFromUrl(res.finalUrl, res.contentType);
+    const preview = buildImportPreview(filename, res.bytes);
+    // source_file starts with the filename (`x.md` or `x.zip:path/SKILL.md`); show the URL instead.
+    return this.finishPreview(workspaceId, {
+      ...preview,
+      source_file: res.finalUrl + preview.source_file.slice(filename.length),
+    });
+  }
+
+  private async finishPreview(
+    workspaceId: string,
+    preview: Omit<SkillImportPreview, 'name_conflict' | 'scan'>,
+  ): Promise<SkillImportPreview> {
     const conflict = await this.repo.findByName(workspaceId, preview.name);
-    return { ...preview, name_conflict: Boolean(conflict) };
+    return {
+      ...preview,
+      name_conflict: Boolean(conflict),
+      scan: { ...scanSkillBody(preview.body), scanned_at: null },
+    };
+  }
+
+  /**
+   * Re-scan: the pattern scan again plus one model call on the workspace's
+   * `skill_scan` model. Either one firing blocks the skill. The model cannot
+   * clear a pattern hit. The result is stored only if the body did not change
+   * while the model was thinking.
+   */
+  async rescan(workspaceId: string, id: string): Promise<Skill> {
+    const row = await this.repo.getById(workspaceId, id);
+    if (!row) throw new NotFoundError('Skill not found');
+
+    const pattern = scanSkillBody(row.body);
+    const choice = await resolveFeatureModel(this.container, workspaceId, 'skill_scan');
+    const llm = await this.container.llm(choice.provider);
+    const res = await llm.completeStructured({
+      model: choice.model,
+      schema: SkillInjectionVerdict,
+      schemaName: 'SkillInjectionVerdict',
+      messages: [
+        { role: 'system', content: await renderPrompt('skill-scan.system.md', {}) },
+        { role: 'user', content: `Skill "${row.name}":\n\n${wrapUntrusted('skill-body', row.body)}` },
+      ],
+      temperature: SKILL_SCAN_TEMPERATURE,
+    });
+    const modelFindings: SkillScanFinding[] = res.data.injection
+      ? res.data.findings.map((f) => ({
+          rule: 'llm',
+          label: f.label,
+          line: findLine(row.body, f.excerpt),
+          excerpt: f.excerpt.trim().slice(0, 120),
+          source: 'llm' as const,
+        }))
+      : [];
+    const injection = pattern.status === 'injection' || res.data.injection;
+
+    const saved = await this.repo.inTransaction(async (repo) => {
+      const current = await repo.getByIdForUpdate(workspaceId, id);
+      if (!current) throw new NotFoundError('Skill not found');
+      if (current.version !== row.version) {
+        throw new ConflictError('The skill changed during the scan — run Re-scan again');
+      }
+      return repo.updateFields(workspaceId, id, {
+        ...toScanColumns(
+          {
+            status: injection ? 'injection' : 'clean',
+            method: 'llm',
+            findings: [...pattern.findings, ...modelFindings].slice(0, MAX_SCAN_FINDINGS),
+          },
+          new Date(),
+        ),
+        ...(injection ? { enabled: false } : {}),
+      });
+    });
+    return this.dto(saved);
   }
 }

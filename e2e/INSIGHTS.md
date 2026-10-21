@@ -55,6 +55,12 @@ by hand in the same format.
   (`exec npx -y pnpm@12.4.1 "$@"`, `exec npx -y agent-browser@0.39.1 "$@"`) work, at the cost of
   an npx start-up per step. (`scripts/e2e.sh:148`)
 
+- 2026-10-20 — `find role button --name X` matches a case-insensitive SUBSTRING by default
+  (`agent-browser find --help`). In `08-skills`, `--name "From file"` would also hit the empty
+  state's "Import from file" button that sits BEHIND the open modal, so a click there lands on
+  the overlay and closes the modal. Add `--exact` whenever one visible label is contained in
+  another. (`e2e/specs/08-skills.flow.json`)
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

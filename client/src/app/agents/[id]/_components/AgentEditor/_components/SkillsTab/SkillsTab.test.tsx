@@ -34,6 +34,7 @@ const sk = (id: string, name: string, enabled = true): SkillListItem => ({
   version: 1,
   tokens: 1,
   created_at: "2026-01-01T00:00:00Z",
+  scan: { status: "clean", method: "pattern", findings: [], scanned_at: null },
   agent_count: 0,
   pull_rate: null,
   accept_rate: null,

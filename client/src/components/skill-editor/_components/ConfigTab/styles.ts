@@ -15,4 +15,6 @@ export const s = {
   actions: { display: "flex", gap: 10, marginTop: 10, alignItems: "center" } satisfies CSSProperties,
   spacer: { flex: 1 } satisfies CSSProperties,
   error: { fontSize: 13, color: "var(--crit)" } satisfies CSSProperties,
+  /** Switch of a skill blocked by the injection scan — visibly not clickable. */
+  locked: { opacity: 0.45, cursor: "not-allowed" } satisfies CSSProperties,
 } as const;

@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { scanSkillBody } from '../skills/index.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -185,7 +186,13 @@ export class ReviewRunExecutor {
       // Skills: enabled for this agent AND globally, in the agent's order. A
       // disabled skill is not loaded at all, so it appears neither in the prompt
       // nor in the log.
-      const activeSkills = await this.container.agentsRepo.activeSkillsForRun(agent.id);
+      // Defence in depth: a body the injection scan flags never reaches the
+      // prompt, even when its row predates the scan columns (still "clean").
+      const activeSkills = (await this.container.agentsRepo.activeSkillsForRun(agent.id)).filter((sk) => {
+        if (scanSkillBody(sk.body).status === 'clean') return true;
+        runLog.error(`Skill "${sk.name}" v${sk.version} skipped: prompt injection detected`);
+        return false;
+      });
       const skillBlocks = activeSkills.map((s) => {
         const text = renderSkillBlock(s);
         return {

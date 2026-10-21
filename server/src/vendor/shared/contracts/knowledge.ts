@@ -124,6 +124,34 @@ export const SkillSource = z.enum([
 ]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
+/** One prompt-injection hit: a pattern rule (with its line) or a model verdict. */
+export const SkillScanFinding = z.object({
+  rule: z.string(),
+  label: z.string(),
+  /** 1-based body line; null when the model did not point at one. */
+  line: z.number().int().nullable(),
+  excerpt: z.string(),
+  source: z.enum(['pattern', 'llm']),
+});
+export type SkillScanFinding = z.infer<typeof SkillScanFinding>;
+
+export const SkillScanStatus = z.enum(['clean', 'injection']);
+export type SkillScanStatus = z.infer<typeof SkillScanStatus>;
+
+/**
+ * Result of scanning a skill body for prompt injection. `pattern` = the
+ * deterministic scan run on every save; `llm` = the last Re-scan also asked a
+ * model. Either detector firing makes the status `injection`.
+ */
+export const SkillScan = z.object({
+  status: SkillScanStatus,
+  method: z.enum(['pattern', 'llm']),
+  findings: z.array(SkillScanFinding),
+  /** When the stored result was written; null for an unsaved import preview. */
+  scanned_at: z.string().nullable(),
+});
+export type SkillScan = z.infer<typeof SkillScan>;
+
 export const Skill = z.object({
   id: z.string(),
   name: z.string(),
@@ -137,6 +165,8 @@ export const Skill = z.object({
   /** Token count of `body` (server tokenizer). */
   tokens: z.number().int(),
   created_at: z.string(),
+  /** Prompt-injection scan of the current body. `injection` = blocked (cannot be enabled). */
+  scan: SkillScan,
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -156,7 +186,7 @@ export const CreateSkillInput = z.object({
   type: SkillType,
   body: z.string().min(1).max(20_000),
   enabled: z.boolean().optional(),
-  source: z.enum(['manual', 'imported_file', 'extracted']).optional(),
+  source: z.enum(['manual', 'imported_url', 'imported_file', 'extracted']).optional(),
 });
 export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
 
@@ -195,6 +225,12 @@ export const SkillImportRequest = z.object({
 });
 export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
 
+export const SkillImportUrlRequest = z.object({
+  /** https URL of a raw .md / .zip (a github.com blob link is rewritten to raw). Fetched server-side. */
+  url: z.string().trim().url().max(2000),
+});
+export type SkillImportUrlRequest = z.infer<typeof SkillImportUrlRequest>;
+
 export const IgnoredFileReason = z.enum(['executable', 'not_core', 'binary', 'too_large']);
 export type IgnoredFileReason = z.infer<typeof IgnoredFileReason>;
 
@@ -208,6 +244,8 @@ export const SkillImportPreview = z.object({
   ignored_files: z.array(z.object({ path: z.string(), reason: IgnoredFileReason })),
   warnings: z.array(z.string()),
   name_conflict: z.boolean(),
+  /** Pattern scan of `body` — the skill will be saved blocked when this is `injection`. */
+  scan: SkillScan,
 });
 export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 

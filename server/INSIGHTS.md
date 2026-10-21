@@ -170,6 +170,15 @@ by hand in the same format.
   is wired by a `createXService(container)` factory in its own `service.ts`, because a route may
   not import a repository. (`server/src/modules/conventions/service.ts:197`)
 
+- 2026-10-20 — the skill prompt-injection scan is a gate on STORED config, separate from
+  `INJECTION_GUARD` (skills are deliberately not wrapped as untrusted, decision L3), so it does
+  not break the "guard is not a keyword filter" rule. On update, a NEW flagged body is forced
+  `enabled = false` rather than rejected, because conventions writes through
+  `SkillsService.upsertByName` and must never fail on it; only `enabled: true` on an UNCHANGED
+  flagged body is a 422. Re-scan's model call runs outside the transaction, and the write
+  compares `version` and throws `ConflictError` if the body changed meanwhile. NEVER let the
+  LLM verdict clear a pattern hit. (`server/src/modules/skills/service.ts`, `server/specs/skill-injection-scan.md`)
+
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
   flag even though the current online CLI docs describe it, and
@@ -199,6 +208,13 @@ by hand in the same format.
   `0013_melodic_network.sql` (SET NOT NULL + DROP COLUMN) are separate.
   (`server/src/db/migrations/0013_melodic_network.sql`)
 
+- 2026-10-20 — `node:https` does NOT call a custom `lookup` when the URL host is an IP
+  literal, so an SSRF check placed only in `lookup` lets `https://169.254.169.254/` and
+  `https://[::1]/` straight through. Check literal hosts with `net.isIP` before the request,
+  AND keep the `lookup` check for hostnames (it sees the address the socket actually connects
+  to, so DNS rebinding can't swap it). `net.BlockList` does not unwrap IPv4-mapped IPv6
+  (`::ffff:7f00:1` = 127.0.0.1); unwrap it by hand first. (`server/src/adapters/http/safe-fetch.ts`)
+
 ## Recurring Errors & Fixes
 
 - 2026-09-21 — `seed.ts`'s PR #482 review+findings block only runs inside
@@ -211,6 +227,10 @@ by hand in the same format.
 
 - 2026-10-16 — `agent_runs.status` is `'done'` (not `'completed'`); a raw-SQL rollup
   filtering on the wrong word silently returns nothing. (`server/src/modules/skills/repository/skill-stats.repo.ts`)
+
+- 2026-10-20 — a body that fails the route's zod schema returns **422**, not 400 (same as
+  `ValidationError` from a service). A test expecting 400 for "not a url" fails; assert 422.
+  (`server/test/skills.it.test.ts`, `import from URL` block)
 
 ## Session Notes
 

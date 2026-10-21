@@ -46,4 +46,11 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     defaultProvider: "openai",
     defaultModel: "gpt-4o-mini",
   },
+  {
+    id: "skill_scan",
+    label: "Skill Injection Scan",
+    description: "Checks a skill body for prompt injection (Re-scan).",
+    defaultProvider: "openai",
+    defaultModel: "gpt-4o-mini",
+  },
 ];

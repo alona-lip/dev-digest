@@ -1,5 +1,3 @@
-import type { SkillImportPreview } from "@devdigest/shared";
-
 /** Bytes → base64 (chunked: `String.fromCharCode(...bigArray)` overflows the stack). */
 export function bytesToBase64(bytes: Uint8Array): string {
   let bin = "";
@@ -15,13 +13,6 @@ export function isImportable(filename: string): boolean {
   return /\.(md|markdown|zip)$/i.test(filename);
 }
 
-/**
- * The server flags a name clash for the ORIGINAL name; once the user edits the
- * name the flag is stale, so it only applies while the name is unchanged.
- */
-export function hasNameConflict(preview: SkillImportPreview, currentName: string): boolean {
-  return preview.name_conflict && currentName.trim() === preview.name;
-}
 
 /** File bytes; `File.arrayBuffer` where it exists, FileReader otherwise (older browsers, jsdom). */
 export function readFileBytes(file: File): Promise<Uint8Array> {

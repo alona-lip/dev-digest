@@ -73,7 +73,7 @@ flowchart TB
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (GET, PUT)"]
-    skills["skills<br/>/skills · /skills/:id · /skills/:id/(versions|stats)<br/>/skills/:id/versions/:v/restore · /skills/import/preview"]
+    skills["skills<br/>/skills · /skills/:id · /skills/:id/(versions|stats)<br/>/skills/:id/versions/:v/restore · /skills/:id/rescan<br/>/skills/import/preview · /skills/import/url-preview"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -117,7 +117,7 @@ A skill is reusable, **text-only** agent configuration (`modules/skills`). Contr
 [../specs/skills.md](../specs/skills.md).
 
 - **Two switches.** `skills.enabled` is global; `agent_skills.enabled` is per agent.
-  A run's prompt gets `link.enabled && skill.enabled`, in the agent's `order`
+  A run's prompt gets `link.enabled && skill.enabled` (and not blocked, below), in the agent's `order`
   (`AgentsRepository.activeSkillsForRun`). Skills sit in the **system** message,
   after the agent prompt and before `INJECTION_GUARD` (`reviewer-core/src/prompt.ts`).
 - **Versions** are body snapshots (`skill_versions`): only a changed `body` bumps
@@ -131,6 +131,18 @@ A skill is reusable, **text-only** agent configuration (`modules/skills`). Contr
   nothing. From an archive only `SKILL.md` is inflated (`fflate` `filter`); every
   other entry is listed as ignored and never read, extracted or run.
   Limits: 512 KB archive, 200 entries, 64 KB `SKILL.md`.
+- **Import from URL** (`POST /skills/import/url-preview`) fetches an https URL
+  server-side through `container.urlFetcher` (`adapters/http/safe-fetch.ts`: https
+  only, every hop's resolved address must be public, ≤ 3 redirects, 10 s, 512 KB)
+  and parses it like a file. A github.com `blob` link is rewritten to raw. The
+  client saves it as `imported_url`, disabled. Spec: [specs/skill-import-url.md](specs/skill-import-url.md).
+- **Prompt-injection scan.** Every write of a body stores a pattern scan
+  (`skills.scan_*`). A flagged body is saved but forced disabled, and
+  `PUT { enabled: true }` on it is a 422. `POST /skills/:id/rescan` adds one
+  model call (feature model `skill_scan`). Either detector flags it → blocked; the
+  model cannot clear a pattern hit. At run time a flagged body is dropped even if
+  its row predates the scan. This is a gate on stored config, NOT a change to
+  `INJECTION_GUARD`. Spec: [specs/skill-injection-scan.md](specs/skill-injection-scan.md).
 
 ## Review context (non-obvious)
 

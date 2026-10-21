@@ -286,3 +286,25 @@ export interface SecretsProvider {
    */
   set?(key: SecretKey, value: string): Promise<void>;
 }
+
+// ---------- Outbound HTTP (skill import from URL) ----------
+export interface UrlFetchOptions {
+  /** Abort once the body exceeds this many bytes. */
+  maxBytes: number;
+  timeoutMs: number;
+}
+
+export interface UrlFetchResult {
+  bytes: Uint8Array;
+  /** URL after redirects. */
+  finalUrl: string;
+  contentType: string | null;
+}
+
+/**
+ * Fetches a public https resource. Implementations must refuse non-public
+ * addresses (loopback, private, link-local …) — the URL comes from a user.
+ */
+export interface UrlFetcher {
+  fetch(url: string, opts: UrlFetchOptions): Promise<UrlFetchResult>;
+}

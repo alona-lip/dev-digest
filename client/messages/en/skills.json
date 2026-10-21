@@ -6,13 +6,6 @@
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
-    "menu": {
-      "fromFile": "Import from file",
-      "fromUrl": "Import from URL",
-      "community": "Search community skills…",
-      "create": "Create skill",
-      "importFile": "Import from file"
-    },
     "empty": {
       "title": "No skills yet",
       "body": "Import a skill from a file, a URL, or the community catalog.",
@@ -59,7 +52,9 @@
     "placeholder": "https://example.com/skills/security.md",
     "fetching": "Fetching…",
     "import": "Import from URL",
-    "success": "Imported \"{name}\". Disabled until you vet + enable it."
+    "success": "Imported \"{name}\". Disabled until you vet + enable it.",
+    "fetch": "Fetch",
+    "failed": "Could not fetch this URL."
   },
   "community": {
     "searchPlaceholder": "Search community skills (e.g. security)…",
@@ -182,10 +177,6 @@
     "loadError": "Could not load versions."
   },
   "import": {
-    "title": "Import skill",
-    "subtitle": "A markdown file, or a .zip containing a SKILL.md",
-    "previewTitle": "Import skill — preview",
-    "previewSubtitle": "Nothing is saved until you confirm.",
     "drop": "Drop a .md or .zip here, or click to choose",
     "reading": "Reading…",
     "dropHint": "Up to 512 KB. Only the SKILL.md is read.",
@@ -204,16 +195,38 @@
       "binary": "binary",
       "too_large": "too large"
     },
-    "cancel": "Cancel",
     "save": "Save skill",
     "saving": "Saving…",
     "saved": "Imported \"{name}\""
   },
   "create": {
-    "title": "Create skill",
-    "subtitle": "A reusable block for agents' system prompts: a name, a directive description, a type and a markdown body.",
-    "cancel": "Cancel",
     "save": "Create skill",
     "saving": "Creating…"
+  },
+  "add": {
+    "title": "Add skill",
+    "tabs": {
+      "create": "Create",
+      "file": "From file",
+      "url": "Import from URL"
+    }
+  },
+  "scan": {
+    "title": "Injection detected — do not enable",
+    "body": "This skill contains prompt injection patterns. It has been automatically blocked.",
+    "previewBody": "This skill contains prompt injection patterns. It will be saved disabled and cannot be enabled until the body is clean.",
+    "badge": "Injection detected",
+    "line": "line {line}",
+    "source": {
+      "pattern": "pattern",
+      "llm": "LLM"
+    },
+    "rescan": "Re-scan",
+    "rescanTitle": "Check the body for prompt injection again, with a model as well as the patterns",
+    "rescanClean": "No prompt injection found.",
+    "rescanBlocked": "Prompt injection found — the skill is blocked.",
+    "rescanFailed": "Re-scan failed.",
+    "toggleBlocked": "Blocked: prompt injection detected",
+    "savedBlocked": "\"{name}\" was saved but blocked: prompt injection detected."
   }
 }

@@ -33,6 +33,7 @@ const SKILL: Skill = {
   version: 5,
   tokens: 166,
   created_at: "2026-03-02T00:00:00Z",
+  scan: { status: "clean", method: "pattern", findings: [], scanned_at: null },
 };
 
 const renderTab = (skill: Skill) =>
@@ -87,6 +88,13 @@ describe("ConfigTab", () => {
     renderTab(SKILL);
     await userEvent.click(screen.getByRole("switch"));
     expect(update).toHaveBeenCalledWith({ id: "s1", patch: { enabled: false } });
+  });
+
+  it("the Enabled switch is locked while the injection scan blocks the skill", async () => {
+    renderTab({ ...SKILL, enabled: false, scan: { ...SKILL.scan, status: "injection" } });
+    await userEvent.click(screen.getByRole("switch"));
+    expect(update).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Blocked: prompt injection detected")).toBeInTheDocument();
   });
 
   it("Delete opens a confirmation modal instead of deleting at once", async () => {

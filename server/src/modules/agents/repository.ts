@@ -58,6 +58,14 @@ export interface ActiveSkill {
   version: number;
 }
 
+/**
+ * A link whose skill goes into the prompt: enabled for the agent, enabled
+ * globally, and not blocked by the injection scan (a blocked skill is forced
+ * disabled anyway; this guards rows that bypassed the service).
+ */
+const isActiveLink = (l: LinkedSkillRow) =>
+  l.enabled && l.skill.enabled && l.skill.scanStatus !== 'injection';
+
 export interface SkillLinkInput {
   skillId: string;
   enabled: boolean;
@@ -280,14 +288,14 @@ export class AgentsRepository {
    */
   async skillIdsForAgent(agentId: string): Promise<string[]> {
     const links = await this.linkedSkills(agentId);
-    return links.filter((l) => l.enabled && l.skill.enabled).map((l) => l.skill.id);
+    return links.filter(isActiveLink).map((l) => l.skill.id);
   }
 
   /** Skills for a run's prompt: bound + enabled for the agent + globally enabled, in order. */
   async activeSkillsForRun(agentId: string): Promise<ActiveSkill[]> {
     const links = await this.linkedSkills(agentId);
     return links
-      .filter((l) => l.enabled && l.skill.enabled)
+      .filter(isActiveLink)
       .map((l) => ({
         id: l.skill.id,
         name: l.skill.name,

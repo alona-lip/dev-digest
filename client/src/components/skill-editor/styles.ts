@@ -18,7 +18,7 @@ export const s = {
     placeItems: "center",
   } satisfies CSSProperties,
   title: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
-  actions: { marginLeft: "auto" } satisfies CSSProperties,
+  actions: { marginLeft: "auto", display: "flex", gap: 8 } satisfies CSSProperties,
   tabsBar: { marginTop: 8, flexShrink: 0 } satisfies CSSProperties,
   body: { flex: 1, minHeight: 0, overflow: "auto", padding: 28 } satisfies CSSProperties,
   skeleton: { padding: 28, display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,

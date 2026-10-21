@@ -11,6 +11,7 @@ import type {
   Skill,
   SkillImportPreview,
   SkillImportRequest,
+  SkillImportUrlRequest,
   SkillListItem,
   SkillStats,
   SkillVersion,
@@ -122,6 +123,23 @@ export function useImportSkillPreview() {
   return useMutation({
     mutationFn: (req: SkillImportRequest) =>
       api.post<SkillImportPreview>("/skills/import/preview", req),
+  });
+}
+
+/** The server fetches an https URL (.md/.zip) and parses it like a file. Saves NOTHING. */
+export function useImportSkillUrlPreview() {
+  return useMutation({
+    mutationFn: (req: SkillImportUrlRequest) =>
+      api.post<SkillImportPreview>("/skills/import/url-preview", req),
+  });
+}
+
+/** Re-scan: pattern + model prompt-injection check; a flagged skill comes back blocked. */
+export function useRescanSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<Skill>(`/skills/${id}/rescan`),
+    onSuccess: (skill) => skillChanged(qc, skill),
   });
 }
 

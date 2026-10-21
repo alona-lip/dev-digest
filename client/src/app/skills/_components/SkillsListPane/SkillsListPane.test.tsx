@@ -19,6 +19,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useSkills: () => ({ data: SKILLS, isLoading: false, isError: false, refetch: vi.fn() }),
   useUpdateSkill: () => ({ mutate: update }),
   useImportSkillPreview: () => ({ mutate: vi.fn(), isPending: false }),
+  useImportSkillUrlPreview: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSkill: () => ({ mutate: del, isPending: false }),
 }));
@@ -41,6 +42,7 @@ const sk = (id: string, name: string): SkillListItem => ({
   version: 1,
   tokens: 1,
   created_at: "2026-01-01T00:00:00Z",
+  scan: { status: "clean", method: "pattern", findings: [], scanned_at: null },
   agent_count: 0,
   pull_rate: null,
   accept_rate: null,
@@ -73,20 +75,25 @@ describe("SkillsListPane", () => {
     expect(update).toHaveBeenCalledWith({ id: "s1", patch: { enabled: false } });
   });
 
-  it("Add Skill offers Create and Import", async () => {
+  it("Add Skill is one button that opens the Add skill modal on the Create tab", async () => {
     SKILLS = [sk("s1", "alpha-rule")];
     renderPane();
-    await userEvent.click(screen.getByRole("button", { name: /Add Skill/ }));
-    await userEvent.click(screen.getByText("Create skill"));
-    // Creation happens in a modal, not on a separate page.
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add Skill" }));
+    // Creation happens in a modal, not on a separate page — and there is no menu in between.
+    expect(screen.getByRole("dialog")).toHaveTextContent("Add skill");
+    expect(screen.getByRole("button", { name: "Import from URL" })).toBeInTheDocument();
     expect(screen.getByLabelText("Skill body")).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Add Skill/ }));
-    await userEvent.click(screen.getByText("Import from file"));
-    expect(screen.getByText("Import skill")).toBeInTheDocument();
+  });
+
+  it("a skill blocked by the injection scan cannot be switched on from its card", async () => {
+    SKILLS = [{ ...sk("s1", "evil-rule"), enabled: false, scan: { status: "injection", method: "pattern", findings: [], scanned_at: null } }];
+    renderPane();
+    await userEvent.click(screen.getByRole("switch"));
+    expect(update).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Blocked: prompt injection detected")).toBeInTheDocument();
   });
 
   it("a card's Delete asks for confirmation; only Delete in the dialog deletes", async () => {
@@ -115,9 +122,12 @@ describe("SkillsListPane", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("shows an empty state with an import CTA when the library is empty", () => {
+  it("shows an empty state whose import CTA opens the modal on From file", async () => {
     SKILLS = [];
     renderPane();
     expect(screen.getByText("No skills yet")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Import from file" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Add skill");
+    expect(screen.getByTestId("skill-file-input")).toBeInTheDocument();
   });
 });

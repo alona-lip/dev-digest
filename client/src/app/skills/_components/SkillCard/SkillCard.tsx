@@ -29,6 +29,8 @@ export function SkillCard({
   const t = useTranslations("skills");
   const c = TYPE_COLORS[skill.type];
   const SourceIcon = Icon[SOURCE_ICONS[skill.source]];
+  // Blocked by the injection scan: the switch stays off (the server refuses too).
+  const blocked = skill.scan.status === "injection";
   return (
     <div onClick={onClick} style={s.card(!!active, skill.enabled)} data-testid="skill-card">
       <div style={s.headerRow}>
@@ -39,8 +41,12 @@ export function SkillCard({
           {skill.name}
         </span>
         {onToggle && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Toggle on={skill.enabled} onChange={onToggle} size={14} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            title={blocked ? t("scan.toggleBlocked") : undefined}
+            style={blocked ? s.locked : undefined}
+          >
+            <Toggle on={skill.enabled} onChange={(v) => !blocked && onToggle(v)} size={14} />
           </div>
         )}
         {onDelete && (

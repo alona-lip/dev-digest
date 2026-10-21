@@ -12,28 +12,35 @@ vi.mock("@/lib/hooks/skills", () => ({
   useCreateSkill: () => ({ mutate: create, isPending: false }),
 }));
 
-import { CreateSkillModal } from "./CreateSkillModal";
+import { CreateSkillTab } from "./CreateSkillTab";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-const renderModal = (onClose = vi.fn()) => {
+const renderTab = (onDone = vi.fn()) => {
   render(
     <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
       <ToastProvider>
-        <CreateSkillModal onClose={onClose} />
+        <CreateSkillTab onDone={onDone} />
       </ToastProvider>
     </NextIntlClientProvider>,
   );
-  return onClose;
+  return onDone;
 };
 
-describe("CreateSkillModal", () => {
+const CLEAN = { status: "clean", method: "pattern", findings: [], scanned_at: null };
+
+async function fillIn() {
+  await userEvent.type(screen.getAllByRole("textbox")[0]!, "my-skill");
+  await userEvent.type(screen.getAllByRole("textbox")[1]!, "Use when X.");
+  fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "Do Y." } });
+}
+
+describe("CreateSkillTab", () => {
   it("has name, description, type and a markdown body with Edit / Preview", async () => {
-    renderModal();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    renderTab();
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Description")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
@@ -43,17 +50,15 @@ describe("CreateSkillModal", () => {
   });
 
   it("validates before posting, then creates a manual skill and opens it", async () => {
-    create.mockImplementationOnce((_input: unknown, opts: { onSuccess: (s: { id: string; name: string }) => void }) =>
-      opts.onSuccess({ id: "new1", name: "my-skill" }),
+    create.mockImplementationOnce((_input: unknown, opts: { onSuccess: (s: object) => void }) =>
+      opts.onSuccess({ id: "new1", name: "my-skill", scan: CLEAN }),
     );
-    const onClose = renderModal();
+    const onDone = renderTab();
     await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
     expect(create).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent("Name is required.");
 
-    await userEvent.type(screen.getAllByRole("textbox")[0]!, "my-skill");
-    await userEvent.type(screen.getAllByRole("textbox")[1]!, "Use when X.");
-    fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "Do Y." } });
+    await fillIn();
     await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
 
     expect(create.mock.calls[0]![0]).toEqual({
@@ -63,7 +68,19 @@ describe("CreateSkillModal", () => {
       body: "Do Y.",
       source: "manual",
     });
-    expect(onClose).toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith("/skills/new1");
+    expect(await screen.findByText('Created "my-skill"')).toBeInTheDocument();
+  });
+
+  it("says so when the server saved the skill blocked by the injection scan", async () => {
+    create.mockImplementationOnce((_input: unknown, opts: { onSuccess: (s: object) => void }) =>
+      opts.onSuccess({ id: "new2", name: "my-skill", scan: { ...CLEAN, status: "injection" } }),
+    );
+    renderTab();
+    await fillIn();
+    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
+    expect(await screen.findByText(/saved but blocked: prompt injection detected/)).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith("/skills/new2");
   });
 });

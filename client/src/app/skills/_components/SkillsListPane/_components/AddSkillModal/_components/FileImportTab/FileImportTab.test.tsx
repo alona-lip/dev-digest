@@ -16,7 +16,7 @@ vi.mock("@/lib/hooks/skills", () => ({
   useCreateSkill: () => ({ mutate: create, isPending: false }),
 }));
 
-import { ImportSkillModal } from "./ImportSkillModal";
+import { FileImportTab } from "./FileImportTab";
 
 afterEach(() => {
   cleanup();
@@ -32,13 +32,14 @@ const PREVIEW: SkillImportPreview = {
   ignored_files: [{ path: "pack/scripts/run.sh", reason: "executable" }],
   warnings: [],
   name_conflict: false,
+  scan: { status: "clean", method: "pattern", findings: [], scanned_at: null },
 };
 
-const renderModal = (onClose = vi.fn()) =>
+const renderTab = () =>
   render(
     <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
       <ToastProvider>
-        <ImportSkillModal onClose={onClose} />
+        <FileImportTab onDone={vi.fn()} />
       </ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -49,16 +50,16 @@ async function pickFile(f: File) {
   await userEvent.upload(screen.getByTestId("skill-file-input"), f, { applyAccept: false });
 }
 
-describe("ImportSkillModal", () => {
+describe("FileImportTab", () => {
   it("rejects a wrong file type before uploading anything", async () => {
-    renderModal();
+    renderTab();
     await pickFile(file("evil.exe"));
     expect(screen.getByRole("alert")).toHaveTextContent("Only .md and .zip");
     expect(preview).not.toHaveBeenCalled();
   });
 
   it("rejects an oversized file before uploading", async () => {
-    renderModal();
+    renderTab();
     await pickFile(new File([new Uint8Array(600 * 1024)], "big.zip"));
     expect(screen.getByRole("alert")).toHaveTextContent("larger than 512 KB");
     expect(preview).not.toHaveBeenCalled();
@@ -66,9 +67,9 @@ describe("ImportSkillModal", () => {
 
   it("goes file → PREVIEW; nothing is created until Save is confirmed", async () => {
     preview.mockImplementation((_req, opts) => opts.onSuccess(PREVIEW));
-    renderModal();
+    renderTab();
     await pickFile(file("pack.zip", "zipbytes"));
-    await waitFor(() => expect(screen.getByText("Import skill — preview")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save skill" })).toBeInTheDocument());
 
     // trust warning + the ignored executable are shown; nothing saved yet
     expect(screen.getByRole("note")).toHaveTextContent("foreign instructions");
@@ -77,7 +78,7 @@ describe("ImportSkillModal", () => {
     expect(create).not.toHaveBeenCalled();
     expect(preview.mock.calls[0]![0]).toMatchObject({ filename: "pack.zip", content_base64: expect.any(String) });
 
-    await userEvent.click(screen.getByRole("button", { name: /Save skill/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Save skill" }));
     expect(create.mock.calls[0]![0]).toEqual({
       name: "test-smells",
       description: "Use when tests mock the unit under test.",
@@ -89,16 +90,15 @@ describe("ImportSkillModal", () => {
 
   it("blocks Save while the name clashes, until it is renamed", async () => {
     preview.mockImplementation((_req, opts) => opts.onSuccess({ ...PREVIEW, name_conflict: true }));
-    renderModal();
+    renderTab();
     await pickFile(file("pack.zip"));
-    await waitFor(() => screen.getByText("Import skill — preview"));
+    await waitFor(() => screen.getByRole("button", { name: "Save skill" }));
     expect(screen.getByText(/already exists/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Save skill/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save skill" })).toBeDisabled();
 
-    const nameInput = screen.getAllByRole("textbox")[0]!;
-    await userEvent.type(nameInput, "-2");
+    await userEvent.type(screen.getAllByRole("textbox")[0]!, "-2");
     expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Save skill/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save skill" })).toBeEnabled();
   });
 
   // The error is set after the file is read asynchronously (FileReader), so these wait for it.
@@ -106,14 +106,14 @@ describe("ImportSkillModal", () => {
     preview.mockImplementation((_req, opts) =>
       opts.onError(new ApiError("No SKILL.md found at the archive root", 422, "validation_error")),
     );
-    renderModal();
+    renderTab();
     await pickFile(file("a.md"));
     expect(await screen.findByRole("alert")).toHaveTextContent("No SKILL.md found at the archive root");
   });
 
   it("shows a generic message when the failure is not an API error", async () => {
     preview.mockImplementation((_req, opts) => opts.onError(new Error("boom")));
-    renderModal();
+    renderTab();
     await pickFile(file("a.md"));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Could not read this file.");

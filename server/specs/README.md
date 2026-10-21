@@ -21,6 +21,12 @@ criteria, and what's explicitly out of scope.
   path containment, GitHub token passed as a header (never in `.git/config`),
   loopback bind, 5xx/log hygiene, test-then-save keys, the review-persist
   transaction, untrusted PR title.
+- [skill-import-url.md](./skill-import-url.md) — Add skill → Import from URL:
+  server-side fetch behind an SSRF guard (public addresses only, checked at
+  connect time), github blob → raw, same parser as a file import.
+- [skill-injection-scan.md](./skill-injection-scan.md) — prompt-injection scan of
+  skill bodies: pattern scan on every save + LLM Re-scan, saved-but-blocked,
+  run-time drop; why it does not contradict `INJECTION_GUARD`.
 - [onion-burn-down.md](./onion-burn-down.md) — the deliberate pass over the
   dependency-cruiser baseline: pulls/settings/polling/workspace onto
   service + repository, ports out of `src/adapters`, intended behaviour changes.

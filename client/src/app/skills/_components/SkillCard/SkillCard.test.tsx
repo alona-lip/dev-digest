@@ -19,6 +19,7 @@ const SKILL: SkillListItem = {
   version: 5,
   tokens: 166,
   created_at: "2026-03-02T00:00:00Z",
+  scan: { status: "clean", method: "pattern", findings: [], scanned_at: null },
   agent_count: 3,
   pull_rate: 0.714,
   accept_rate: 0.74,

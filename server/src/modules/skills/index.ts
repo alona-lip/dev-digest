@@ -7,3 +7,5 @@
  * registered by `modules/index.ts` and is not re-exported here.
  */
 export { SkillsService } from './service.js';
+/** Pure prompt-injection scan — the run executor re-checks every skill body with it. */
+export { scanSkillBody } from './helpers.js';

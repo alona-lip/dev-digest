@@ -119,6 +119,11 @@ by hand in the same format.
 
 - 2026-10-19 — `client/` has NO prettier config, while the code is formatted at ~120 columns. A bare `npx prettier --write <file>` uses the default width 80 and rewraps the whole file, so a 3-line change shows up as a 100-line diff. Run it as `npx prettier --print-width 120 --write <file>` (matches the existing code), or don't run prettier at all; lint (`pnpm lint`) does not check formatting. (`client/package.json`, `client/eslint.config.mjs`)
 
+- 2026-10-20 — the vendored `Toggle` (`src/vendor/ui/primitives/Toggle.tsx`) has no `disabled`
+  prop, and `vendor/ui` is do-not-touch. Lock it with a guard in `onChange` plus a `title` and
+  a dimmed wrapper (`s.locked`). Do NOT use `pointer-events: none`: `userEvent.click` then throws
+  instead of proving the click does nothing. (`client/src/components/skill-editor/_components/ConfigTab/ConfigTab.tsx`)
+
 ## Recurring Errors & Fixes
 
 - 2026-09-20 — `pnpm typecheck` failing with "Two different types with this name

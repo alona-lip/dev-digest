@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CreateSkillInput, SkillImportRequest, UpdateSkillInput } from '@devdigest/shared';
+import { CreateSkillInput, SkillImportRequest, SkillImportUrlRequest, UpdateSkillInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { SkillsService } from './service.js';
@@ -21,7 +21,9 @@ const VersionParams = z.object({
  *   GET    /skills/:id/versions                      → body snapshots, newest first
  *   POST   /skills/:id/versions/:version/restore     → new version with that body
  *   GET    /skills/:id/stats                         → usage + accept rate (30d)
+ *   POST   /skills/:id/rescan                        → pattern + LLM injection scan, stores the result
  *   POST   /skills/import/preview                    → parse .md/.zip, saves NOTHING
+ *   POST   /skills/import/url-preview                → fetch an https URL server-side, parse it, saves NOTHING
  */
 export default async function skillsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -73,8 +75,18 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     return service.statsFor(workspaceId, req.params.id);
   });
 
+  app.post('/skills/:id/rescan', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.rescan(workspaceId, req.params.id);
+  });
+
   app.post('/skills/import/preview', { schema: { body: SkillImportRequest } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.importPreview(workspaceId, req.body);
+  });
+
+  app.post('/skills/import/url-preview', { schema: { body: SkillImportUrlRequest } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.importUrlPreview(workspaceId, req.body);
   });
 }

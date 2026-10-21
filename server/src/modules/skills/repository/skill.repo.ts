@@ -5,7 +5,15 @@ import type { SkillRow, SkillVersionRow } from '../../../db/rows.js';
 
 export type { SkillRow, SkillVersionRow };
 
-export interface InsertSkill {
+/** The stored prompt-injection scan of the current body. */
+export interface SkillScanColumns {
+  scanStatus: SkillRow['scanStatus'];
+  scanMethod: SkillRow['scanMethod'];
+  scanFindings: SkillRow['scanFindings'];
+  scannedAt: Date;
+}
+
+export interface InsertSkill extends SkillScanColumns {
   workspaceId: string;
   name: string;
   description: string;
@@ -15,7 +23,7 @@ export interface InsertSkill {
   enabled: boolean;
 }
 
-export interface UpdateSkillRow {
+export interface UpdateSkillRow extends Partial<SkillScanColumns> {
   name?: string;
   description?: string;
   type?: SkillRow['type'];
@@ -84,17 +92,21 @@ export class SkillRepository {
     return row!;
   }
 
-  /** Write a new body as version `version` (caller holds the row lock) + snapshot it. */
+  /**
+   * Write a new body as version `version` (caller holds the row lock) + snapshot it.
+   * `patch` carries what must change with the body (its scan, a forced disable).
+   */
   async writeBodyVersion(
     workspaceId: string,
     id: string,
     body: string,
     version: number,
     note: string,
+    patch: UpdateSkillRow = {},
   ): Promise<SkillRow> {
     const [row] = await this.db
       .update(t.skills)
-      .set({ body, version })
+      .set({ ...patch, body, version })
       .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
       .returning();
     await this.db

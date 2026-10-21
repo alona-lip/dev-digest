@@ -65,4 +65,6 @@ export const s = {
     color: "var(--text-muted)",
   } satisfies CSSProperties,
   accept: { color: "var(--ok)" } satisfies CSSProperties,
+  /** Switch of a skill blocked by the injection scan — visibly not clickable. */
+  locked: { opacity: 0.45, cursor: "not-allowed" } satisfies CSSProperties,
 } as const;
