@@ -10,7 +10,7 @@ import { ReviewService } from './service.js';
 
 /**
  * reviews module.
- *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
+ *   POST   /pulls/:id/review  {agent_id} | {all:true} → run review(s); returns runs
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
@@ -40,8 +40,8 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(container, req);
     const body = req.body;
     const targets = await service.resolveTargets(workspaceId, {
-      ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
-      ...(body.agentIds !== undefined ? { agentIds: body.agentIds } : {}),
+      ...(body.agent_id !== undefined ? { agentId: body.agent_id } : {}),
+      ...(body.agent_ids !== undefined ? { agentIds: body.agent_ids } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
     const { runs, reviews } = await service.runReview(

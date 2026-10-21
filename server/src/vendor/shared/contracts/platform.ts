@@ -305,10 +305,10 @@ export type IndexStatus = z.infer<typeof IndexStatus>;
 
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
-  agentId: z.string().optional(),
-  /** Explicit multi-agent selection. Wins over `agentId`/`all` when present;
+  agent_id: z.string().optional(),
+  /** Explicit multi-agent selection. Wins over `agent_id`/`all` when present;
    *  order is the user's pick order, and these run regardless of `enabled`. */
-  agentIds: z.array(z.string()).optional(),
+  agent_ids: z.array(z.string()).optional(),
   all: z.boolean().optional(),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
