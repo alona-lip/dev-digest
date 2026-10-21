@@ -231,3 +231,10 @@ by hand in the same format.
 ## Session Notes
 
 ## Open Questions
+
+- 2026-10-21 — the agent Skills tab has no unbind: a switched-off link and a never-bound skill
+  render identically (toggle off), told apart only by position (bound block first, in prompt
+  order; the rest alphabetical). Stale links (e.g. an old `route-breaking-change` set that
+  `pnpm db:seed` does not replace) can only be left off, not removed, from the UI; the only
+  way out is `PUT /agents/:id/skills` with the wanted list. Open: add an unbind action and a
+  visual "bound" marker? (`client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/helpers.ts:13`)

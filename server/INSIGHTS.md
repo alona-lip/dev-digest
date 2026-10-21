@@ -45,6 +45,22 @@ by hand in the same format.
   run with `--no-ignore-known`, fix the rules until every hit is a real
   violation, and only then `pnpm arch:baseline`. (`server/.dependency-cruiser.cjs`)
 
+- 2026-10-21 — telling "with / without skills" runs apart by agent `config.version` only works
+  for the per-agent switch: `replaceSkills` bumps the version when the set of bound+enabled
+  skill ids changes, but the global `skills.enabled` toggle (Skills → card) also changes the
+  prompt and bumps NOTHING. Seen in the skills experiment: Test Quality runs `05b77db7`
+  (3 skill blocks) and `f0bbf4ed` (2 blocks, `test-smells` off globally) both report
+  `config.version` 8. ALWAYS compare runs by `prompt_assembly.skill_blocks` in
+  `GET /runs/:id/trace` (or `run_skills`), never by version alone.
+  (`server/src/modules/agents/repository.ts:345`, `docs/skills-experiment.md` Checks)
+- 2026-10-21 — a renamed field in a request contract (`RunRequest.agentId` → `agent_id`,
+  experiment PR alona-lip/dev-digest#4) yields NO callers digest: there is no changed callable
+  signature to look up, so the trace's `prompt_assembly.callers` is empty and the log has no
+  `callers digest:` line. The client caller (`useRunReview`) reached the model only through
+  the repo map. NEVER count on the callers digest for wire-shape changes; the repo must be
+  indexed (repo map present) or the reviewer can only say "any existing caller".
+  (`docs/skills-experiment.md` B results)
+
 ## Codebase Patterns
 
 - 2026-09-20 — `src/vendor/shared` is canonical but hand-mirrored into
@@ -280,3 +296,10 @@ by hand in the same format.
   (`/repos/:id/multi-agent/:prId`, Sheet 07), which this repo doesn't have.
   Revisit if multi-agent scores look implausibly low.
   (`server/specs/pr-list-findings-by-agent.md`)
+- 2026-10-21 — an example caller written in a skill body is repeated by the model as a fact:
+  `breaking-change` lists "the web client in `client/`, the CI runner, `reviewer-core`" as
+  callers to check, and 2/3 runs with that skill on PR #4 named `reviewer-core` as a broken
+  caller although it has no copy of `RunRequest` and never calls the route (0/3 without the
+  skill). Open: should skill examples avoid naming concrete modules, or should the rubric
+  say "only report a caller you can cite from the diff / repo map"? (low confidence, n=3,
+  one model) (`docs/skills-examples/api-contract/breaking-change.md`, `docs/skills-experiment.md`)
