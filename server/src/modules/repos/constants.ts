@@ -19,5 +19,13 @@ export const CLONE_DEPTH = 1;
 export const GITHUB_URL_REGEX =
   /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/|git@github\.com:)([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/;
 
+/**
+ * Parse `owner`/`repo`/PR number from a GitHub pull-request URL —
+ * `https://github.com/owner/repo/pull/123` (scheme, `www.` and a trailing
+ * slash optional).
+ */
+export const GITHUB_PULL_URL_REGEX =
+  /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)\/([A-Za-z0-9._-]+)\/pull\/(\d+)\/?$/;
+
 /** Names that are path segments, never a repository (`..` would escape the clone dir). */
 export const RESERVED_REPO_NAMES: ReadonlySet<string> = new Set(['.', '..']);

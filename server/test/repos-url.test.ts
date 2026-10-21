@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseRepoUrl, canonicalCloneUrl } from '../src/modules/repos/helpers.js';
+import { parseRepoUrl, parsePullUrl, canonicalCloneUrl } from '../src/modules/repos/helpers.js';
 import { SimpleGitClient, stripUrlCredentials } from '../src/adapters/git/simple-git.js';
 import { redactCredentials } from '../src/platform/jobs.js';
 
@@ -44,6 +44,16 @@ describe('parseRepoUrl', () => {
 
   it('builds the clone URL from the parsed parts only', () => {
     expect(canonicalCloneUrl('vercel', 'next.js')).toBe('https://github.com/vercel/next.js.git');
+  });
+});
+
+describe('parsePullUrl', () => {
+  it('parses owner, repo and number from a PR URL', () => {
+    expect(parsePullUrl('https://github.com/acme/payments-api/pull/482')).toEqual({
+      owner: 'acme',
+      name: 'payments-api',
+      number: 482,
+    });
   });
 });
 
