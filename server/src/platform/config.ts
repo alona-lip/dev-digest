@@ -26,6 +26,10 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Intent Layer: fetch https:// pages a PR body links to (Google Docs, Notion,
+  // …) through the SSRF-guarded UrlFetcher. Default ON; EXTERNAL_FETCH_ENABLED=false
+  // turns off URL references only — repo files and GitHub issues still resolve.
+  EXTERNAL_FETCH_ENABLED: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   // The API has no auth (LocalNoAuthProvider), so it listens on loopback only
   // by default — `0.0.0.0` would let anyone on the LAN set keys and spend LLM
@@ -66,6 +70,8 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /** Whether the Intent Layer may fetch external https:// references. Default true. */
+  externalFetchEnabled: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -85,5 +91,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    externalFetchEnabled: parsed.EXTERNAL_FETCH_ENABLED !== 'false',
   };
 }

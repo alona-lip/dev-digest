@@ -60,6 +60,13 @@ by hand in the same format.
   the repo map. NEVER count on the callers digest for wire-shape changes; the repo must be
   indexed (repo map present) or the reviewer can only say "any existing caller".
   (`docs/skills-experiment.md` B results)
+- 2026-10-23 — a review run reaches more LLMs than the agent's own: the executor now derives the
+  PR intent first on the `review_intent` feature model (default `openrouter`). A test that only sets
+  `overrides.llm = { openai: mock }` does not fail — `container.llm('openrouter')` falls back to the
+  developer's REAL key in `~/.devdigest/secrets.json` / env and makes a paid call (or, keyless, the
+  intent is silently skipped). ALWAYS mock every provider a run can reach, incl. feature models
+  (`openrouter: new MockLLMProvider('openai', { structuredBySchema: { Intent: … } })`).
+  (`server/test/reviews.it.test.ts`, `server/test/skills.it.test.ts`)
 
 ## Codebase Patterns
 
@@ -207,6 +214,14 @@ by hand in the same format.
   candidates on every re-scan (HW criterion 48). `conventions.it.test.ts` "a rejected rule leaves
   the list…" guards it. (`server/src/modules/conventions/service.ts:124`,
   `server/src/modules/conventions/repository/convention.repo.ts`)
+- 2026-10-23 — when two modules need each other (intent reuses reviews' `loadDiff`; the reviews run
+  executor needs the intent), direct imports break `no-cross-module-internals` and `no-circular`.
+  The edge that goes "backwards" goes through the composition root: `container.intent` is a lazy
+  getter built by `createIntentService(container)`, and `reviews` calls
+  `this.container.intent.forRun(...)` without importing the intent module; `intent` imports
+  `loadDiff` only via the `reviews/index.ts` facade. ALWAYS resolve such a pair this way (as
+  `repoIntel` already is) instead of moving code into `_shared`. (`server/src/platform/container.ts`,
+  `server/src/modules/reviews/index.ts`)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`

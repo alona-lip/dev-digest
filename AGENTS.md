@@ -22,6 +22,10 @@ lockfile, and its own `AGENTS.md`.
   `<module>/INSIGHTS.md` (written by the `engineering-insights` skill).
 - Need to run the project from scratch → read [README.md](README.md) (Quick
   start section) or just run `./scripts/dev.sh`.
+- Delegating to a subagent (researcher, planner, implementer, test-writer,
+  architecture-reviewer, plan-verifier, doc-writer) → read
+  [.claude/agents/README.md](.claude/agents/README.md): what each one may
+  touch and the planner → implementers → `/pr-self-review` workflow.
 
 ## Session protocol
 

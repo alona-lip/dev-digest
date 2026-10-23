@@ -17,6 +17,9 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
 - [conventions.md](./conventions.md) — Conventions Extractor: code-only
   sampling, one structured LLM call, a code evidence gate, accept / reject /
   edit triage, and a `repo-conventions` skill linked to an agent.
+- [intent-layer.md](./intent-layer.md) — Intent Layer: a cheap model derives a
+  PR's intent/scope from title, body, references and hunk headers; stored per
+  PR, injected into the review prompt, shown on the Overview tab.
 
 ## Repo-wide checks
 

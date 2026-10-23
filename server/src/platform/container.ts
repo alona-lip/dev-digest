@@ -34,6 +34,7 @@ import { SettingsRepository } from '../modules/settings/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { createIntentService, type IntentPort, type IntentService } from '../modules/intent/index.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import { astGrepParser } from '../adapters/astgrep/index.js';
@@ -71,6 +72,8 @@ export interface ContainerOverrides {
   priceBook?: PriceBook;
   /** Outbound fetch for skill import from URL — tests inject a mock (no network). */
   urlFetcher?: UrlFetcher;
+  /** Intent Layer — tests of the review run inject a fake (no classifier LLM call). */
+  intent?: IntentPort;
 }
 
 export class Container {
@@ -100,6 +103,7 @@ export class Container {
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
   private _urlFetcher?: UrlFetcher;
+  private _intent?: IntentService;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -177,6 +181,15 @@ export class Container {
     if (this.overrides.urlFetcher) return this.overrides.urlFetcher;
     this._urlFetcher ??= new SafeUrlFetcher();
     return this._urlFetcher;
+  }
+
+  /**
+   * Intent Layer service. Lives here (not imported by `reviews`) because intent
+   * depends on reviews' diff loader — the container is the one place both meet.
+   */
+  get intent(): IntentPort {
+    if (this.overrides.intent) return this.overrides.intent;
+    return (this._intent ??= createIntentService(this));
   }
 
   /** AST parser (ast-grep) for repo-intel: symbols, references, imports, invocation heads. */

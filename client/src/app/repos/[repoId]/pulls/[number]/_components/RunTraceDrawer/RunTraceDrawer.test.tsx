@@ -116,3 +116,23 @@ describe("Run Trace drawer — skills in the prompt assembly", () => {
     expect(screen.getByText("Skills (dynamic)")).toBeInTheDocument();
   });
 });
+
+describe("Run Trace drawer — Intent Layer in the prompt assembly", () => {
+  const openPromptAssembly = () => userEvent.click(screen.getByText("Prompt assembly"));
+
+  it("shows the derived intent block when the run had one", async () => {
+    traceOverride = {
+      ...TRACE,
+      prompt_assembly: { ...TRACE.prompt_assembly, intent: "Intent: add rate limits\nIn scope:\n- api" },
+    };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.getByText("PR intent & scope — Intent Layer (dynamic)")).toBeInTheDocument();
+  });
+
+  it("omits it for a run without intent (and for traces from before the Intent Layer)", async () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.queryByText("PR intent & scope — Intent Layer (dynamic)")).not.toBeInTheDocument();
+  });
+});

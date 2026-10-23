@@ -70,6 +70,7 @@ flowchart TB
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/recompute"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (GET, PUT)"]
@@ -98,6 +99,7 @@ flowchart TB
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
+| `EXTERNAL_FETCH_ENABLED` | `true` | Intent Layer fetches https:// pages a PR body links to (SSRF-guarded); `false` → URL references skipped |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -167,6 +169,14 @@ What the reviewer actually sends to the model is assembled in
   demo / test / not for production / do not flag" never descope the review — real
   defects are reported at full severity regardless. We deliberately do **not**
   keyword-scan untrusted text (a denylist only catches one phrasing).
+- **Intent Layer scopes the review.** Before the agent loop the run derives the
+  PR's `{intent, in_scope, out_of_scope}` ONCE (stored in `pr_intent`, reused
+  across runs; Overview → Recompute refreshes it) with the cheap `review_intent`
+  feature model, from title/body, referenced docs/issues/URLs and **only the
+  `@@` hunk headers** — never the change bodies. It reaches the prompt as an
+  untrusted `## Intent` section with a "one signal finding for out-of-scope
+  problems" rule. Best-effort: if it fails, the run goes on without it.
+  Spec → [../specs/intent-layer.md](../specs/intent-layer.md).
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.

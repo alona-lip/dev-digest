@@ -104,6 +104,9 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent Layer — ONCE per batch, shared by every agent. Best-effort.
+    const intentBlock = await this.deriveIntent(workspaceId, pull, repo, diff, runLog);
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -111,7 +114,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intentBlock, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -140,6 +143,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: RepoRow,
     diff: UnifiedDiff,
+    intentBlock: string | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -231,6 +235,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Intent Layer — derived scope (untrusted); reviewer-core wraps it and
+        // appends the trusted "one signal finding out of scope" rule.
+        ...(intentBlock ? { intent: intentBlock } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -345,6 +352,36 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
+    }
+  }
+
+  /**
+   * Intent Layer: the PR's derived purpose/scope as the prompt's `## Intent`
+   * block — the stored one, else computed now from the already-loaded diff.
+   * Returns `undefined` on any failure (no key for the intent model, LLM error):
+   * like callers/repoMap it is an enrichment, so the run goes on without it.
+   */
+  private async deriveIntent(
+    workspaceId: string,
+    pull: PullRow,
+    repo: RepoRow,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<string | undefined> {
+    const t0 = Date.now();
+    runLog.info('Deriving PR intent…');
+    try {
+      const { intent, block, source } = await this.container.intent.forRun(workspaceId, pull, repo, diff, runLog);
+      runLog.info(
+        source === 'stored'
+          ? `intent: loaded from store, no LLM call (${Date.now() - t0}ms)`
+          : `intent: computed and stored (${Date.now() - t0}ms)`,
+        { intent: intent.intent, in_scope: intent.in_scope.length, out_of_scope: intent.out_of_scope.length },
+      );
+      return block;
+    } catch (err) {
+      runLog.info(`intent: skipped — ${(err as Error).message}; reviewing without the Intent section`);
+      return undefined;
     }
   }
 

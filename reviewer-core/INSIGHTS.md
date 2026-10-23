@@ -16,6 +16,12 @@ by hand in the same format.
 - 2026-09-18 — example entry: state what turned out to be true, then what to do
   or avoid next time, and point at the evidence. (`path/to/file.ts:42`)
 -->
+- 2026-10-23 — an instruction placed INSIDE an `<untrusted>` block is dead: `INJECTION_GUARD`
+  tells the model everything in those blocks is data, never instructions. The course's Intent
+  Layer put its "one signal finding for out-of-scope problems" rule inside the wrapped intent, so
+  the model is told to ignore it. NEVER put a rule in the wrapped text; append trusted rule text
+  AFTER the wrapper, from reviewer-core (`INTENT_SCOPE_RULE` after
+  `wrapUntrusted('intent', …)`). (`reviewer-core/src/prompt.ts`, `reviewer-core/test/prompt-intent.test.ts`)
 
 ## Codebase Patterns
 
