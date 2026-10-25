@@ -15,7 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-DIRS=(. client server reviewer-core e2e)
+DIRS=(. client server reviewer-core e2e mcp-server)
 CHECK=0
 
 for arg in "$@"; do

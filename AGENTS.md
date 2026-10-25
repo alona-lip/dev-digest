@@ -1,13 +1,13 @@
 # DevDigest — AGENTS.md
 
-Course starter: local-first AI pull-request review. The repo is 4 independent
+Course starter: local-first AI pull-request review. The repo is 5 independent
 packages (NOT a monorepo, no workspaces) — each with its own `package.json`,
 lockfile, and its own `AGENTS.md`.
 
 ## Read when
 
 - Working inside a specific module → read `<module>/AGENTS.md` (`client/`,
-  `server/`, `reviewer-core/`, `e2e/`) — it has that module's stack, commands,
+  `server/`, `reviewer-core/`, `e2e/`, `mcp-server/`) — it has that module's stack, commands,
   gotchas, and do-not-touch zones. Claude Code auto-loads it whenever it
   touches a file inside that folder.
 - Editing agent instructions → edit `AGENTS.md`, never `CLAUDE.md`. Every
@@ -38,9 +38,10 @@ Full description, with a worked example → [docs/workflow.md](docs/workflow.md)
 - Planning phase: write `<module>/specs/<feature>.md` BEFORE the code, and
   record the rejected alternative with its reason, not just the choice.
 - Before reporting a task as done, if it changed code under `client/`,
-  `server/` or `reviewer-core/` → ask the user to run `/pr-self-review` on the
-  uncommitted diff (a second pass by the skills of each bucket: Frontend = UI
-  architecture + react + RTL, Backend = Onion + fastify + drizzle). The skill is
+  `server/`, `reviewer-core/` or `mcp-server/` → ask the user to run
+  `/pr-self-review` on the uncommitted diff (a second pass by the skills of each
+  bucket: Frontend = UI architecture + react + RTL, Backend = Onion + fastify +
+  drizzle, MCP = typescript-expert + security). The skill is
   manual-only (`disable-model-invocation`), so Claude cannot start it itself:
   say that it has not been run yet. BLOCK means it is not done. Before a PR, ask
   for it again with `--scope branch` after committing.
@@ -55,6 +56,7 @@ Full description, with a worked example → [docs/workflow.md](docs/workflow.md)
 - [server/](server/AGENTS.md) — Fastify API + Postgres/pgvector, `:3001`
 - [reviewer-core/](reviewer-core/AGENTS.md) — pure review engine (diff → LLM → findings)
 - [e2e/](e2e/AGENTS.md) — deterministic browser tests (agent-browser)
+- [mcp-server/](mcp-server/AGENTS.md) — stdio MCP server for Claude Code: 5 review tools over the API (started separately)
 
 ## Naming conventions
 
@@ -94,7 +96,8 @@ Each module's `AGENTS.md` has its own list; these two apply everywhere.
   a schema change is always a NEW migration via `pnpm db:generate`. Editing
   one silently desyncs every database that already ran it.
 - **Lock files** (`client/pnpm-lock.yaml`, `server/pnpm-lock.yaml`,
-  `reviewer-core/package-lock.json`, `e2e/package-lock.json`) — never
+  `mcp-server/pnpm-lock.yaml`, `reviewer-core/package-lock.json`,
+  `e2e/package-lock.json`) — never
   hand-edit and never delete to "fix" an install. Change them only as the
   by-product of a package-manager command, and use the right manager per
-  package: **pnpm** in `client`/`server`, **npm** in `reviewer-core`/`e2e`.
+  package: **pnpm** in `client`/`server`/`mcp-server`, **npm** in `reviewer-core`/`e2e`.
