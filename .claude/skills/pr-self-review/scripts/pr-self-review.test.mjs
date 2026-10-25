@@ -72,6 +72,30 @@ test('Database, Engine and Shared contracts buckets', () => {
   assert.equal(r.buckets.Frontend, undefined, 'vendored contracts are not Frontend code');
 });
 
+test('MCP: source gets typescript + security (+ zod when imported), tests get typescript only, docs are ignored', () => {
+  const src = { 'mcp-server/src/tools/get-findings.ts': "import { z } from 'zod'" };
+  const r = route(
+    entries(
+      'mcp-server/src/tools/get-findings.ts',
+      'mcp-server/src/http/client.ts',
+      'mcp-server/scripts/call.mjs',
+      'mcp-server/test/resolve.test.ts',
+      'mcp-server/README.md',
+      'mcp-server/pnpm-lock.yaml',
+    ),
+    routing,
+    (p) => src[p] ?? '',
+  );
+  assert.deepEqual(skillsOf(r, 'MCP'), ['security', 'typescript-expert', 'zod']);
+  assert.deepEqual(filesOf(r, 'MCP', 'security'), [
+    'mcp-server/src/tools/get-findings.ts', 'mcp-server/src/http/client.ts', 'mcp-server/scripts/call.mjs',
+  ]);
+  assert.deepEqual(filesOf(r, 'MCP', 'zod'), ['mcp-server/src/tools/get-findings.ts']);
+  assert.ok(filesOf(r, 'MCP', 'typescript-expert').includes('mcp-server/test/resolve.test.ts'));
+  assert.deepEqual(r.ignored.sort(), ['mcp-server/README.md', 'mcp-server/pnpm-lock.yaml']);
+  assert.deepEqual(triggeredChecks(entries('mcp-server/test/resolve.test.ts'), routing), ['mcp-server-typecheck-tests']);
+});
+
 test('every file lands in at most one bucket', () => {
   const files = [
     'client/src/app/a/A.tsx', 'client/src/app/a/A.test.tsx', 'client/src/vendor/shared/x.ts',
