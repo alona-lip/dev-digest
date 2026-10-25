@@ -67,6 +67,20 @@ by hand in the same format.
   intent is silently skipped). ALWAYS mock every provider a run can reach, incl. feature models
   (`openrouter: new MockLLMProvider('openai', { structuredBySchema: { Intent: … } })`).
   (`server/test/reviews.it.test.ts`, `server/test/skills.it.test.ts`)
+- 2026-10-25 — `pr_files` is NOT a reliable list of a PR's changed files: it is written only when
+  someone opens PR detail (`GET /pulls/:id` → `replaceDetail`) — on the indexed dev-digest repo 3 of
+  136 PRs had rows. `loadDiff` does not save you either: fork-PR heads are not in the clone (only
+  `main` is fetched), so `git diff base...head` throws and it falls back to the same empty
+  `pr_files`. A feature reading changed paths from either alone silently reads "nothing changed"
+  (blast radius showed 0 symbols, `degraded: false`, for most PRs and every MCP call). ALWAYS
+  resolve changed paths as loadDiff → GitHub `getPullRequest(...).files` → `[]`.
+  (`server/src/modules/blast/service.ts` `prChangedFiles`)
+- 2026-10-25 — supersedes the entry above on the LAST step only: when the local diff is empty
+  AND the GitHub file-list lookup fails, do NOT fall back to `[]` — repo-intel treats an empty
+  `changedFiles` as a healthy "nothing changed", so a dead token showed a clean 0-symbol map with
+  no log. ALWAYS log the failure and fail loudly (`ExternalServiceError`, 502); the global error
+  handler does not log `AppError`s, so log before throwing.
+  (`server/src/modules/blast/service.ts` `changedFiles`, `server/src/app.ts:170`)
 
 ## Codebase Patterns
 
@@ -258,6 +272,13 @@ by hand in the same format.
   AND keep the `lookup` check for hostnames (it sees the address the socket actually connects
   to, so DNS rebinding can't swap it). `net.BlockList` does not unwrap IPv4-mapped IPv6
   (`::ffff:7f00:1` = 127.0.0.1); unwrap it by hand first. (`server/src/adapters/http/safe-fetch.ts`)
+- 2026-10-25 — repo-intel index limits that shape blast radius: (1) endpoint facts are extracted
+  per LINE (`server/src/modules/repo-intel/extract.ts:15`) — `app.get(` with the path on the next line
+  (intent, repo-intel routes) yields no endpoint; (2) callers are DIRECT resolved references only —
+  `BFS_DEPTH` is used by `getCriticalPaths`, not by `getBlastRadius`, so a helper called from a
+  `service.ts` shows no endpoints; (3) `repo_too_large` is never stamped — the walk keeps the first
+  5000 files and the index stays `full` (`pipeline/walk.ts:65`). For a demo PR, change an EXISTING
+  function imported by single-line `routes.ts` files (e.g. `getContext` → 8 callers, 27 endpoints).
 
 ## Recurring Errors & Fixes
 

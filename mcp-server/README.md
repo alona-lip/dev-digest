@@ -37,7 +37,7 @@ tool can make one.
 | `run_agent_on_pr` | `repo`, `pr`, `agent` | `{repo, pr, run_id, agent, verdict, score, summary, counts, total, returned, findings[≤20], more?}`; over ~2 min → `{status:"running", run_id, next}` | **writes** (starts a paid LLM run, 10/min), open-world |
 | `get_findings` | `repo`, `pr`, `run_id?`, `response_format?` (`concise`\|`detailed`), `offset?`, `limit?` | same page shape, worst first; `counts` over all findings | read-only |
 | `get_conventions` | `repo` | `{repo, conventions:[{rule, category, status, file, confidence}]}`, ACCEPTED first | read-only |
-| `get_blast_radius` | `repo?`, `pr?` | `{status:"not_implemented", message}` — a stub, not an error | read-only |
+| `get_blast_radius` | `repo`, `pr` | `{repo, pr, summary, degraded, reason, changed_symbols: ["name@file"], downstream: [{symbol, callers, endpoints_affected, crons_affected}]}` — what else the PR reaches; read-only, no LLM | read-only |
 
 - `repo` — `'owner/name'`, or a bare name if only one connected repo has it.
 - `pr` — the GitHub PR number, not an internal id.

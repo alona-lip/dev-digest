@@ -12,6 +12,14 @@ by hand in the same format.
 
 ## What Works
 
+- 2026-10-25 — repo-intel resync completion cannot be read from `status` (the enum is
+  terminal-only), so compare `lastIndexedSha`/`updatedAt` against a FRESH baseline: take it from
+  cached index-state only if not errored and ≤ 5 s old, otherwise mark it pending and use the first
+  successful poll after the click as the baseline, finishing only on a LATER change (or the 120 s
+  timeout). Snapshotting `{null, null}` made the very first poll look like completion and refetched
+  the map before the reindex ran. ALWAYS reuse `useBlastResync` rather than re-deriving this.
+  (`client/src/lib/hooks/blast.ts`, tests in `client/src/lib/hooks/blast.test.tsx`)
+
 ## What Doesn't Work
 
 <!--

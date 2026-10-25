@@ -36,7 +36,7 @@ Claude Code у терміналі або будь-який клієнт з MCP. 
 ## Вимоги
 
 - R1 Локальний MCP-сервер на TypeScript, транспорт stdio, `@modelcontextprotocol/sdk` v1 (`McpServer.registerTool`).
-- R2 П'ять інструментів: `list_agents`, `run_agent_on_pr`, `get_findings`, `get_conventions` — робочі; `get_blast_radius` — чесна заглушка.
+- R2 П'ять інструментів: `list_agents`, `run_agent_on_pr`, `get_findings`, `get_conventions` — робочі; `get_blast_radius` — чесна заглушка (у Lab 4 HW замінена на робочий інструмент, див. «As built»).
 - R3 Без префікса в назвах: Claude Code сам додає `mcp__devdigest__`.
 - R4 Окремий запуск: `cd mcp-server && pnpm start`; `pnpm inspect` — MCP Inspector; `pnpm call <tool> '<json>'` — виклик без UI. Реєстрація в Claude Code — root `.mcp.json`.
 - R5 Для кожного інструмента: опис каже, **коли** його викликати; пласка схема з `.describe()` і прикладом; компактна структурована відповідь; помилка (`isError: true`) підказує наступний крок; читальні — `readOnlyHint: true`.
@@ -54,7 +54,7 @@ Claude Code у терміналі або будь-який клієнт з MCP. 
 | `run_agent_on_pr` | `repo`, `pr`, `agent` | готово: `{run_id, agent, verdict, score, summary, counts, total, returned, findings[]}` (≤ 20, найважчі першими); не встигло за 120 с: `{status:"running", run_id, repo, pr, next}` | ❌ | ❌ | ✅ |
 | `get_findings` | `repo`, `pr`, `run_id?`, `response_format?`, `offset?`, `limit?` | `{run_id, agent, verdict, score, summary, counts, total, returned, offset, findings[]}` | ✅ | ✅ | ❌ |
 | `get_conventions` | `repo` | `{repo, conventions:[{rule, category, status, file, confidence}]}`, ACCEPTED першими | ✅ | ✅ | ❌ |
-| `get_blast_radius` | `repo?`, `pr?` | `{status:"not_implemented", message}` — не помилка | ✅ | ✅ | ❌ |
+| `get_blast_radius` | `repo`, `pr` | `{repo, pr, summary, degraded, reason, changed_symbols:["name@file"], downstream:[{symbol, callers[{name,file,line}], endpoints_affected, crons_affected}]}` (той самий `GET /pulls/:id/blast`, що й блок в UI) | ✅ | ✅ | ❌ |
 
 `destructiveHint: false` у всіх. `openWorldHint: true` лише в `run_agent_on_pr`: він запускає
 LLM і ходить у GitHub; решта читають тільки локальну БД DevDigest.
@@ -142,7 +142,7 @@ Tool Search у Claude Code лише відкладає схеми; він не �
 
 ## Out of scope
 
-- Реальний blast radius (домашка; upstream `64231e1`).
+- ~~Реальний blast radius (домашка; upstream `64231e1`).~~ Зроблено 2026-10-25 — [../../specs/blast-radius.md](../../specs/blast-radius.md).
 - Будь-які зміни в `server/`, `client/`, `reviewer-core/`, `e2e/`.
 - HTTP/SSE-транспорт MCP, авторизація, віддалений запуск.
 - Інструменти запису, крім тригера рев'ю.
@@ -189,3 +189,6 @@ Tool Search у Claude Code лише відкладає схеми; він не �
 - **Аудит токенів** — [docs/token-audit.md](../docs/token-audit.md): 5 інструментів devdigest з
   Tool Search коштують 136 токенів.
 
+
+- **`get_blast_radius` більше не заглушка (2026-10-25).** Інструмент читає `GET /pulls/:id/blast`
+  (`core/blast.ts`, обов'язкові `repo`/`pr`); деталі — [../../specs/blast-radius.md](../../specs/blast-radius.md).

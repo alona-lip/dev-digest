@@ -20,6 +20,7 @@ export function fakeClient(overrides: Partial<DevDigestClient> = {}): DevDigestC
     listRuns: unexpected('listRuns'),
     listReviews: unexpected('listReviews'),
     listConventions: unexpected('listConventions'),
+    getBlastRadius: unexpected('getBlastRadius'),
     ...overrides,
   };
 }

@@ -20,6 +20,9 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
 - [intent-layer.md](./intent-layer.md) — Intent Layer: a cheap model derives a
   PR's intent/scope from title, body, references and hunk headers; stored per
   PR, injected into the review prompt, shown on the Overview tab.
+- [blast-radius.md](./blast-radius.md) — Blast Radius: `GET /pulls/:id/blast` over the
+  repo-intel index (no LLM), the facade fixes (per-symbol cap, honest `degraded`/`reason`),
+  the Overview card with Tree / Graph views and Resync, and the real MCP `get_blast_radius`.
 
 ## Repo-wide checks
 

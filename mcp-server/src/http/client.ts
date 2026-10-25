@@ -8,6 +8,7 @@
 import type {
   AgentListItem,
   ConventionCandidate,
+  PrBlastRadius,
   PrMeta,
   Repo,
   ReviewRecord,
@@ -40,6 +41,7 @@ export interface DevDigestClient {
   listRuns(pullId: string): Promise<RunSummary[]>;
   listReviews(pullId: string): Promise<ReviewRecord[]>;
   listConventions(repoId: string): Promise<ConventionCandidate[]>;
+  getBlastRadius(pullId: string): Promise<PrBlastRadius>;
 }
 
 /** `{ error: { message } }` → message; anything else → the raw body (trimmed). */
@@ -87,5 +89,6 @@ export function createClient(apiUrl: string): DevDigestClient {
     listRuns: (pullId) => request(`/pulls/${id(pullId)}/runs`),
     listReviews: (pullId) => request(`/pulls/${id(pullId)}/reviews`),
     listConventions: (repoId) => request(`/repos/${id(repoId)}/conventions`),
+    getBlastRadius: (pullId) => request(`/pulls/${id(pullId)}/blast`),
   };
 }

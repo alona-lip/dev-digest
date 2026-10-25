@@ -17,6 +17,11 @@ Non-obvious findings from real sessions. Append-only: correct an entry with a ne
 
 ## Recurring Errors & Fixes
 
+- 2026-10-25 — `test/fixtures.ts` `fakeClient` spells out EVERY `DevDigestClient` method, so adding a
+  method to `src/http/client.ts` breaks `pnpm typecheck` across all tests until the fixture gets it
+  too. ALWAYS add the new method to `fakeClient` as `unexpected('<name>')` in the same change, and
+  override it per test. (`mcp-server/test/fixtures.ts`, `getBlastRadius`)
+
 ## Session Notes
 
 ### 2026-10-25

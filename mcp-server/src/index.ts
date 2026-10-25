@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   registerRunAgentOnPr(server, client);
   registerGetFindings(server, client);
   registerGetConventions(server, client);
-  registerGetBlastRadius(server);
+  registerGetBlastRadius(server, client);
 
   await server.connect(new StdioServerTransport());
   log.info('devdigest MCP server ready on stdio', { apiUrl: config.apiUrl });
