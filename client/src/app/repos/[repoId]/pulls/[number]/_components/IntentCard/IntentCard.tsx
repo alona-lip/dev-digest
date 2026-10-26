@@ -21,7 +21,7 @@ export function IntentCard({ prId }: IntentCardProps) {
   const failure = recompute.error ?? error;
 
   return (
-    <section aria-busy={isLoading || recompute.isPending}>
+    <section aria-busy={isLoading || recompute.isPending} style={s.section}>
       <SectionLabel
         icon="Target"
         right={
@@ -78,7 +78,7 @@ function ScopeList({
 }) {
   const ItemIcon = kind === "in" ? Icon.Check : Icon.X;
   return (
-    <div>
+    <div style={s.scope}>
       <h4 style={s.listTitle}>{title}</h4>
       {items.length === 0 ? (
         <p style={s.none}>{noneLabel}</p>
@@ -87,7 +87,7 @@ function ScopeList({
           {items.map((item, i) => (
             <li key={`${i}-${item}`} style={s.item}>
               <ItemIcon size={14} aria-hidden style={kind === "in" ? s.inScopeIcon : s.outOfScopeIcon} />
-              <span>{item}</span>
+              <span style={s.itemText}>{item}</span>
             </li>
           ))}
         </ul>

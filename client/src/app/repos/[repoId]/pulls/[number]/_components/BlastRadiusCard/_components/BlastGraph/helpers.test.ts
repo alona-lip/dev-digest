@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { PrBlastRadius } from "@devdigest/shared";
-import { layoutGraph, truncate } from "./helpers";
+import { connectedTo, layoutGraph, truncate } from "./helpers";
 
 const base: PrBlastRadius = {
   pr_id: "pr-1",
@@ -50,6 +50,30 @@ describe("layoutGraph", () => {
     expect(nodes).toEqual([]);
     expect(edges).toEqual([]);
     expect(Number.isFinite(width) && Number.isFinite(height)).toBe(true);
+  });
+
+  it("connectedTo lights a symbol's own callers and targets, including a target it shares", () => {
+    const layout = layoutGraph({
+      ...base,
+      downstream: [
+        ...base.downstream,
+        {
+          symbol: "parseId",
+          callers: [{ name: "agentsRoutes", file: "g.ts", line: 7 }],
+          endpoints_affected: ["GET /settings"],
+          crons_affected: [],
+        },
+      ],
+    });
+    const label = (id: string) => layout.nodes.find((n) => n.id === id)?.label;
+    const litLabels = (symbol: string) =>
+      [...connectedTo(layout, `s:${symbol}`)].map(label).filter(Boolean).sort();
+
+    expect(litLabels("getContext")).toEqual(["GET /settings", "getContext", "job:poll", "reposRoutes", "settingsRoutes"]);
+    expect(litLabels("parseId")).toEqual(["GET /settings", "agentsRoutes", "parseId"]);
+    // The edges it lights are exactly the ones leaving the hovered symbol.
+    const litEdges = layout.edges.filter((e) => connectedTo(layout, "s:parseId").has(e.id));
+    expect(litEdges.map((e) => e.from)).toEqual(["s:parseId", "s:parseId"]);
   });
 
   it("truncates long labels", () => {

@@ -1,10 +1,11 @@
-import { PrBlastRadius } from '@devdigest/shared';
+import { PrBlastRadius, PrHistory, type PathPullRequests } from '@devdigest/shared';
 import type { PullRow, RepoRow } from '../../db/rows.js';
 import type { Container } from '../../platform/container.js';
 import { ExternalServiceError, NotFoundError } from '../../platform/errors.js';
 import type { RepoIntel } from '../repo-intel/index.js';
 import { loadDiff, type ReviewRepository } from '../reviews/index.js';
-import { buildSummary, countBlast, toBlastRadius } from './helpers.js';
+import { PRIOR_PRS_COMMITS_PER_FILE, PRIOR_PRS_LIMIT, PRIOR_PRS_MAX_FILES } from './constants.js';
+import { buildSummary, countBlast, toBlastRadius, toPrHistory } from './helpers.js';
 
 /** Where progress goes: the request logger (routes adapt pino's `(obj, msg)` to this). */
 export interface BlastLog {
@@ -19,11 +20,13 @@ export interface BlastDeps {
   diffFiles(workspaceId: string, pull: PullRow, repo: RepoRow): Promise<string[]>;
   /** The PR's file list from GitHub (one API call, no persistence). Throws when unreachable / no token. */
   githubFiles(pull: PullRow, repo: RepoRow): Promise<string[]>;
+  /** Per-path PRs from GitHub history on `base` (one GraphQL call). Throws when unreachable / no token. */
+  githubPathPrs(repo: RepoRow, base: string, paths: string[]): Promise<PathPullRequests[]>;
   repoIntel: Pick<RepoIntel, 'getBlastRadius'>;
 }
 
 /** What the container exposes and what routes call — tests fake exactly this. */
-export type BlastPort = Pick<BlastService, 'forPull'>;
+export type BlastPort = Pick<BlastService, 'forPull' | 'history'>;
 
 /** Blast radius of a PR: a pure read of the repo-intel index. No LLM call. */
 export class BlastService {
@@ -56,6 +59,36 @@ export class BlastService {
       degraded,
       reason,
     });
+  }
+
+  /**
+   * Merged PRs that touched this PR's changed files (GitHub file history on
+   * `base`). Separate from `forPull` so the map never depends on GitHub.
+   */
+  async history(workspaceId: string, prId: string, log?: BlastLog): Promise<PrHistory> {
+    const { pull, repo } = await this.load(workspaceId, prId);
+    const changed = await this.changedFiles(workspaceId, pull, repo, log);
+    if (changed.length === 0) return PrHistory.parse({ history: [] });
+    // Sorted before the cap: the local diff and GitHub list files in different orders, so an
+    // unsorted slice of a big PR picked a different subset (and different PRs) per request.
+    const paths = [...new Set(changed)].sort().slice(0, PRIOR_PRS_MAX_FILES);
+
+    let perPath: PathPullRequests[];
+    try {
+      perPath = await this.deps.githubPathPrs(repo, pull.base, paths);
+    } catch (err) {
+      log?.warn('blast: prior PRs unavailable (GitHub lookup failed)', { err });
+      // An adapter error already names the cause (missing branch, 401…); keep it in the message.
+      const cause = err instanceof ExternalServiceError ? ` (${err.message})` : '';
+      throw new ExternalServiceError(
+        `Could not load prior PRs for these files from GitHub${cause}. ` +
+          'Check the GitHub token in Settings, then retry.',
+      );
+    }
+
+    const result = PrHistory.parse(toPrHistory(perPath, pull.number, PRIOR_PRS_LIMIT));
+    log?.info('blast: prior PRs from GitHub', { files: paths.length, prs: result.history.length });
+    return result;
   }
 
   /**
@@ -102,6 +135,10 @@ export function createBlastService(container: Container): BlastService {
       const gh = await container.github();
       const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, pull.number);
       return detail.files.map((f) => f.path);
+    },
+    githubPathPrs: async (repo, base, paths) => {
+      const gh = await container.github();
+      return gh.listPathPullRequests({ owner: repo.owner, name: repo.name }, base, paths, PRIOR_PRS_COMMITS_PER_FILE);
     },
     repoIntel: container.repoIntel,
   });

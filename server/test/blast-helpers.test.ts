@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSummary, countBlast, toBlastRadius } from '../src/modules/blast/helpers.js';
+import { buildSummary, countBlast, toBlastRadius, toPrHistory } from '../src/modules/blast/helpers.js';
 import type { BlastResult } from '../src/modules/repo-intel/index.js';
 
 const caller = (file: string, viaSymbol: string, rank: number, line = 1, symbol = `fn_${file}`) => ({
@@ -66,5 +66,31 @@ describe('buildSummary', () => {
     expect(buildSummary(counts, true, 'index_partial')).toBe(
       '2 changed symbols · 3 callers · 2 endpoints · 1 crons · index degraded: index_partial',
     );
+  });
+});
+
+describe('toPrHistory', () => {
+  const pr = (number: number, merged_at: string | null, title = `PR ${number}`) => ({
+    number, title, merged_at, author: 'a',
+  });
+
+  it('dedupes across paths, collects unique overlap, drops current + unmerged, sorts, caps', () => {
+    const out = toPrHistory(
+      [
+        { path: 'a.ts', prs: [pr(1, '2026-01-01'), pr(2, '2026-03-01'), pr(9, '2026-04-01'), pr(5, null)] },
+        { path: 'b.ts', prs: [pr(1, '2026-01-01'), pr(1, '2026-01-01'), pr(3, '2026-02-01')] },
+        { path: 'c.ts', prs: [pr(3, '2026-02-01')] },
+      ],
+      9,
+      2,
+    );
+    expect(out.history.map((h) => h.pr_number)).toEqual([3, 1]); // overlap 2 each; 3 is newer; 2 capped out
+    expect(out.history[0]).toMatchObject({ files_overlap: ['b.ts', 'c.ts'], notes: '' });
+    expect(out.history[1]!.files_overlap).toEqual(['a.ts', 'b.ts']);
+  });
+
+  it('returns an empty history for empty input', () => {
+    expect(toPrHistory([], 1, 5)).toEqual({ history: [] });
+    expect(toPrHistory([{ path: 'a.ts', prs: [] }], 1, 5)).toEqual({ history: [] });
   });
 });

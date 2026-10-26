@@ -13,6 +13,7 @@ import type { ReviewRecord, Severity, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "@/lib/hooks/reviews";
+import { countBlockers } from "../../helpers";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -70,7 +71,7 @@ export function ReviewRunAccordion({
   }, [severity]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
-  const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
+  const blockers = countBlockers(findings);
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
 
   return (

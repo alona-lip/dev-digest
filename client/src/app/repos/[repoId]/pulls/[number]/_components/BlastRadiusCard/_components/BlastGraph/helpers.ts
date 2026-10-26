@@ -90,3 +90,15 @@ export function layoutGraph(blast: PrBlastRadius): GraphLayout {
   const rows = Math.max(...counts, 1);
   return { nodes, edges, width: WIDTH, height: PAD * 2 + rows * NODE_HEIGHT + (rows - 1) * ROW_GAP };
 }
+
+/** What hovering `nodeId` lights up: the node, the nodes its edges lead to, and those edges' ids.
+    Edges only leave symbols, so for a symbol that is exactly its callers and endpoints/crons. */
+export function connectedTo(layout: GraphLayout, nodeId: string): Set<string> {
+  const lit = new Set<string>([nodeId]);
+  for (const edge of layout.edges) {
+    if (edge.from !== nodeId) continue;
+    lit.add(edge.to);
+    lit.add(edge.id);
+  }
+  return lit;
+}

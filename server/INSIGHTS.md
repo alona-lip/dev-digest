@@ -236,6 +236,14 @@ by hand in the same format.
   `loadDiff` only via the `reviews/index.ts` facade. ALWAYS resolve such a pair this way (as
   `repoIntel` already is) instead of moving code into `_shared`. (`server/src/platform/container.ts`,
   `server/src/modules/reviews/index.ts`)
+- 2026-10-25 — prior PRs (`GET /pulls/:id/blast/history`) are a SEPARATE route, not a field on
+  `GET /pulls/:id/blast`: the map must stay an index-only read (HW P2 "logs show the index read") and
+  MCP `get_blast_radius` must return the same GitHub-free map as the card; a GitHub outage then only
+  blanks the Prior PRs block. The data is ONE GitHub GraphQL call (an aliased `history(path:)` per
+  changed file → `associatedPullRequests`), because `pr_files` covers 3 of 136 PRs and the clone is
+  shallow (`CLONE_DEPTH = 1`), and REST `pulls.list` + `listFiles` per PR would be 50+ calls per open.
+  ALWAYS add GitHub-backed extras to the blast card as their own route. (`server/src/modules/blast/service.ts`,
+  `server/src/adapters/github/octokit.ts`, `specs/blast-radius.md` "Prior PRs follow-up")
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
@@ -279,6 +287,14 @@ by hand in the same format.
   `service.ts` shows no endpoints; (3) `repo_too_large` is never stamped — the walk keeps the first
   5000 files and the index stays `full` (`pipeline/walk.ts:65`). For a demo PR, change an EXISTING
   function imported by single-line `routes.ts` files (e.g. `getContext` → 8 callers, 27 endpoints).
+- 2026-10-25 — refines the 2026-10-12 `withRetry` entry for Octokit GraphQL: `hook.error('request')`
+  maps only HTTP failures; a GraphQL error (HTTP 200 + `errors`, `GraphqlResponseError`) has NO
+  `status` to carry, so "keep the upstream code on `status`" does not apply. Mapping it to
+  `ExternalServiceError` INSIDE the `withRetry` callback made deterministic errors (repo not found,
+  missing scope) retryable via `statusCode` 502 — 4 attempts × 30s timeout before the 502. ALWAYS let
+  `withRetry` wrap only the raw `octokit.graphql` call and map to `ExternalServiceError` after the loop.
+  Guarded by `github-path-history.test.ts` "…without retrying it" (expects exactly 1 call).
+  (`server/src/adapters/github/octokit.ts` `listPathPullRequests`, `server/src/platform/resilience.ts:35`)
 
 ## Recurring Errors & Fixes
 

@@ -1,4 +1,6 @@
 {
+  "title": "PR Brief",
+  "error": "Couldn't load the PR brief",
   "block": {
     "intent": "Intent",
     "blast": "Blast radius",

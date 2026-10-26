@@ -12,6 +12,7 @@ import type {
   PrMeta,
   PrDetail,
   GitHubReviewPayload,
+  PathPullRequests,
   CreateReviewCommentInput,
   PrReviewComment,
   OpenPrPayload,
@@ -129,6 +130,8 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Returned by listPathPullRequests (default: one merged PR per requested path). */
+  pathPrs?: PathPullRequests[];
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -187,6 +190,21 @@ export class MockGitHubClient implements GitHubClient {
       linked_issue: null,
     };
     return { ...base, ...this.opts.detail };
+  }
+
+  async listPathPullRequests(
+    _repo: RepoRef,
+    _base: string,
+    paths: string[],
+    _perPath: number,
+  ): Promise<PathPullRequests[]> {
+    return (
+      this.opts.pathPrs ??
+      paths.map((path) => ({
+        path,
+        prs: [{ number: 100, title: 'Earlier change', merged_at: '2026-05-01T00:00:00Z', author: 'marisa.koch' }],
+      }))
+    );
   }
 
   async postReview(_repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }> {

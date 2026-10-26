@@ -53,6 +53,10 @@ by hand in the same format.
 
 - 2026-10-19 — the vendored `Modal` is NOT a portal: it renders where it is mounted, so a dialog placed INSIDE a clickable card bubbles every click in the dialog (Cancel, Delete, the X, the backdrop) through the React tree to the card's `onClick` — on `AgentCard` that navigates to the agent while you are confirming a delete. NEVER mount a `Modal`/`ConfirmDialog` inside an element with its own `onClick`; render it as a fragment sibling of the card (`<>…card…{open && <ConfirmDialog/>}</>`; it is `position: fixed`, so a grid parent is unaffected), or own it in the list parent. `Modal` also ignores Esc — `ConfirmDialog` adds that itself. (`client/src/components/agent-card/AgentCard.tsx:33`, `client/src/components/confirm-dialog/ConfirmDialog.tsx:34`)
 
+- 2026-10-25 — wrapping an `<svg role="img" aria-label>` in a `<button>` drops the image from the accessibility tree: ARIA makes a button's children presentational, so `getByRole("img")` and screen readers lose the graph. To make a graph clickable, keep the svg as is and lay a transparent `position: absolute; inset: 0` `<button aria-label>` over it inside a `position: relative` wrapper. The overlay also covers the nodes' `<title>` tooltips, so the full-size copy (in the modal) is the one that keeps them. (`client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/_components/BlastGraph/BlastGraph.tsx`)
+
+- 2026-10-25 — supersedes the overlay-button entry above: a transparent `position: absolute; inset: 0` `<button>` over the svg swallows every mouse event, so the graph nodes can never be hovered (the symbol → callers highlight did nothing in the card). To make an interactive svg clickable, put `onClick` on its wrapper `<div>` and give keyboard users a separate visible button ("Open full size" next to the legend). Never wrap the svg in a `<button>` either (that hides its `img` role). (`client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/_components/BlastGraph/BlastGraph.tsx`)
+
 ## Codebase Patterns
 
 - 2026-09-21 — `visibleFindings()` (FindingsPanel/helpers.ts) is the single
@@ -137,6 +141,10 @@ by hand in the same format.
   prop, and `vendor/ui` is do-not-touch. Lock it with a guard in `onChange` plus a `title` and
   a dimmed wrapper (`s.locked`). Do NOT use `pointer-events: none`: `userEvent.click` then throws
   instead of proving the click does nothing. (`client/src/components/skill-editor/_components/ConfigTab/ConfigTab.tsx`)
+
+- 2026-10-25 — `@devdigest/ui` `Button` applies its `active` prop ONLY for `kind="tertiary"`; every other kind ignores it silently. The Blast radius tree/graph toggle (`kind="secondary" active aria-pressed`) passed its `aria-pressed` test and still looked identical in both states. For a visible selected state on a non-tertiary Button, pass a `style` override (`--accent-bg` / `--accent` / `--accent-text`): `Button` spreads `style` last, after the hover styles, so the highlight also stays on hover. NEVER fix it in `vendor/ui` (do-not-touch). (`client/src/vendor/ui/primitives/Button.tsx:46`, `client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/BlastRadiusCard.tsx`)
+
+- 2026-10-25 — RTL `getByTitle` only matches an SVG `<title>` that is a DIRECT child of `<svg>`; a per-node `<title>` inside a `<g>` (the BlastGraph nodes) is invisible to it ("Unable to find an element with the title"). Query it with `within(svg).getByText(label, { selector: "title" }).closest("g")`. (`client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/BlastRadiusCard.test.tsx`)
 
 ## Recurring Errors & Fixes
 
@@ -235,6 +243,11 @@ by hand in the same format.
   now. NEVER work around it by copying enum values into the client. Not the 2026-09-21
   `.next` vendor-chunk poisoning: that one names `.next/server/vendor-chunks/*`, this one names
   `src/vendor/shared/*`, and restarting `pnpm dev` does not fix it. (`client/next.config.mjs:15`)
+- 2026-10-25 — the `fetch` fake in `BlastRadiusCard.test.tsx` used to answer EVERY GET with the blast
+  map body, so a new request from inside the card (the Prior PRs block's `/blast/history`) got the
+  wrong shape and broke unrelated tests. Any new query mounted in the card needs its own URL branch in
+  that fake (it now routes `/blast/history` separately, plus a 502 case proving the map still
+  renders). (`client/src/app/repos/[repoId]/pulls/[number]/_components/BlastRadiusCard/BlastRadiusCard.test.tsx`)
 
 ## Session Notes
 

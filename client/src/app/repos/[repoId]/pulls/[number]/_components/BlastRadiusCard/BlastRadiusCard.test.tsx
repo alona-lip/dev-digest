@@ -4,7 +4,7 @@
  */
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -41,9 +41,12 @@ const BLAST: PrBlastRadius = {
   reason: null,
 };
 
-function stubApi(get: { status: number; body: unknown }) {
+function stubApi(get: { status: number; body: unknown }, history?: unknown) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === "POST") return new Response(JSON.stringify({ status: "queued" }), { status: 202 });
+    if (String(url).endsWith("/blast/history")) {
+      return new Response(JSON.stringify(history ?? { history: [] }), { status: history ? 200 : 502 });
+    }
     if (String(url).endsWith("/index-state")) return new Response("{}", { status: 404 });
     return new Response(JSON.stringify(get.body), { status: get.status });
   });
@@ -101,6 +104,69 @@ describe("BlastRadiusCard", () => {
     await user.click(screen.getByRole("button", { name: "graph" }));
     expect(screen.getByRole("img", { name: "Blast radius graph" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "graph" })).toHaveAttribute("aria-pressed", "true");
+    // R12: the selected view is visibly highlighted, not only exposed via aria-pressed.
+    expect(screen.getByRole("button", { name: "graph" })).toHaveStyle({ borderColor: "var(--accent)" });
+    expect(screen.getByRole("button", { name: "tree" })).not.toHaveStyle({ borderColor: "var(--accent)" });
+  });
+
+  it("opens the graph full size in a modal that holds focus, closed by the ✕ button or Escape", async () => {
+    const user = userEvent.setup();
+    stubApi({ status: 200, body: BLAST });
+    renderCard();
+    await screen.findByText("symbols");
+    await user.click(screen.getByRole("button", { name: "graph" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const expand = screen.getByRole("button", { name: "Open full size" });
+    await user.click(expand);
+    const dialog = screen.getByRole("dialog");
+    // Focus moves into the dialog and Tab cannot leave it.
+    const close = within(dialog).getByRole("button", { name: "Close" });
+    expect(close).toHaveFocus();
+    await user.tab();
+    expect(close).toHaveFocus();
+    expect(within(dialog).getByRole("img", { name: "Blast radius graph" })).toBeInTheDocument();
+    // The copy inside the modal does not open another modal.
+    expect(within(dialog).queryByRole("button", { name: "Open full size" })).not.toBeInTheDocument();
+    await user.click(close);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // Focus goes back to the button it was opened from.
+    expect(expand).toHaveFocus();
+
+    // A click on the graph itself does not open it — only the button does.
+    await user.click(screen.getByRole("img", { name: "Blast radius graph" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(expand);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hovering a changed symbol lights only its callers, endpoints and crons and dims the rest", async () => {
+    const user = userEvent.setup();
+    stubApi({ status: 200, body: BLAST });
+    renderCard();
+    await screen.findByText("symbols");
+    await user.click(screen.getByRole("button", { name: "graph" }));
+
+    // A graph node is the <g> around its <title> (getByTitle only sees a <title> directly under <svg>).
+    const graph = screen.getByRole("img", { name: "Blast radius graph" });
+    const node = (label: string) => within(graph).getByText(label, { selector: "title" }).closest("g")!;
+    const dimmed = () =>
+      ["getContext", "parseId", "settingsRoutes", "reposRoutes", "agentsRoutes", "GET /x", "PUT /x", "job:poll"].filter(
+        (label) => node(label).getAttribute("opacity") === "0.2",
+      );
+    expect(dimmed()).toEqual([]);
+
+    await user.hover(node("getContext"));
+    // parseId's own caller is dimmed; GET /x stays lit because getContext reaches it too.
+    expect(dimmed()).toEqual(["parseId", "agentsRoutes"]);
+
+    await user.hover(node("parseId"));
+    expect(dimmed()).toEqual(["getContext", "settingsRoutes", "reposRoutes", "PUT /x", "job:poll"]);
+
+    await user.unhover(node("parseId"));
+    expect(dimmed()).toEqual([]);
   });
 
   it("says so when nothing is downstream", async () => {
@@ -126,6 +192,18 @@ describe("BlastRadiusCard", () => {
     renderCard();
     expect(await screen.findByText(/Index incomplete: repo intelligence is turned off/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Resync/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the map when prior PRs fail to load", async () => {
+    const user = userEvent.setup();
+    stubApi({ status: 200, body: BLAST }, undefined);
+    renderCard();
+    expect(await screen.findByText("symbols")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Prior PRs touching these files/ }));
+    expect(await screen.findByText(/Couldn't load prior PRs/)).toBeInTheDocument();
+    // Still there once the history error is on screen: the failure never replaces the map.
+    expect(screen.getByText("symbols")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^(Collapse|Expand) getContext/ })).toBeInTheDocument();
   });
 
   it("shows an error state when the request fails", async () => {

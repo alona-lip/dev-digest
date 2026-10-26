@@ -2,15 +2,15 @@
    skill, delete an agent). Close (X), Cancel, Esc and a backdrop click all cancel;
    only the confirm button runs `onConfirm`. Texts come from the caller's namespace,
    the button labels default to `common.actions.*`.
-   Focus (the kit Modal does none of this): Cancel is focused on open — the safe
-   default for a destructive action — Tab / Shift+Tab cycle inside the dialog, and
+   Focus (`useDialogFocus`; the kit Modal does none of this): Cancel is focused on open —
+   the safe default for a destructive action — Tab / Shift+Tab cycle inside the dialog, and
    focus goes back to whatever opened it when it closes. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Modal } from "@devdigest/ui";
-import { focusableIn } from "./helpers";
+import { useDialogFocus } from "@/lib/dialog-focus";
 import { s } from "./styles";
 
 export function ConfirmDialog({
@@ -34,36 +34,8 @@ export function ConfirmDialog({
   const t = useTranslations("common");
   const footerRef = React.useRef<HTMLDivElement>(null);
 
-  // Move focus into the dialog on open; give it back to the opener on close.
-  React.useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    // Cancel is the first button of the footer.
-    footerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    return () => opener?.focus();
-  }, []);
-
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") return onClose();
-      if (e.key !== "Tab") return;
-      const dialog = footerRef.current?.closest<HTMLElement>('[role="dialog"]');
-      if (!dialog) return;
-      const items = focusableIn(dialog);
-      if (items.length === 0) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      const inside = dialog.contains(document.activeElement);
-      if (e.shiftKey && (document.activeElement === first || !inside)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Cancel is the first button of the footer, so the footer is the initial-focus scope.
+  useDialogFocus(footerRef, onClose, "anchor");
 
   return (
     <Modal

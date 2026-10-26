@@ -10,6 +10,7 @@ import type { PrBlastRadius } from "@devdigest/shared";
 import { useBlastRadius, useBlastResync } from "@/lib/hooks/blast";
 import { BlastTree } from "./_components/BlastTree";
 import { BlastGraph } from "./_components/BlastGraph";
+import { PriorPrs } from "./_components/PriorPrs";
 import { BLAST_VIEW, NO_RESYNC_REASON, REASON_KEY, STAT_KEYS, type BlastView } from "./constants";
 import { summarize, type BlastCounts } from "./helpers";
 import { s } from "./styles";
@@ -29,7 +30,7 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
   const { resync, resyncing, resyncError } = useBlastResync(repoId, prId, canResync);
 
   return (
-    <section aria-busy={isLoading}>
+    <section aria-busy={isLoading} style={s.section}>
       <SectionLabel
         icon="Zap"
         right={
@@ -60,6 +61,7 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
           repoFullName={repoFullName}
           headSha={headSha}
         />
+        <PriorPrs prId={prId} repoFullName={repoFullName} />
       </div>
     </section>
   );
@@ -128,7 +130,15 @@ function BlastBody({ data, isLoading, error, onRetry, view, canResync, resync, r
 
 function ViewButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <Button kind="secondary" size="sm" active={active} aria-pressed={active} onClick={onClick}>
+    // `Button` only renders `active` for kind="tertiary", so the selected state is styled here.
+    <Button
+      kind="secondary"
+      size="sm"
+      active={active}
+      aria-pressed={active}
+      style={active ? s.viewActive : undefined}
+      onClick={onClick}
+    >
       {children}
     </Button>
   );

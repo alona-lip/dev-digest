@@ -4,6 +4,22 @@
    web fonts. */
 @import "../vendor/ui/styles.css";
 
+/* Blast radius graph: one bright, distinct hue per node kind (symbol / caller /
+   endpoint / cron) in each theme. App tokens, so vendor/ui stays untouched. */
+:root,
+[data-theme="dark"] {
+  --graph-symbol: #a78bfa;
+  --graph-caller: #38bdf8;
+  --graph-endpoint: #34d399;
+  --graph-cron: #fbbf24;
+}
+[data-theme="light"] {
+  --graph-symbol: #7c3aed;
+  --graph-caller: #0284c7;
+  --graph-endpoint: #059669;
+  --graph-cron: #d97706;
+}
+
 @font-face {
   font-family: "Inter";
   font-style: normal;

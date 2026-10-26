@@ -32,11 +32,18 @@
   "graph": {
     "empty": "No downstream callers to graph.",
     "ariaLabel": "Blast radius graph",
+    "open": "Open full size",
     "legend": {
       "symbol": "Changed symbol",
       "caller": "Caller",
       "endpoint": "Endpoint",
       "cron": "Cron / job"
     }
+  },
+  "prior": {
+    "title": "Prior PRs touching these files",
+    "empty": "No prior PRs overlap these files.",
+    "error": "Couldn't load prior PRs: {message}",
+    "overlap": "{count} overlap"
   }
 }

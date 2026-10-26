@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  section: { display: "flex", flexDirection: "column" } satisfies CSSProperties,
   card: {
+    flex: 1,
     border: "1px solid var(--border)",
     borderRadius: 8,
     background: "var(--bg-elevated)",
@@ -11,6 +13,11 @@ export const s = {
     gap: 16,
   } satisfies CSSProperties,
   toggle: { display: "inline-flex", gap: 6 } satisfies CSSProperties,
+  viewActive: {
+    background: "var(--accent-bg)",
+    borderColor: "var(--accent)",
+    color: "var(--accent-text)",
+  } satisfies CSSProperties,
   summary: { display: "flex", gap: 28, flexWrap: "wrap", margin: 0, padding: 0 } satisfies CSSProperties,
   stat: { display: "flex", flexDirection: "column-reverse", gap: 2 } satisfies CSSProperties,
   statValue: {

@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  section: { display: "flex", flexDirection: "column" } satisfies CSSProperties,
   card: {
+    flex: 1,
     border: "1px solid var(--border)",
     borderRadius: 8,
     background: "var(--bg-elevated)",
@@ -20,7 +22,7 @@ export const s = {
   } satisfies CSSProperties,
   columns: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 16,
   } satisfies CSSProperties,
   listTitle: {
@@ -47,6 +49,10 @@ export const s = {
     lineHeight: 1.45,
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
+  // Grid items default to `min-width: auto`, so one long unbroken path widened the column
+  // over its neighbour; both rules let it shrink and wrap paths anywhere instead.
+  scope: { minWidth: 0 } satisfies CSSProperties,
+  itemText: { minWidth: 0, overflowWrap: "anywhere" } satisfies CSSProperties,
   inScopeIcon: { color: "var(--ok)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
   outOfScopeIcon: { color: "var(--text-muted)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
   none: { margin: 0, fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,

@@ -651,3 +651,92 @@ Deviations from the plan above, with the reason:
 Verified end-to-end: `getBlastRadius(repo, ['server/src/modules/_shared/context.ts'])` on the
 `full` index → `getContext`: 8 callers (all `routes.ts`), 27 endpoints, `degraded: false`.
 
+
+## Overview layout follow-up (2026-10-25)
+
+Written before the code. The Overview tab is changed to match the reference design:
+
+- R10 Order on the Overview tab: a full-width **PR Brief**, then a two-column grid with **Intent**
+  on the left and **Blast radius** on the right (equal height; it collapses to one column below
+  ~900px), then Description. This replaces "after `IntentCard`" in R5.
+- R11 PR Brief = the latest review that has a verdict (`kind = 'review'`): `VerdictBanner`
+  (verdict, findings, blockers, summary, score) plus the matching run's cost and tokens. With no
+  review yet it shows `brief.unavailable` / `brief.unavailableHint`.
+- R12 The selected Tree / Graph button is visibly highlighted (accent border and background), not
+  only `aria-pressed`.
+- R13 In Graph view the inline graph is a button: clicking it (or Enter / Space) opens the same
+  graph in a `Modal` with a close (✕) button top-right; the backdrop and Escape also close it.
+  *Superseded 2026-10-25:* only the "Open full size" button under the graph opens the modal; a
+  click on the graph itself does nothing.
+- R14 The four node kinds (changed symbol, caller, endpoint, cron) have four distinct, bright hues
+  in both themes (app tokens `--graph-*` in `client/src/app/globals.css`), never two tones of grey.
+- R15 Hovering a changed symbol (column 1) highlights only that symbol, its callers, its
+  endpoints/crons and the edges between them; everything else dims. Leaving restores the graph.
+  Works inline and in the modal.
+
+| Decision | Choice | Rejected alternative (reason) |
+|---|---|---|
+| Source of the PR Brief | Client-side: the latest verdict review from `usePrReviews` + its run from `usePrRuns`, both already fetched by `PrDetailView` | The server `pr_brief` table / `PrBrief` contract — no route serves it, so it would need a new endpoint and an LLM composition step for data the client already has. |
+| Highlighting the selected toggle | A `style` override (`--accent-bg` / `--accent`) on the active `Button` | `kind="tertiary"` — the only kind whose `active` prop has an effect (`vendor/ui/primitives/Button.tsx`), but its inactive state has no border and reads as plain text; editing `vendor/ui` is not allowed. |
+| Reading the graph in a narrow column | Click-to-open modal with the same `BlastGraph` | A horizontal scroll with a min-width SVG — it hides part of the graph and does not help on a small card. |
+| Opening the modal without blocking hover | Only a visible "Open full size" button next to the legend (the first cut also opened it on a click on the graph wrapper; dropped on review — the button alone is clearer and leaves the graph free for hovering) | A transparent overlay `<button>` over the svg — it swallows every mouse event, so nodes can never be hovered. |
+| Keyboard equivalent of the hover highlight | None; the same symbol → callers/endpoints relations are listed as text in the Tree view | Focusable symbol `<g>` nodes — focusable non-interactive elements are an a11y anti-pattern and would break the modal's single-control Tab trap. |
+
+
+## Prior PRs follow-up (2026-10-25)
+
+Written before the code. Closes the P3 item «Prior PRs touching these files». This supersedes the
+"prior PRs" part of R9 (R9 itself is left as written; the rest of R9 still applies).
+
+- R16 Route `GET /pulls/:id/blast/history` → `PrHistory` (`contracts/brief.ts`, unchanged): merged
+  PRs whose commits on the PR's `base` branch touched any of this PR's changed files. Each item has
+  `files_overlap` (the changed files it touched), `notes: ''` (no LLM). Sorted by overlap count
+  desc, then `merged_at` desc; at most `PRIOR_PRS_LIMIT`. The current PR and unmerged PRs are
+  excluded.
+- R17 `GET /pulls/:id/blast` and `get_blast_radius` (MCP) are untouched: they stay a pure read of
+  the repo-intel index and never call GitHub for history.
+- R18 Data comes from ONE GitHub GraphQL call (`GitHubClient.listPathPullRequests`): per path an
+  aliased `history(path:, first: PRIOR_PRS_COMMITS_PER_FILE)` with `associatedPullRequests`. Paths
+  go in as GraphQL variables, never interpolated into the query text. At most
+  `PRIOR_PRS_MAX_FILES` paths are sent. Zero changed files → `{ history: [] }` with no call. A
+  missing `base` ref → empty result. GitHub failure → `warn` log + 502 `ExternalServiceError`.
+- R19 UI: a «Prior PRs touching these files» block at the bottom of the Blast radius card, in both
+  Tree and Graph views, with its own loading / empty / error state (an error there never hides the
+  map). Each row: `#N` + title linking to the PR on GitHub (new tab), an overlap count with the
+  full file list as a tooltip, and the relative merge date. Labels from `blast.json` (`prior.*`).
+
+| Decision | Choice | Rejected alternative (reason) |
+|---|---|---|
+| Data source | One GitHub GraphQL query (file history on `base` → associated PRs) | REST `pulls.list` + `listFiles` per PR — 50+ calls per Overview open, burns the rate limit; local `pr_files` — filled for 3 of 136 PRs; local `git log` — the clone is shallow (`CLONE_DEPTH = 1`) |
+| Where it lives | A second route in the `blast` module, reusing `load` + `changedFiles` | A field on `/pulls/:id/blast` — the map would stop being an index-only read (P2), the MCP map would depend on GitHub, and a GitHub outage would break the whole card |
+| Response shape | Existing `PrHistory`, unchanged | A new schema with `pr_id` / `degraded` — nothing to carry: a GitHub failure is already a 502 with a message |
+| Aggregation | Pure `toPrHistory` in `blast/helpers.ts` (dedupe by number, overlap, exclusions, sort, cap) | In the adapter — domain logic; the adapter only talks to the SDK |
+| `notes` | Empty string | An LLM-written note — the feature must not call a model |
+
+Accordion follow-up (2026-10-26), written before the code:
+
+- R20 Prior PRs is an accordion, **collapsed by default**, pinned to the bottom of the Blast radius
+  card. The header is a `<button aria-expanded aria-controls>` (icon, title, count, chevron); the count
+  is visible while collapsed (the query still runs on mount). The body (rows / empty / error /
+  skeleton) renders only when open.
+
+| Decision | Choice | Rejected alternative (reason) |
+|---|---|---|
+| Open/closed chevron | `Icon.ChevronDown`, rotated 180° when open | `ChevronUp` — not exported by `vendor/ui/icons.tsx`, and `vendor/ui` is do-not-touch |
+| When to fetch | On mount, so the collapsed header shows the count | Lazy fetch on first open — the collapsed row would have no count, unlike the reference |
+
+Path-order follow-up (2026-10-26): R18's `PRIOR_PRS_MAX_FILES` cap is applied to the changed paths
+**deduped and sorted** (`[...new Set(paths)].sort()`). The local diff and GitHub return files in
+different orders, so an unsorted cap picked a different subset per request on a big PR (PR #171,
+119 files: one call answered #234 + #11, the next only #11). Rejected: chunking all paths into
+several GraphQL calls — complete, but more GitHub requests per Overview open; the cap's blind spot
+on >20-file PRs is accepted.
+
+Self-review follow-up (2026-10-26), superseding two R18 details:
+
+- A missing `base` ref now **throws** (`ExternalServiceError` → 502 with the cause in the message)
+  instead of returning an empty history: GitHub answers `ref: null` with no `errors` for a
+  deleted/renamed branch, and an empty list there would read as "no prior PRs" when the answer
+  is unknown — the same rule `changedFiles` follows.
+- `GET /pulls/:id/blast/history` has a per-route rate limit (20 / minute, like intent), since
+  every call spends a GitHub GraphQL request.

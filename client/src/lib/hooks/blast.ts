@@ -7,11 +7,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useRepoIntelStatus, useResyncRepoIntel } from "./repo-intel";
-import type { PrBlastRadius } from "@devdigest/shared";
-import { BASELINE_MAX_AGE_MS, RESYNC_POLL_TIMEOUT_MS } from "./blast.constants";
+import type { PrBlastRadius, PrHistory } from "@devdigest/shared";
+import { BASELINE_MAX_AGE_MS, PRIOR_PRS_STALE_MS, RESYNC_POLL_TIMEOUT_MS } from "./blast.constants";
 
 const keys = {
   blast: (prId: string | null | undefined) => ["blast", prId] as const,
+  // Separate from `blast`: a map resync must not refetch GitHub history.
+  history: (prId: string | null | undefined) => ["blast", "history", prId] as const,
 };
 
 export function useBlastRadius(prId: string | null | undefined) {
@@ -20,6 +22,17 @@ export function useBlastRadius(prId: string | null | undefined) {
     queryFn: () => api.get<PrBlastRadius>(`/pulls/${prId}/blast`),
     enabled: !!prId,
     retry: false,
+  });
+}
+
+/** Merged PRs that touched this PR's files (one GitHub call server-side, hence the long staleTime). */
+export function usePriorPrs(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: keys.history(prId),
+    queryFn: () => api.get<PrHistory>(`/pulls/${prId}/blast/history`),
+    enabled: !!prId,
+    retry: false,
+    staleTime: PRIOR_PRS_STALE_MS,
   });
 }
 

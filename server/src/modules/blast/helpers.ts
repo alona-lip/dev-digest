@@ -1,4 +1,10 @@
-import type { BlastDegradedReason, BlastRadius, DownstreamImpact } from '@devdigest/shared';
+import type {
+  BlastDegradedReason,
+  BlastRadius,
+  DownstreamImpact,
+  PathPullRequests,
+  PrHistory,
+} from '@devdigest/shared';
 import type { BlastCallerRow, BlastResult, DegradedReason } from '../repo-intel/index.js';
 
 // Compile-time tie: repo-intel's DegradedReason and the wire BlastDegradedReason must stay identical.
@@ -81,4 +87,36 @@ export function countBlast(blast: Omit<BlastRadius, 'summary'>): BlastCounts {
     d.crons_affected.forEach((j) => crons.add(j));
   }
   return { symbols: blast.changed_symbols.length, callers, endpoints: endpoints.size, crons: crons.size };
+}
+
+/**
+ * Per-path GitHub results → `PrHistory`: dedupe by PR number across paths,
+ * `files_overlap` = unique paths it touched (input order), drop the current PR
+ * and unmerged PRs, sort by overlap desc then `merged_at` desc, cap at `limit`.
+ */
+export function toPrHistory(perPath: PathPullRequests[], currentNumber: number, limit: number): PrHistory {
+  const byNumber = new Map<number, { title: string; merged_at: string; author: string; files: string[] }>();
+  for (const { path, prs } of perPath) {
+    for (const pr of prs) {
+      if (pr.number === currentNumber || pr.merged_at === null) continue;
+      const entry = byNumber.get(pr.number);
+      if (!entry) {
+        byNumber.set(pr.number, { title: pr.title, merged_at: pr.merged_at, author: pr.author, files: [path] });
+      } else if (!entry.files.includes(path)) {
+        entry.files.push(path);
+      }
+    }
+  }
+  const history = [...byNumber.entries()]
+    .map(([pr_number, e]) => ({
+      pr_number,
+      title: e.title,
+      merged_at: e.merged_at,
+      author: e.author,
+      files_overlap: e.files,
+      notes: '',
+    }))
+    .sort((a, b) => b.files_overlap.length - a.files_overlap.length || b.merged_at.localeCompare(a.merged_at))
+    .slice(0, limit);
+  return { history };
 }
