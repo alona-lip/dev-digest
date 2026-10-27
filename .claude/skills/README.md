@@ -19,6 +19,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Capture non-obvious findings into the touched module's `INSIGHTS.md` |
+| [run-plan](run-plan/README.md) | Shared | Executes an approved `docs/plans/<feature>.md`: implementer(s) → architecture-reviewer + fix loop → test-writer from ACs + code-fix loop → plan-verifier; first-run limits `max-parallel:2`, `max-fix:2`, `e2e:smoke` |
+| [workflow-retro](workflow-retro/README.md) | Shared | Manual-only retrospective of a multi-agent run: tokens, cache read, tool calls, duration, parallelism (nested agents included in `deep`), actionable recommendations, a row in `docs/retros/ledger.md` |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Second-pass review before "done" (uncommitted diff) and before a PR (`--scope branch`): files grouped into buckets — Frontend: UI-arch + react + RTL, Backend: Onion + fastify + drizzle, Database, Engine, Shared contracts ([what is checked](pr-self-review/routing.md)); BLOCK on a confirmed CRITICAL; manual-only, optional `pre-push` gate ([spec](../../specs/pr-self-review.md)) |
 
 ## What Are Skills?

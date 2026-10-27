@@ -7,7 +7,7 @@ nothing you can point at, it didn't happen.
 | Phase | Question it answers | Artifact it leaves |
 |---|---|---|
 | 1. Initiation | What is actually being asked, and what do we already know? | the request + the module's `INSIGHTS.md`, read before touching code |
-| 2. Planning | What will change, and what did we decide against? | `<module>/specs/<feature>.md` |
+| 2. Planning | What must change and why (spec); how, in what order, and what did we decide against (plan)? | `<module>/specs/<feature>.md` + `docs/plans/<feature>.md` |
 | 3. Implementation | Does it exist? | the code commit |
 | 4. Validation | Does it work, provably? | tests in the same commit + a green `typecheck`/`test` run |
 | 5. Completion | What would the next session otherwise re-learn the hard way? | new entries in `<module>/INSIGHTS.md` |
@@ -28,18 +28,38 @@ wrong lockfile and the wrong package manager.
 
 ## 2. Planning
 
-A spec in `<module>/specs/<feature>.md` **before** the code, not a write-up
-after it. A spec that only describes what was built is documentation; this one
-has to be falsifiable while there's still time to change course. It records:
+Two documents **before** the code, not a write-up after it — each written by
+its own agent ([`.claude/agents/README.md`](../.claude/agents/README.md)).
 
-- the goal, in terms of what a user sees;
+**Spec — what and why** (`spec-creator` → `<module>/specs/<feature>.md`, or
+`specs/<feature>.md` across modules). A spec that only describes what was built
+is documentation; this one has to be falsifiable while there's still time to
+change course. It records:
+
+- the problem and the user, in terms of what a user sees;
+- goals and explicit **non-goals**, so scope creep is visible;
+- acceptance criteria in EARS (`AC-1: КОЛИ …, система повинна (shall) …`), each
+  one atomic and verifiable;
+- edge cases, non-functional requirements with numbers, input provenance
+  (`[reused]` / `[deterministic]` / `[new: N LLM call]`) and untrusted inputs;
+- open questions as `[NEEDS CLARIFICATION]` — never a guess. The spec moves to
+  `Status: approved` only when none are left.
+
+**Plan — how and in what order** (`implementation-planner` →
+`docs/plans/<feature>.md`). It checks the spec first and refuses to plan a
+draft. It records:
+
 - the decision **and the alternative that was rejected, with the reason** —
   this is the part that pays off later, when someone asks "why isn't it X";
-- explicit out-of-scope items, so scope creep is visible.
+- tasks with exact files, each pointing to the `AC-N` it closes and the test
+  that proves it — the matrix AC → task → test → commit that `plan-verifier`
+  checks at the end.
 
-A superseded decision is corrected by a new dated section in the same spec, so
-the reasoning stays legible (see the 2026-09-23 revision in
+A superseded decision is corrected by a new dated section in the same document,
+so the reasoning stays legible (see the 2026-09-23 revision in
 [`client/specs/severity-filter.md`](../client/specs/severity-filter.md)).
+Specs written before the split combine spec and plan in one file; they stay as
+they are.
 
 ## 3. Implementation
 

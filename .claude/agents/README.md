@@ -5,80 +5,160 @@ frontmatter (`name`, `description`, `model`, `tools`, optional `skills:`) plus a
 Claude routes work to an agent based on its `description`, so the descriptions are written as
 trigger rules ("Use proactively when…").
 
-Ported from the course branch `lesson-4-lab/mcp-start` and adapted to this repo: plans are feature
-specs (`<module>/specs/` or `specs/`, with the rejected alternative), insights live in
-`<module>/INSIGHTS.md`, agent instructions in `AGENTS.md` (each `CLAUDE.md` is a symlink), and the
-check gate includes `pnpm arch:check`. `pr-self-review` is manual-only here, so agents never run it —
-they tell the user it has not been run yet.
+Ported from the course branches `lesson-4-lab/mcp-start` and `lesson-5-lab/sdd-finish` and adapted
+to this repo: insights live in `<module>/INSIGHTS.md`, agent instructions in `AGENTS.md` (each
+`CLAUDE.md` is a symlink), the check gate includes `pnpm arch:check`, and `pr-self-review` /
+`workflow-retro` are manual-only, so agents never run them — they tell the user they have not been
+run yet.
 
-| Agent | Model | Role | Writes code? |
-|-------|-------|------|--------------|
-| [`researcher`](./researcher.md) | sonnet | Read-only research (project + internet), strict structured output | No |
-| [`planner`](./planner.md) | opus | Read-only architect — produces a structured Development Plan | No (only the plan file) |
-| [`implementer`](./implementer.md) | sonnet | Implements ONE task from a plan (backend or UI), self-verifies | Yes |
-| [`test-writer`](./test-writer.md) | sonnet | Writes unit + integration tests (backend + reviewer-core), self-verifies | Yes |
-| [`architecture-reviewer`](./architecture-reviewer.md) | opus | Read-only structural/architecture review of a diff or file set | No |
-| [`plan-verifier`](./plan-verifier.md) | opus | Read-only requirements-completion / traceability check | No |
-| [`doc-writer`](./doc-writer.md) | sonnet | Writes documentation (Diátaxis + Mermaid), knows where docs belong | Yes |
+| Agent | Model | Role | Writes |
+|-------|-------|------|--------|
+| [`spec-creator`](./spec-creator.md) | opus | WHAT & WHY — feature spec with EARS ACs, six clarification categories, design analysis | Only the spec (`<module>/specs/`, `e2e/docs/specs/`, `specs/`) — hook-enforced |
+| [`researcher`](./researcher.md) | sonnet | Facts from code, MCP and the web, every claim with a locator | Only `docs/plans/<feature>.research.md`, on request — hook-enforced |
+| [`implementation-planner`](./implementation-planner.md) | opus | HOW & IN WHAT ORDER — verifies the spec, asks multi/single-agent, plan with AC-IDs per task | Only `docs/plans/<feature>.md` — hook-enforced |
+| [`implementer`](./implementer.md) | sonnet | Implements ONE plan task (backend or UI), self-verifies | Code, inside its Owned paths |
+| [`architecture-reviewer`](./architecture-reviewer.md) | sonnet | Read-only structural review of a diff | Nothing |
+| [`test-writer`](./test-writer.md) | sonnet | Tests derived from the spec's ACs (server + reviewer-core) | Test files only |
+| [`plan-verifier`](./plan-verifier.md) | sonnet | Read-only final gate: AC → task → test → commit | Nothing |
+| [`doc-writer`](./doc-writer.md) | sonnet | Long-lived documentation (Diátaxis + Mermaid) after implementation | Markdown docs |
 
-## Intended workflow
+## SDD pipeline
+
+`spec-creator` answers **what and why**; `implementation-planner` answers **how and in what order**.
+Six agents form the tight loop; `researcher` (facts before planning) and `doc-writer` (long-lived
+docs afterwards) matter but are not required for every feature.
 
 ```
-you / main session
-   └─ planner (opus, read-only) → <module>/specs/<feature>.md  (or specs/<feature>.md)
-         (decisions + rejected alternatives; phased tasks with Type · Skills · Owned paths ·
-          Depends-on · Acceptance)
-         └─ N× implementer (sonnet, parallel) — one task each, inside its Owned paths
-               └─ /pr-self-review (manual-only skill, run by the user) — final gate before push
+request + design sources
+  └─ spec-creator (opus) → <module>/specs/<feature>.md            Status: draft → approved (by you)
+       (six clarification categories · devdigest MCP · [NEEDS CLARIFICATION] · EARS AC-1…N)
+       └─ [researcher → docs/plans/<feature>.research.md]          optional
+            └─ implementation-planner (opus) → docs/plans/<feature>.md
+                 (spec check · multi- or single-agent? · every task → AC-N → test)
+                 └─ /run-plan plan:docs/plans/<feature>.md
+                      ├─ implementer ×N (sonnet)                   ≤ max-parallel at once
+                      ├─ architecture-reviewer (sonnet) → fix loop
+                      ├─ test-writer (sonnet) — tests from ACs → red test = fix the CODE
+                      └─ plan-verifier (sonnet) — AC → task → test → commit, final gate
+                           └─ /pr-self-review (manual) → commit → /workflow-retro (manual) → docs/retros/ledger.md
+                                └─ [doc-writer]                    optional
 ```
 
-The pipeline mirrors Claude Code's recommended **Explore → Plan → Implement → Commit** loop: the
-planner runs read-only during Plan, the implementers run during Implement, and review stays a
-separate fresh-context step.
+| Agent | Receives | Produces | How we check it |
+|-------|----------|----------|-----------------|
+| `spec-creator` | feature request + verified facts | `spec.md` with EARS criteria | every AC is atomic, verifiable and does not contradict another |
+| `researcher` | the spec + code / MCP | `research.md` | claims point to real files, symbols or data |
+| `implementation-planner` | `spec.md` + research results | `plan.md` mapping tasks to ACs | plan review — by another model if needed |
+| `implementer` | one or more plan tasks | a code diff | tests and the architecture gate |
+| `test-writer` | `spec.md`, ACs first | a test per criterion | tests come from requirements, not from the finished code's behaviour |
+| `architecture-reviewer` | the diff + `docs/` + `AGENTS.md` | findings with references | the project's architectural invariants |
+| `plan-verifier` | spec, plan and finished implementation | a completeness report | every AC has an implementation and a check |
+
+**Why tests come after the architecture gate.** Architecture fixes move code between files; tests
+written earlier would be rewritten. The risk of writing tests against finished code — copying the
+implementer's mistake — is covered by `test-writer` reading the spec before the code, naming every
+test with its AC-ID, and the `/run-plan` rule that a red AC test means fixing the code, never the
+test.
+
+**Older specs.** Specs written before this pipeline combine spec and plan in one
+`<module>/specs/<feature>.md` (with `R1…` requirements). They stay as they are; `plan-verifier`
+reads them by their `R`-ids.
+
+## Write restrictions (hooks)
+
+The three agents that write documents get a `PreToolUse` hook in their frontmatter, matching
+`Write|Edit|MultiEdit|NotebookEdit` and calling
+[`.claude/hooks/restrict-writes.sh`](../hooks/restrict-writes.sh) with their role:
+
+| Role | Allowed paths |
+|------|---------------|
+| `spec` (`spec-creator`) | `<client\|server\|reviewer-core\|mcp-server>/specs/*.md`, `e2e/docs/specs/*.md`, `specs/*.md` |
+| `plan` (`implementation-planner`) | `docs/plans/*.md` except `*.research.md` |
+| `research` (`researcher`) | `docs/plans/*.research.md` |
+
+Any other path exits 2: the call is blocked and the reason goes back to the agent. The script fails
+closed (no `jq` → blocked). The rule is also in each prompt; the hook is what makes it hold.
+
+## Budget
+
+Before a long workflow, check the budget on the usage dashboard — limits depend on the plan and the
+model, so there is no universal number. Expensive models are kept only where judgement dominates
+(`spec-creator`, `implementation-planner` on opus); the read-only reviewers moved from opus to
+sonnet because they follow structured checklists. On the first runs `/run-plan` keeps
+`max-parallel:2`, `max-fix:2` and `e2e:smoke`, but never switches off typecheck, unit tests or
+`pnpm arch:check` — without them you cannot see whether the pipeline itself works. After a full run,
+`/workflow-retro deep` (nested agents included) turns the numbers into actions and logs a row in
+[`docs/retros/ledger.md`](../../docs/retros/ledger.md).
+
+**Questions from subagents.** Subagents may run in the background, where `AskUserQuestion` is not
+available. `spec-creator` and `implementation-planner` then return a *Questions for the user* block
+and stop; the main session asks you and resumes the agent with `SendMessage`.
 
 ---
 
 ## `researcher`
 
-Pre-existing read-only research agent. Finds information inside the project or on the public
-internet and returns it in a strict template. Never edits files, never runs deep-research. The
-planner and implementer both follow its writing conventions (YAML frontmatter + Hard rules + fixed
-output template).
+Read-only research agent. Finds information inside the project (code, docs, config, the read-only
+devdigest MCP tools) or on the public internet and returns it in a strict template. In the SDD
+pipeline, a brief with `feature:<slug>` makes it save the result to
+`docs/plans/<slug>.research.md` — its only possible write. Never runs deep-research.
 
 ---
 
-## `planner`
+## `spec-creator`
 
-**What it does.** Turns a request into a structured, file-specific **Development Plan** written as
-the feature spec — `<module>/specs/<feature>.md`, or `specs/<feature>.md` when it spans packages. Knows every DevDigest module (`server/`, `client/`, `reviewer-core/`,
-`e2e/`, `@devdigest/shared`) and assigns each task a `Type`, a skill set, non-overlapping
-`Owned paths`, dependencies (a DAG), known gotchas from module insights, and measurable acceptance
-criteria. Read-only except for the plan file.
+**What it does.** Turns a request plus design sources (text, Figma links, screenshots, existing
+specs, the code) into one feature spec — the WHAT and WHY. It walks the request through DevDigest's
+six clarification categories (Data & loading · Display & sorting · Interactions · State &
+persistence · Feedback · Edge cases), checks the live system through the read-only devdigest MCP
+tools (`list_agents`, `get_findings`, `get_conventions`, `get_blast_radius` — never
+`run_agent_on_pr`), and analyses the design for gaps, uncovered corner cases, communication between
+modules and UX improvements. Blocking questions and UX proposals go to the user; the rest becomes
+`[NEEDS CLARIFICATION]` instead of a guess. Acceptance criteria are EARS with the local Ukrainian
+triggers (КОЛИ / ПОКИ / ЯКЩО … ТОДІ / ДЕ + `(shall)`) and `AC-N` ids; inputs carry provenance tags
+(`[reused: …]`, `[deterministic: …]`, `[new: N LLM call]`). Spec IDs are a global `SPEC-NN` counter.
 
-**Carries the full skill set.** It preloads the same skills the implementer uses (backend + UI +
-core practices) plus `mermaid-diagram`, on purpose: it plans the implementation, so every practice
-an implementer must follow has to be reflected in the plan.
+**Based on:**
+
+- **Spec-Driven Development, spec vs plan split, `[NEEDS CLARIFICATION]`** — [GitHub Spec Kit](https://github.com/github/spec-kit), [Spec-Driven Development with Agentic AI (ArceApps)](https://arceapps.com/blog/spec-driven-development-ai/)
+- **EARS** — [Easy Approach to Requirements Syntax (Mavin et al.)](https://alistairmavin.com/ears/)
+- **Acceptance criteria an agent can verify** — [BrainGrid](https://www.braingrid.ai/blog/how-to-write-acceptance-criteria-ai-agent-can-verify)
+- **Per-subagent hooks and MCP tools in `tools:`** — [Claude Code subagents docs](https://code.claude.com/docs/en/sub-agents), [Hooks reference](https://code.claude.com/docs/en/hooks)
+- Reference implementation — course branch `lesson-5-lab/sdd-finish` (`.claude/agents/spec-creator.md`)
+
+---
+
+## `implementation-planner`
+
+**What it does.** Formerly `planner`. Takes an **approved** spec and writes the Implementation Plan
+— `docs/plans/<feature>.md`. It no longer clarifies requirements: it first verifies the spec
+(atomic ACs, clear condition and response, no contradictions, behaviour not implementation, explicit
+non-goals, no open `[NEEDS CLARIFICATION]`, `Status: approved`) and sends it back to `spec-creator`
+if it fails. Then it raises implementation questions, recommends better approaches, and asks whether
+to execute **multi-agent** (parallel, non-overlapping Owned paths) or **single-agent** (one linear
+pass). Every task lists the `AC-N` it closes and the test that proves it; the plan has a
+`Traceability` table, a `Decisions` table with rejected alternatives, and a final `plan-verifier`
+phase. Carries the implementer's full skill set plus `mermaid-diagram`.
 
 **Based on:**
 
 - **`description` as the routing signal**, written as a trigger rule — [Claude Code subagents docs](https://code.claude.com/docs/en/sub-agents), [Best practices for Claude Code subagents (PubNub)](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/)
-- **Read-only planning, separated from implementation** (Explore → Plan → Implement) — [Best practices for Claude Code](https://code.claude.com/docs/en/best-practices); modelled on the built-in `Plan` subagent — [subagents docs](https://code.claude.com/docs/en/sub-agents)
+- **Read-only planning, separated from implementation** (Explore → Plan → Implement) — [Best practices for Claude Code](https://code.claude.com/docs/en/best-practices)
 - **Opus for design/architecture** (model tiering) — [wshobson/agents](https://github.com/wshobson/agents)
-- **Handoff via a written plan artifact** — [Best practices for Claude Code](https://code.claude.com/docs/en/best-practices)
-- **Strong plan structure** (overview, requirements, file-specific steps, phases, dependencies, testing, risks, success criteria) — [affaan-m/everything-claude-code · planner.md](https://github.com/affaan-m/everything-claude-code/blob/main/agents/planner.md)
-- **Plan anti-patterns → the Red-flags check** (measurable acceptance, every requirement maps to a task, dependencies form a DAG) — [Strategic Task Planner (subagents.app)](https://subagents.app/agents/planner)
-- **Preloading skills via the `skills:` field** (full skill body injected at startup) — [Extend Claude with skills](https://code.claude.com/docs/en/skills)
-- **Delegating heavy discovery to a subagent** to keep planning context clean — [subagents docs](https://code.claude.com/docs/en/sub-agents)
-- **Module-scoped insights** (read `<module>/INSIGHTS.md` rather than the whole repo) — project convention in [`/AGENTS.md`](../../AGENTS.md) "Read when", combined with the nested-skills pattern from [Extend Claude with skills](https://code.claude.com/docs/en/skills)
+- **Strong plan structure** — [affaan-m/everything-claude-code · planner.md](https://github.com/affaan-m/everything-claude-code/blob/main/agents/planner.md)
+- **Plan anti-patterns → the Red-flags check** — [Strategic Task Planner (subagents.app)](https://subagents.app/agents/planner)
+- **Preloading skills via `skills:`** — [Extend Claude with skills](https://code.claude.com/docs/en/skills)
+- **Requirements traceability (AC → task → test)** — [How to create a traceability matrix (Perforce)](https://www.perforce.com/blog/alm/how-create-traceability-matrix)
+- Reference implementation — course branch `lesson-5-lab/sdd-finish` (`.claude/agents/implementation-planner.md`)
 
 ---
 
 ## `implementer`
 
-**What it does.** Implements exactly one task from a Development Plan — backend (Fastify/Drizzle/
+**What it does.** Implements exactly one task from an Implementation Plan (`docs/plans/`) — backend (Fastify/Drizzle/
 onion) or UI (Next.js/React) — and brings it to green. Runs in parallel with other implementers on
 the **same branch** (no worktree isolation), so staying inside the task's `Owned paths` is what
-keeps the parallel run safe. Its self-check is narrow: write the code and make the module's existing
+keeps the parallel run safe. It reads the ACs its task closes and reports them (`Closes: AC-…`). Its self-check is narrow: write the code and make the module's existing
 tests + typecheck pass; broad review is left to `pr-self-review`.
 
 **Skill routing.** All relevant skills (backend + UI + core + always) are listed in the `skills:`
@@ -111,7 +191,9 @@ fake timers and seeded ids), injects `MockLLMProvider` (server) or a stub `LLMPr
 required to compile a test is permitted). Forbidden anti-patterns are encoded directly in its body:
 tautological assertions, over-mocking, snapshot tests on dynamic output, and non-deterministic test
 bodies. Self-verifies by running the affected suites and pasting terminal evidence before reporting
-done.
+done. **Spec first:** given a spec, it writes test cases from the ACs before reading the
+implementation, names each test with its AC-ID, and keeps a test red (reporting the mismatch) when
+the code contradicts an AC — tests come from requirements, not from the finished code.
 
 **Skill routing.** `react-testing-library` supplies RTL and vitest query conventions; `fastify-best-practices`,
 `drizzle-orm-patterns`, and `onion-architecture` anchor the backend test structure to the actual layering;
@@ -157,14 +239,15 @@ only.
 
 ## `plan-verifier`
 
-**What it does.** A **read-only** completeness checker (`tools: Read, Glob, Grep, Bash` — no
-`Edit` or `Write`). Given a Development Plan, it walks every requirement and acceptance criterion,
+**What it does.** The **final gate** of the SDD pipeline and a **read-only** completeness checker
+(`tools: Read, Glob, Grep, Bash` — no `Edit` or `Write`). Given the spec and the Implementation
+Plan, it walks every acceptance criterion `AC-N` and traces it to a plan task, a test and a commit;
 searches for the concrete implementing artifact (grep → structural glob → read), quotes verbatim
 evidence, and assigns one of four statuses: `done | partial | missing | cannot-verify`. `Bash` is
 used only to run grep/typecheck commands and capture output as evidence — never to modify state.
 After the per-requirement pass it performs an implicit-concerns sweep (error handling, auth,
 idempotency, test coverage, type safety). Output is a traceability matrix table followed by a gate
-verdict.
+verdict, plus coverage gaps (AC without task, AC without test, task without AC).
 
 **Skill routing.** The skill set is intentionally lean: `typescript-expert` to locate TypeScript
 artifacts, `onion-architecture` to know where backend artifacts should live, and

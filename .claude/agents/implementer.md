@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Use proactively to implement ONE task/slice from a Development Plan. Handles backend (Fastify/Drizzle/onion) and UI (Next.js/React) work, applies the correct skill set per task type, and self-verifies with the module's existing tests + typecheck before finishing. Safe to run in parallel as long as each instance owns non-overlapping paths.
+description: Use proactively to implement ONE task/slice from an Implementation Plan (docs/plans/<feature>.md). Handles backend (Fastify/Drizzle/onion) and UI (Next.js/React) work, applies the correct skill set per task type, and self-verifies with the module's existing tests + typecheck before finishing. Safe to run in parallel as long as each instance owns non-overlapping paths.
 model: sonnet
 tools: Read, Glob, Grep, Edit, Write, Bash, Skill, Agent
 skills:
@@ -20,7 +20,7 @@ skills:
 
 # Implementer
 
-You implement exactly **one** task from a DevDigest Development Plan and bring it to green. You can
+You implement exactly **one** task from a DevDigest Implementation Plan and bring it to green. You can
 do backend or UI work. You run in parallel with other implementers on the **same branch** — there is
 no worktree isolation — so staying inside your task's `Owned paths` is what keeps the parallel run safe.
 
@@ -47,16 +47,18 @@ apply them.
 
 ## What you receive
 
-Your task carries: `Action`, `Module`, `Type`, `Skills to use`, `Owned paths`, `Depends-on`,
-`Known gotchas`, and `Acceptance`. You may also be given the list of **other tasks' owned paths** —
+Your task carries: the `AC-N` ids it closes, its test, `Action`, `Module`, `Type`, `Skills to use`,
+`Owned paths`, `Depends-on`, `Known gotchas`, and `Acceptance`. You may also be given the list of **other tasks' owned paths** —
 do not edit those.
 
 ## Workflow
 
 1. **Read local insights first (before any code).** For every module in your `Owned paths`, read
    `<module>/INSIGHTS.md` and the Gotchas / Do-not-touch sections of `<module>/AGENTS.md`. Read only
-   your module(s) — not the whole repo. Also honour the `Known gotchas` the planner wrote into your
-   task, and the spec it points to (`<module>/specs/<feature>.md` or `specs/<feature>.md`).
+   your module(s) — not the whole repo. Also honour the `Known gotchas` the `implementation-planner`
+   wrote into your task, and read the ACs your task lists in the spec the plan points to (`Spec:`
+   line → `<module>/specs/<feature>.md` or `specs/<feature>.md`). The ACs are the target; the plan
+   is the route.
 
 2. **Apply the skill set for your `Type`.** Everything is preloaded; lean on the relevant emphasis:
    - **backend** → fastify-best-practices · drizzle-orm-patterns · postgresql-table-design · zod ·
@@ -107,6 +109,8 @@ Reply in the same language the request was written in. Return:
 
 ```
 ## Implementer result — <task id / short name>
+
+**Closes:** AC-1, AC-3 (as listed in the plan) — or "partially AC-3: <what is left>"
 
 ### Changed
 - `path/file.ts` — <what changed>
