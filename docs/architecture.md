@@ -1,11 +1,11 @@
 # Pipeline architecture
 
-The single source of truth for how DevDigest's 4 packages talk to each other.
+The single source of truth for how DevDigest's 5 packages talk to each other.
 Module-level `AGENTS.md` files link here instead of duplicating this text.
 
 ## Why this isn't a monorepo
 
-`client`, `server`, `reviewer-core`, `e2e` are four independent packages, each
+`client`, `server`, `reviewer-core`, `e2e`, `mcp-server` are five independent packages, each
 with its own `package.json` and lockfile; there are no workspaces. Shared code
 (`@devdigest/shared`, `@devdigest/ui`) isn't published as an npm package — it's
 **vendored** (copied) into `server/src/vendor/*` and `client/src/vendor/*`.
@@ -17,6 +17,8 @@ change in one copy doesn't propagate to the other automatically.
 ```mermaid
 flowchart LR
   WEB["client (Next.js) :3000"] -->|"REST: /repos /pulls /agents /runs"| API["server (Fastify) :3001"]
+  CC["Claude Code / any MCP client"] -->|"stdio JSON-RPC"| MCP["mcp-server<br/>5 tools, thin HTTP client"]
+  MCP -->|"same REST API"| API
   API --> PG[("Postgres + pgvector")]
   API -->|"git clone"| CLONE["repo checkout"]
   CLONE --> INTEL["repo-intel<br/>indexing → repo map"]
@@ -45,6 +47,16 @@ flowchart LR
 6. `server` persists the result in Postgres and streams progress via SSE
    (`fastify-sse-v2`) back to `client`.
 
+### Second entry point: MCP
+
+`mcp-server` lets Claude Code (or any MCP client) run the same flow from a
+terminal: `list_agents → run_agent_on_pr → get_findings`. It is a thin stdio
+client over the REST API above — no DB access, no business logic, no secrets —
+started by the client from the root `.mcp.json`, never by `./scripts/dev.sh`
+(the API must already be up). It imports `@devdigest/shared` **type-only**
+from `server/src/vendor/shared`, so it has no third copy of the contracts.
+Details → [mcp-server/AGENTS.md](../mcp-server/AGENTS.md).
+
 `@devdigest/shared` (Zod contracts) is the single source of truth for all
 three packages: one schema validates the request on the backend, serializes
 the response, and provides types on the frontend.
@@ -57,4 +69,4 @@ the response, and provides types on the frontend.
   volume along with every real imported repo and review, not just test data.
 - Each package's detailed gotchas live in its own `AGENTS.md`
   (`server/AGENTS.md`, `client/AGENTS.md`, `reviewer-core/AGENTS.md`,
-  `e2e/AGENTS.md`) and aren't duplicated here.
+  `e2e/AGENTS.md`, `mcp-server/AGENTS.md`) and aren't duplicated here.

@@ -33,6 +33,7 @@ import type {
   BlastCallerRow,
   BlastChangedSymbol,
   BlastResult,
+  DegradedReason,
   FileRankRow,
   IndexResult,
   IndexState,
@@ -220,17 +221,31 @@ export class RepoIntelService implements RepoIntel {
   async getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult> {
     // T3: serve from the persistent index when it's built. Falls through to the
     // ripgrep best-effort below when the flag is off / index is absent.
-    if (this.container.config.repoIntelEnabled && changedFiles.length > 0) {
-      const persistent = await this.tryPersistentBlast(repoId, changedFiles);
+    // Nothing changed → a healthy empty result (not "index incomplete").
+    if (this.container.config.repoIntelEnabled && changedFiles.length === 0) {
+      return { changedSymbols: [], callers: [], impactedEndpoints: [], degraded: false };
+    }
+    // One index-state read serves both the persistent path and the fallback reason.
+    const state = this.container.config.repoIntelEnabled
+      ? await this.repo.tryGetIndexState(repoId)
+      : null;
+    if (state) {
+      const persistent = await this.tryPersistentBlast(repoId, changedFiles, state);
       if (persistent) return persistent;
     }
+
+    // Honest fallback reason: flag off → 'flag_off'; otherwise whatever the
+    // pipeline stamped on the index state (failed → 'index_failed'), else 'no_data'.
+    const fallbackReason: DegradedReason = !this.container.config.repoIntelEnabled
+      ? 'flag_off'
+      : (state?.degradedReason ?? 'no_data');
 
     const empty: BlastResult = {
       changedSymbols: [],
       callers: [],
       impactedEndpoints: [],
       degraded: true,
-      reason: 'no_data',
+      reason: fallbackReason,
     };
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -299,7 +314,7 @@ export class RepoIntelService implements RepoIntel {
       callers: callerRows,
       impactedEndpoints: [...endpoints],
       degraded: true,
-      reason: 'no_data',
+      reason: fallbackReason,
     };
   }
 
@@ -315,15 +330,16 @@ export class RepoIntelService implements RepoIntel {
   private async tryPersistentBlast(
     repoId: string,
     changedFiles: string[],
+    state: IndexState,
   ): Promise<BlastResult | null> {
-    const state = await this.repo.tryGetIndexState(repoId);
-    if (!state || (state.status !== 'full' && state.status !== 'partial')) return null;
+    if ((state.status !== 'full' && state.status !== 'partial')) return null;
 
     // Changed symbols = declared in a changed file. Skip the qualified
     // `Class.method` dual-emit (the bare form already covers the name).
     const declRows = await this.repo.getSymbolRows(repoId, changedFiles);
     const changedSymbols: BlastChangedSymbol[] = [];
     const nameSet = new Set<string>();
+    const declFilesByName = new Map<string, Set<string>>();
     const seenSym = new Set<string>();
     for (const s of declRows) {
       if (s.name.includes('.')) continue;
@@ -333,13 +349,24 @@ export class RepoIntelService implements RepoIntel {
         changedSymbols.push({ file: s.path, name: s.name, kind: s.kind });
       }
       nameSet.add(s.name);
+      const decl = declFilesByName.get(s.name);
+      if (decl) decl.add(s.path);
+      else declFilesByName.set(s.name, new Set([s.path]));
     }
+    const partial = state.status === 'partial';
+    const health: Pick<BlastResult, 'degraded' | 'reason'> = partial
+      ? { degraded: true, reason: 'index_partial' }
+      : { degraded: false };
     if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
+      return { changedSymbols, callers: [], impactedEndpoints: [], ...health };
     }
 
     // Resolved cross-file callers.
-    const callerRows = await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet]);
+    // Same-file references are excluded BEFORE the per-symbol cap (the query does
+    // it too; this keeps the facade correct for any repository implementation).
+    const callerRows = (
+      await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet])
+    ).filter((c) => !declFilesByName.get(c.toSymbol)?.has(c.fromPath));
     const callerFiles = [...new Set(callerRows.map((c) => c.fromPath))];
 
     // Enclosing caller symbol from the callers' persistent symbol rows.
@@ -381,12 +408,22 @@ export class RepoIntelService implements RepoIntel {
       for (const e of f.endpoints) endpoints.add(e);
     }
 
+    // Cap per changed symbol (callers are already rank-sorted, so the
+    // lowest-ranked callers of each symbol are the ones dropped).
+    const perSymbol = new Map<string, number>();
+    const capped = callers.filter((c) => {
+      const n = perSymbol.get(c.viaSymbol) ?? 0;
+      if (n >= MAX_CALLERS_PER_SYMBOL) return false;
+      perSymbol.set(c.viaSymbol, n + 1);
+      return true;
+    });
+
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: capped,
       impactedEndpoints: [...endpoints],
       factsByFile,
-      degraded: false,
+      ...health,
     };
   }
 

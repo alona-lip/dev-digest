@@ -19,6 +19,7 @@ function buildDegradedService(opts: {
   flag: boolean;
   basics?: RepoBasics | null;
   indexStateRow?: IndexState | null;
+  repoOverrides?: Record<string, unknown>;
 }): RepoIntelService {
   const container = {
     config: { repoIntelEnabled: opts.flag },
@@ -36,6 +37,7 @@ function buildDegradedService(opts: {
     getCachedSymbols: async () => [],
     getCachedSymbolsForFiles: async () => [],
     getCachedReferencesTo: async () => [],
+    ...opts.repoOverrides,
   };
   return svc;
 }
@@ -121,5 +123,111 @@ describe('RepoIntel facade — degraded contract (flag on, but no data)', () => 
   it('getCallerSignatures with empty changedFiles → []', async () => {
     const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', defaultBranch: 'main', clonePath: '/tmp' } });
     await expect(svc.getCallerSignatures('r1', [])).resolves.toEqual([]);
+  });
+});
+
+const stateRow = (over: Partial<IndexState>): IndexState => ({
+  repoId: 'r1',
+  status: 'full',
+  filesIndexed: 1,
+  filesSkipped: 0,
+  durationMs: 0,
+  lastIndexedSha: 'abc',
+  indexerVersion: 1,
+  updatedAt: new Date(0),
+  ...over,
+});
+
+describe('RepoIntel facade — getBlastRadius reasons', () => {
+  it('flag off → flag_off', async () => {
+    const svc = buildDegradedService({ flag: false });
+    expect(await svc.getBlastRadius('r1', ['a.ts'])).toMatchObject({ degraded: true, reason: 'flag_off' });
+  });
+
+  it('flag on, no state row → no_data', async () => {
+    const svc = buildDegradedService({ flag: true, indexStateRow: null });
+    expect(await svc.getBlastRadius('r1', ['a.ts'])).toMatchObject({ degraded: true, reason: 'no_data' });
+  });
+
+  it('state failed → index_failed', async () => {
+    const svc = buildDegradedService({
+      flag: true,
+      indexStateRow: stateRow({ status: 'failed', degraded: true, degradedReason: 'index_failed' }),
+    });
+    expect(await svc.getBlastRadius('r1', ['a.ts'])).toMatchObject({ degraded: true, reason: 'index_failed' });
+  });
+
+  it('partial index with no symbols (early return) → degraded index_partial', async () => {
+    const svc = buildDegradedService({
+      flag: true,
+      indexStateRow: stateRow({ status: 'partial' }),
+      repoOverrides: { getSymbolRows: async () => [] },
+    });
+    expect(await svc.getBlastRadius('r1', ['a.ts'])).toMatchObject({
+      degraded: true,
+      reason: 'index_partial',
+      changedSymbols: [],
+    });
+  });
+
+  it('full index with no symbols → healthy', async () => {
+    const svc = buildDegradedService({
+      flag: true,
+      indexStateRow: stateRow({ status: 'full' }),
+      repoOverrides: { getSymbolRows: async () => [] },
+    });
+    const r = await svc.getBlastRadius('r1', ['a.ts']);
+    expect(r.degraded).toBe(false);
+    expect(r.reason).toBeUndefined();
+  });
+
+  it('partial index with symbols → degraded index_partial; cap applies per symbol', async () => {
+    const sym = (name: string) => ({ name, path: 'lib.ts', kind: 'function' });
+    const callersA = Array.from({ length: 25 }, (_, i) => ({
+      fromPath: `a${i}.ts`, toSymbol: 'A', line: i + 1, rank: 100 - i,
+    }));
+    const callersB = [0, 1, 2].map((i) => ({ fromPath: `b${i}.ts`, toSymbol: 'B', line: 1, rank: 1 + i }));
+    const svc = buildDegradedService({
+      flag: true,
+      indexStateRow: stateRow({ status: 'partial' }),
+      repoOverrides: {
+        getSymbolRows: async (_id: string, files: string[]) => (files.includes('lib.ts') ? [sym('A'), sym('B')] : []),
+        getResolvedCallers: async () => [...callersA, ...callersB],
+        getFileFacts: async () => [],
+      },
+    });
+    const r = await svc.getBlastRadius('r1', ['lib.ts']);
+    expect(r).toMatchObject({ degraded: true, reason: 'index_partial' });
+    expect(r.callers.filter((c) => c.viaSymbol === 'A')).toHaveLength(20);
+    expect(r.callers.filter((c) => c.viaSymbol === 'B')).toHaveLength(3);
+  });
+
+  it('flag on, empty changedFiles → healthy empty result (not degraded)', async () => {
+    const svc = buildDegradedService({ flag: true, indexStateRow: null });
+    const r = await svc.getBlastRadius('r1', []);
+    expect(r).toMatchObject({ degraded: false, changedSymbols: [], callers: [] });
+    expect(r.reason).toBeUndefined();
+  });
+
+  it('same-file references do not consume the per-symbol cap', async () => {
+    const sameFile = Array.from({ length: 5 }, (_, i) => ({
+      fromPath: 'lib.ts', toSymbol: 'A', line: i + 1, rank: 1000 - i,
+    }));
+    const cross = Array.from({ length: 22 }, (_, i) => ({
+      fromPath: `x${i}.ts`, toSymbol: 'A', line: 1, rank: 100 - i,
+    }));
+    const svc = buildDegradedService({
+      flag: true,
+      indexStateRow: stateRow({ status: 'full' }),
+      repoOverrides: {
+        getSymbolRows: async (_id: string, files: string[]) =>
+          files.includes('lib.ts') ? [{ name: 'A', path: 'lib.ts', kind: 'function' }] : [],
+        getResolvedCallers: async () => [...sameFile, ...cross],
+        getFileFacts: async () => [],
+      },
+    });
+    const r = await svc.getBlastRadius('r1', ['lib.ts']);
+    expect(r.callers).toHaveLength(20);
+    expect(r.callers.every((c) => c.file !== 'lib.ts')).toBe(true);
   });
 });

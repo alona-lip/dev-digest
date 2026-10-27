@@ -64,6 +64,12 @@ export interface ReviewInput {
    */
   callers?: string;
   /**
+   * Optional derived PR intent + scope lists (untrusted). Rendered right before
+   * the diff section, followed by the trusted scope rule. Empty/undefined →
+   * section omitted.
+   */
+  intent?: string;
+  /**
    * Optional repo skeleton / map (T3). Untrusted; rendered before the project
    * context section. Empty/undefined → section omitted.
    */
@@ -136,6 +142,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     memory: input.memory,
     specs: input.specs,
     callers: input.callers,
+    intent: input.intent,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
     task: input.task,

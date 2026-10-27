@@ -1,6 +1,6 @@
 ---
 name: pr-self-review
-description: "MANUAL ONLY — type /pr-self-review; the model never starts it on its own. PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done and the branch is not ready for a PR. Run it after implementing a change and before calling the task done, and before git push or opening a PR. Not for reviewing someone else's PR (use code-review)."
+description: "MANUAL ONLY — type /pr-self-review; the model never starts it on its own. PR Self Review: a second-pass review of your own changes, run BEFORE calling a task done and before opening a PR. Reviews the uncommitted diff (default) or the whole branch (--scope branch), groups changed files into buckets by surface — Frontend (client/: UI architecture + react + React Testing Library), Backend (server/: Onion + Fastify + Drizzle), Database, Engine, Shared contracts, MCP (mcp-server/: TypeScript + security) — runs those skills as independent reviewers plus deterministic checks, and returns PASS or BLOCK. One confirmed CRITICAL means BLOCK: the task is not done and the branch is not ready for a PR. Run it after implementing a change and before calling the task done, and before git push or opening a PR. Not for reviewing someone else's PR (use code-review)."
 disable-model-invocation: true
 metadata:
   version: 1.3.0
@@ -25,8 +25,8 @@ Intermediate files go in the scratchpad directory (`$SCRATCH`), never in the rep
 | **Before saying "done"** (session protocol, `AGENTS.md`) | `uncommitted` (default) | staged + unstaged + untracked vs `HEAD` | this exact working tree — any later edit makes it stale |
 | **Before `git push` / `gh pr create`** (by hand) | `branch` | everything since `merge-base` with `main`, committed | this exact commit |
 
-- **"Done" rule:** a task that changed code under `client/`, `server/` or
-  `reviewer-core/` is not done until this skill PASSes on the uncommitted diff.
+- **"Done" rule:** a task that changed code under `client/`, `server/`,
+  `reviewer-core/` or `mcp-server/` is not done until this skill PASSes on the uncommitted diff.
   `$S/gate.sh check --worktree` tells you whether the current tree has a PASS.
   Do not report the task as complete on BLOCK — report what blocks instead.
 - **PR rule:** before pushing or opening a PR, get a `--scope branch` PASS for

@@ -11,11 +11,14 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  PathPullRequests,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
 const TIMEOUT = 30_000;
+/** PRs read per commit in the path-history query (a commit is usually in one merged PR). */
+const PRS_PER_COMMIT = 5;
 
 /**
  * A failed GitHub API call, as the rest of the app sees it: an AppError (so
@@ -42,6 +45,40 @@ export function toGitHubError(err: unknown): unknown {
   const message = raw.replace(/\s+-\s+https:\/\/docs\.github\.com\S*$/, '');
   return new GitHubRequestError(`GitHub: ${message} (${status})`, status);
 }
+
+/**
+ * GraphQL query: one aliased `history(path:)` per path. Paths are variables
+ * (`$p0…`), never part of the query text — no injection through file names.
+ */
+export function buildPathHistoryQuery(count: number): string {
+  const vars = Array.from({ length: count }, (_, i) => `, $p${i}: String!`).join('');
+  const fields = Array.from(
+    { length: count },
+    (_, i) => `f${i}: history(first: $perPath, path: $p${i}) {
+          nodes { associatedPullRequests(first: ${PRS_PER_COMMIT}) { nodes { number title mergedAt author { login } } } }
+        }`,
+  ).join('\n        ');
+  return `query($owner: String!, $name: String!, $ref: String!, $perPath: Int!${vars}) {
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $ref) {
+      target {
+        ... on Commit {
+        ${fields}
+        }
+      }
+    }
+  }
+}`;
+}
+
+interface PathHistoryNode {
+  associatedPullRequests?: {
+    nodes?: ({ number: number; title: string; mergedAt: string | null; author: { login: string } | null } | null)[];
+  };
+}
+type PathHistoryResponse = {
+  repository: { ref: { target: Record<string, { nodes?: PathHistoryNode[] } | undefined> | null } | null } | null;
+};
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -393,6 +430,62 @@ export class OctokitGitHubClient implements GitHubClient {
       body: res.data.body,
       state: res.data.state,
     };
+  }
+
+  async listPathPullRequests(
+    repo: RepoRef,
+    base: string,
+    paths: string[],
+    perPath: number,
+  ): Promise<PathPullRequests[]> {
+    if (paths.length === 0) return [];
+    const vars: Record<string, string | number> = {
+      owner: repo.owner,
+      name: repo.name,
+      ref: `refs/heads/${base}`,
+      perPath,
+    };
+    paths.forEach((p, i) => {
+      vars[`p${i}`] = p;
+    });
+    let data: PathHistoryResponse;
+    try {
+      // Retry wraps only the raw call: HTTP 5xx/429 arrive from the request hook
+      // with their real `status` and are retried; a GraphQL error (HTTP 200 +
+      // `errors`) has no `status`, so it is deterministic and is not retried.
+      data = await withRetry(() =>
+        withTimeout(this.octokit.graphql<PathHistoryResponse>(buildPathHistoryQuery(paths.length), vars), TIMEOUT),
+      );
+    } catch (err) {
+      // Mapped AFTER the retry loop — an ExternalServiceError carries statusCode
+      // 502, which `withRetry` would otherwise treat as a retryable 5xx.
+      if (err instanceof ExternalServiceError) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ExternalServiceError(`GitHub GraphQL: ${msg}`);
+    }
+    // A deleted/renamed base branch answers `ref: null` with no `errors`. That is an
+    // unknown answer, not "no prior PRs" — fail it instead of returning [].
+    const target = data.repository?.ref?.target;
+    if (!target) {
+      throw new ExternalServiceError(`GitHub: branch '${base}' not found in ${repo.owner}/${repo.name}`);
+    }
+    // Per-path dedupe is part of the port contract (one entry per PR per path);
+    // cross-path aggregation is domain logic and lives in blast/helpers.ts.
+    return paths.map((path, i) => {
+      const seen = new Map<number, PathPullRequests['prs'][number]>();
+      for (const commit of target[`f${i}`]?.nodes ?? []) {
+        for (const pr of commit.associatedPullRequests?.nodes ?? []) {
+          if (!pr || seen.has(pr.number)) continue;
+          seen.set(pr.number, {
+            number: pr.number,
+            title: pr.title,
+            merged_at: pr.mergedAt,
+            author: pr.author?.login ?? 'unknown',
+          });
+        }
+      }
+      return { path, prs: [...seen.values()] };
+    });
   }
 
   async currentLogin(): Promise<string> {

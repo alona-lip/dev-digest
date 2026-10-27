@@ -95,7 +95,13 @@ d('skills module (Testcontainers pg)', () => {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         github: new MockGitHubClient(),
-        llm: { openai: llm },
+        // The Intent Layer's model (review_intent → openrouter) — mocked so review runs stay hermetic.
+        llm: {
+          openai: llm,
+          openrouter: new MockLLMProvider('openai', {
+            structuredBySchema: { Intent: { intent: 'test PR', in_scope: [], out_of_scope: [] } },
+          }),
+        },
         urlFetcher: urls,
       },
     });

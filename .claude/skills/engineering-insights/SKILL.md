@@ -1,6 +1,6 @@
 ---
 name: engineering-insights
-description: "Appends non-obvious engineering findings to the touched module's INSIGHTS.md (client, server, reviewer-core, e2e). Use when a non-trivial bug is diagnosed, a surprising codebase, tool or library behaviour is found, a design decision is made with a reason, an approach is tried and abandoned, or a task that involved debugging or a decision is wrapping up. Also use when the user says add to insights, capture learnings, record insights, wrap up, or engineering insights. Reads the existing file first, never duplicates, writes only substantial file-grounded entries, and is strictly append-only — never overwrites."
+description: "Appends non-obvious engineering findings to the touched module's INSIGHTS.md (client, server, reviewer-core, e2e, mcp-server). Use when a non-trivial bug is diagnosed, a surprising codebase, tool or library behaviour is found, a design decision is made with a reason, an approach is tried and abandoned, or a task that involved debugging or a decision is wrapping up. Also use when the user says add to insights, capture learnings, record insights, wrap up, or engineering insights. Reads the existing file first, never duplicates, writes only substantial file-grounded entries, and is strictly append-only — never overwrites."
 ---
 
 # Engineering Insights
@@ -57,6 +57,7 @@ The module is whichever the task's file paths belong to:
 | `server/**` (incl. `server/src/modules/repo-intel`) | `server/INSIGHTS.md` |
 | `reviewer-core/**` | `reviewer-core/INSIGHTS.md` |
 | `e2e/**` | `e2e/INSIGHTS.md` |
+| `mcp-server/**` | `mcp-server/INSIGHTS.md` |
 | several modules | the one holding the evidence; one entry per module only if each has its own evidence |
 | nothing under a module (`scripts/`, `docs/`, docker) | do not invent a file — say so and propose `docs/` |
 

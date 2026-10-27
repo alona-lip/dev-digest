@@ -140,6 +140,12 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
+/** Merged-PR candidates that touched one path (see `GitHubClient.listPathPullRequests`). */
+export interface PathPullRequests {
+  path: string;
+  prs: { number: number; title: string; merged_at: string | null; author: string }[];
+}
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
@@ -164,6 +170,18 @@ export interface GitHubClient {
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
+  /**
+   * For each path, the PRs associated with its last `perPath` commits on `base`
+   * (one GraphQL call; paths travel as variables). A missing `base` ref throws
+   * (an unknown answer, not an empty history).
+   * `merged_at` is null for unmerged PRs; callers filter.
+   */
+  listPathPullRequests(
+    repo: RepoRef,
+    base: string,
+    paths: string[],
+    perPath: number,
+  ): Promise<PathPullRequests[]>;
 }
 
 // ---------- Git (simple-git, heavy) ----------

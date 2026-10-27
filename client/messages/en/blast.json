@@ -1,4 +1,9 @@
 {
+  "title": "Blast radius",
+  "error": "Couldn't load the blast radius",
+  "resync": "Resync index",
+  "resyncing": "Resyncing…",
+  "resyncError": "Resync failed: {message}",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
@@ -6,13 +11,39 @@
     "crons": "cron/jobs"
   },
   "view": {
+    "label": "Blast radius view",
     "tree": "tree",
     "graph": "graph"
   },
+  "degraded": {
+    "label": "Index incomplete: {reason}"
+  },
+  "reason": {
+    "flagOff": "repo intelligence is turned off",
+    "indexFailed": "indexing failed",
+    "indexPartial": "the index is only partial",
+    "repoTooLarge": "the repo is too large",
+    "noData": "no index data yet"
+  },
+  "expand": "Expand {symbol}",
+  "collapse": "Collapse {symbol}",
   "callerCount": "{count} callers",
   "noDownstream": "{count} changed symbol(s), no downstream callers found.",
   "graph": {
     "empty": "No downstream callers to graph.",
-    "ariaLabel": "Blast radius graph"
+    "ariaLabel": "Blast radius graph",
+    "open": "Open full size",
+    "legend": {
+      "symbol": "Changed symbol",
+      "caller": "Caller",
+      "endpoint": "Endpoint",
+      "cron": "Cron / job"
+    }
+  },
+  "prior": {
+    "title": "Prior PRs touching these files",
+    "empty": "No prior PRs overlap these files.",
+    "error": "Couldn't load prior PRs: {message}",
+    "overlap": "{count} overlap"
   }
 }

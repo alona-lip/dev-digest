@@ -168,5 +168,13 @@
       "confirmDelete": "Delete this \"{agent}\" review run and its findings?",
       "agentLower": "agent"
     }
+  },
+  "intent": {
+    "title": "Intent",
+    "recompute": "Recompute",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "none": "Nothing listed",
+    "error": "Couldn't derive the PR intent: {message}"
   }
 }

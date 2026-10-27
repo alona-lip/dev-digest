@@ -143,3 +143,27 @@ opt-in setup.
 **Rejected alternative.** Keep the hook but make it warn instead of block: it
 still fires on every `Bash` call and still nudges the model into running the
 review, i.e. auto-invocation by another name.
+
+## 2026-10-25 — MCP bucket for `mcp-server/`
+
+**Decision.** A sixth bucket, **MCP**, routes `mcp-server/{src,test}/**/*.ts` and
+`mcp-server/scripts/**/*.mjs`. Core = `typescript-expert` + `security` (pinned in
+`required_core`); tests get `typescript-expert` only; `zod` joins for files that
+import it. New check `mcp-server-typecheck-tests` (`pnpm typecheck && pnpm test` in
+`mcp-server`); `mcp-server/pnpm-lock.yaml` joins the lockfile pairs;
+`mcp-server/**/*.md` is ignored like the other modules' docs.
+
+**Why.** The first `/pr-self-review` on the Lab 4 diff returned a formal PASS with
+0 reviews: all 36 `mcp-server/` files were "Not covered", because routing only
+knew `client/`, `server/` and `reviewer-core/`. The MCP server is a trust boundary
+— its tool arguments come from a model and it holds the only write path to the API
+from a terminal — so it needs a security reviewer, not just checks.
+
+**Why not `onion-architecture` / `fastify-best-practices`.** Both skills describe
+the server and reviewer-core rings (Fastify routes, DI container, dependency-cruiser
+rules); `mcp-server` has no Fastify, no container and no arch:check, so they would
+review against rules that do not apply.
+
+**Known limit.** `typescript-expert` is capped at WARNING (`caps`), so in this
+bucket only `security` and the deterministic check can BLOCK.
+

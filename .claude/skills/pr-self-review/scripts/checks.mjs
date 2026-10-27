@@ -31,6 +31,7 @@ const LOCKFILES = [
   ['server/pnpm-lock.yaml', 'server/package.json'],
   ['reviewer-core/package-lock.json', 'reviewer-core/package.json'],
   ['e2e/package-lock.json', 'e2e/package.json'],
+  ['mcp-server/pnpm-lock.yaml', 'mcp-server/package.json'],
 ];
 
 /** Command checks: name → [command, cwd relative to the repo root]. */
@@ -41,6 +42,7 @@ const COMMANDS = {
   'server-typecheck-tests': ["pnpm typecheck && pnpm exec vitest run --exclude '**/*.it.test.ts'", 'server'],
   'client-typecheck-tests': ['pnpm typecheck && pnpm test', 'client'],
   'reviewer-core-typecheck-tests': ['npm run typecheck && npm test', 'reviewer-core'],
+  'mcp-server-typecheck-tests': ['pnpm typecheck && pnpm test', 'mcp-server'],
 };
 
 /** Checks implemented in code rather than as a command. */

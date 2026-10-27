@@ -2,7 +2,8 @@
   "$comment": "Source of truth for pr-self-review routing. Each changed file lands in exactly ONE bucket (first match wins); it is reviewed by the bucket's core skills plus every matching extra. After editing run: node scripts/route.mjs --print-table > routing.md && node scripts/check-routing.mjs",
   "required_core": {
     "Frontend": ["frontend-architecture", "react-best-practices", "react-testing-library"],
-    "Backend": ["onion-architecture", "fastify-best-practices", "drizzle-orm-patterns"]
+    "Backend": ["onion-architecture", "fastify-best-practices", "drizzle-orm-patterns"],
+    "MCP": ["typescript-expert", "security"]
   },
   "buckets": [
     {
@@ -83,6 +84,19 @@
       "match": ["{client,server,reviewer-core}/src/vendor/shared/**/*.ts"],
       "core": ["zod"],
       "checks": ["check-shared"]
+    },
+    {
+      "name": "MCP",
+      "description": "Local stdio MCP server — mcp-server (thin HTTP client over the API; tool args come from a model)",
+      "match": ["mcp-server/{src,test}/**/*.ts", "mcp-server/scripts/**/*.mjs"],
+      "core": ["typescript-expert", "security"],
+      "overrides": [
+        { "match": ["mcp-server/test/**"], "core": ["typescript-expert"] }
+      ],
+      "extras": [
+        { "label": "files importing zod", "match": ["**"], "contains": "from ['\"]zod['\"]", "skills": ["zod"] }
+      ],
+      "checks": ["mcp-server-typecheck-tests"]
     }
   ],
   "checks": {
@@ -93,10 +107,11 @@
     "arch-check": { "on": ["server/src/**", "reviewer-core/src/**", "server/.dependency-cruiser*"] },
     "server-typecheck-tests": { "on": ["server/src/**", "server/test/**", "server/package.json", "server/tsconfig*.json", "server/vitest*"] },
     "client-typecheck-tests": { "on": ["client/src/**", "client/package.json", "client/tsconfig*.json", "client/vitest*"] },
-    "reviewer-core-typecheck-tests": { "on": ["reviewer-core/src/**", "reviewer-core/test/**", "reviewer-core/package.json", "reviewer-core/tsconfig*.json", "reviewer-core/vitest*"] }
+    "reviewer-core-typecheck-tests": { "on": ["reviewer-core/src/**", "reviewer-core/test/**", "reviewer-core/package.json", "reviewer-core/tsconfig*.json", "reviewer-core/vitest*"] },
+    "mcp-server-typecheck-tests": { "on": ["mcp-server/src/**", "mcp-server/test/**", "mcp-server/scripts/**", "mcp-server/package.json", "mcp-server/tsconfig*.json", "mcp-server/vitest*"] }
   },
   "ignore": [
-    "*.md", "docs/**", "specs/**", "{client,server,reviewer-core,e2e}/**/*.md",
+    "*.md", "docs/**", "specs/**", "{client,server,reviewer-core,e2e,mcp-server}/**/*.md",
     "**/pnpm-lock.yaml", "**/package-lock.json", "**/*.lock",
     "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,pdf}",
     "server/clones/**", "**/node_modules/**", "server/src/db/migrations/meta/**"

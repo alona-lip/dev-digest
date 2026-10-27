@@ -110,6 +110,9 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
+  /** The Intent Layer's model (`review_intent` → openrouter by default) — mocked so runs stay hermetic. */
+  const INTENT_FIXTURE = { intent: 'Move the Stripe key into config', in_scope: ['src/config.ts'], out_of_scope: [] };
+
   function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
     return buildApp({
       config: config(),
@@ -118,6 +121,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
+          openrouter: new MockLLMProvider('openai', { structuredBySchema: { Intent: INTENT_FIXTURE } }),
           [provider]: new MockLLMProvider(provider, { structured }),
         },
       },
@@ -202,6 +206,15 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
     expect(trace.log.length).toBeGreaterThan(0);
+
+    // Intent Layer: derived once before the agent, stored, and in the prompt as
+    // an untrusted `## Intent` section followed by the trusted scope rule.
+    expect(trace.prompt_assembly.intent).toContain('Intent: Move the Stripe key into config');
+    expect(trace.prompt_assembly.user).toContain('## Intent\n<untrusted source="intent">');
+    expect(trace.prompt_assembly.user).toContain('exactly ONE signal finding');
+    expect(trace.log.some((l: { msg: string }) => l.msg.startsWith('intent: computed and stored'))).toBe(true);
+    const intent = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/intent` })).json();
+    expect(intent).toEqual({ ...INTENT_FIXTURE, pr_id: pr.id });
 
     // agent_runs row populated for A5 to aggregate
     const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
