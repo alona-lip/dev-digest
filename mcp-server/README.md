@@ -33,9 +33,9 @@ tool can make one.
 
 | Tool | Args | Returns | Hints |
 |---|---|---|---|
-| `list_agents` | — | `{agents:[{id, name, enabled, model}]}` | read-only |
+| `list_agents` | — | `{agents:[{id, name, description, enabled, model}]}` | read-only |
 | `run_agent_on_pr` | `repo`, `pr`, `agent` | `{repo, pr, run_id, agent, verdict, score, summary, counts, total, returned, findings[≤20], more?}`; over ~2 min → `{status:"running", run_id, next}` | **writes** (starts a paid LLM run, 10/min), open-world |
-| `get_findings` | `repo`, `pr`, `run_id?`, `response_format?` (`concise`\|`detailed`), `offset?`, `limit?` | same page shape, worst first; `counts` over all findings | read-only |
+| `get_findings` | `repo`, `pr`, `run_id?`, `agent?`, `all_runs?`, `response_format?` (`concise`\|`detailed`), `offset?`, `limit?` | `{repo, pr, total_findings, reviews:[{run_id, agent, verdict, score, summary, counts, total, returned, offset, findings[]}]}` — latest review only, or every run (newest first) with `all_runs: true`; `agent` narrows to one reviewer; `offset`/`limit` page each review | read-only |
 | `get_conventions` | `repo` | `{repo, conventions:[{rule, category, status, file, confidence}]}`, ACCEPTED first | read-only |
 | `get_blast_radius` | `repo`, `pr` | `{repo, pr, summary, degraded, reason, changed_symbols: ["name@file"], downstream: [{symbol, callers, endpoints_affected, crons_affected}]}` — what else the PR reaches; read-only, no LLM | read-only |
 
@@ -67,6 +67,7 @@ pnpm typecheck && pnpm test   # tsc + vitest (core/, fake client, no network)
 pnpm call                     # list the 5 tools with their annotations
 pnpm call list_agents
 pnpm call get_findings '{"repo":"owner/name","pr":3}'
+pnpm call get_findings '{"repo":"owner/name","pr":3,"agent":"Security Reviewer","all_runs":true}'
 pnpm call run_agent_on_pr '{"repo":"owner/name","pr":3,"agent":"nope"}'   # → isError + valid ids
 
 pnpm inspect                  # MCP Inspector UI: Connect → Tools → List Tools

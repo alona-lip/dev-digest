@@ -244,6 +244,13 @@ by hand in the same format.
   shallow (`CLONE_DEPTH = 1`), and REST `pulls.list` + `listFiles` per PR would be 50+ calls per open.
   ALWAYS add GitHub-backed extras to the blast card as their own route. (`server/src/modules/blast/service.ts`,
   `server/src/adapters/github/octokit.ts`, `specs/blast-radius.md` "Prior PRs follow-up")
+- 2026-10-27 — dropping blast callers that live in the changed symbol's own declaration file is
+  the repo-intel FACADE's job, on both paths: persistent `declFilesByName` in `tryPersistentBlast`
+  and the ripgrep fallback's `r.fromPath === sym.file`. `blast/helpers.ts` used to keep its own copy,
+  and the copies already disagreed: the helper matched the name across all declaration files, while
+  the fallback matches the exact `symbol@file` pair. Review asked to remove it. NEVER re-filter
+  `BlastResult.callers` in a consumer. Map it as-is and fix the rule inside the facade.
+  (`server/src/modules/repo-intel/service.ts` `getBlastRadius`, `server/src/modules/blast/helpers.ts` `toBlastRadius`)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`

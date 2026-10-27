@@ -69,7 +69,7 @@ export function registerRunAgentOnPr(server: McpServer, client: DevDigestClient)
           ...page,
           agent: picked.name,
           ...(page.total > page.returned
-            ? { more: `Showing ${page.returned} of ${page.total}. Page the rest with get_findings (offset ${page.returned}).` }
+            ? { more: `Showing ${page.returned} of ${page.total}. Page the rest with get_findings (run_id '${outcome.run_id}', offset ${page.returned}).` }
             : {}),
         });
       } catch (err) {

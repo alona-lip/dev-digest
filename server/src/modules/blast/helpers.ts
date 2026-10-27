@@ -28,21 +28,14 @@ export function buildSummary(counts: BlastCounts, degraded: boolean, reason: Deg
 /**
  * Facade `BlastResult` → the wire `BlastRadius`: one group per changed symbol that
  * has callers, ordered by the highest caller rank; callers by rank (stable);
- * a caller in the symbol's own declaration file is dropped; endpoints/crons are
- * the deduplicated union over the group's caller files. `summary` is left to the
- * service (it needs the degraded flag).
+ * endpoints/crons are the deduplicated union over the group's caller files.
+ * Pure mapping: the facade already drops callers in the symbol's own declaration
+ * file, so no filtering here. `summary` is left to the service (it needs the
+ * degraded flag).
  */
 export function toBlastRadius(result: BlastResult): Omit<BlastRadius, 'summary'> {
-  const declFiles = new Map<string, Set<string>>();
-  for (const s of result.changedSymbols) {
-    const set = declFiles.get(s.name);
-    if (set) set.add(s.file);
-    else declFiles.set(s.name, new Set([s.file]));
-  }
-
   const groups = new Map<string, BlastCallerRow[]>();
   for (const c of result.callers) {
-    if (declFiles.get(c.viaSymbol)?.has(c.file)) continue;
     const arr = groups.get(c.viaSymbol);
     if (arr) arr.push(c);
     else groups.set(c.viaSymbol, [c]);

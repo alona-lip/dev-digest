@@ -27,10 +27,11 @@ export function toolError(message: string): ToolResult {
 
 // ---- Compact projections --------------------------------------------------
 
-export type CompactAgent = Pick<AgentListItem, 'id' | 'name' | 'enabled' | 'model'>;
+/** `description` stays: it is what lets the model pick a reviewer without opening each one. */
+export type CompactAgent = Pick<AgentListItem, 'id' | 'name' | 'description' | 'enabled' | 'model'>;
 
 export function compactAgent(a: AgentListItem): CompactAgent {
-  return { id: a.id, name: a.name, enabled: a.enabled, model: a.model };
+  return { id: a.id, name: a.name, description: a.description, enabled: a.enabled, model: a.model };
 }
 
 /** `line` = start_line: one clean file:line signal per finding. */

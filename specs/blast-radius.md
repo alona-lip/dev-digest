@@ -740,3 +740,17 @@ Self-review follow-up (2026-10-26), superseding two R18 details:
   is unknown — the same rule `changedFiles` follows.
 - `GET /pulls/:id/blast/history` has a per-route rate limit (20 / minute, like intent), since
   every call spends a GitHub GraphQL request.
+
+Review follow-up (2026-10-27), superseding the last sentence of R4 and the "Drop a caller…" step
+of `toBlastRadius`: the declaration-file filter is **removed from `blast/helpers.ts`**.
+`toBlastRadius` is a pure mapping of `BlastResult` to the contract, and dropping callers in the
+symbol's own declaration file is the facade's job. Both facade paths already do it: persistent
+via `declFilesByName` in `tryPersistentBlast`, ripgrep via `r.fromPath === sym.file`. One known
+difference: the ripgrep fallback matches the exact `symbol@file` pair, while the removed helper
+matched the name across all declaration files. When the same name is declared in two changed
+files, the fallback can now list a caller the helper used to hide. That is facade behaviour and
+gets fixed there if it matters.
+
+| Decision | Choice | Rejected alternative (reason) |
+|---|---|---|
+| Declaration-file filter | Only in the repo-intel facade; `toBlastRadius` maps the result as-is | Keep a second filter in `blast` "as a guard": the facade already guarantees it for any repository implementation (`tryPersistentBlast` comment), and two copies of the rule drift (they already differed for the ripgrep path) |

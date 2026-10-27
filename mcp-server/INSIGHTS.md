@@ -10,6 +10,12 @@ Non-obvious findings from real sessions. Append-only: correct an entry with a ne
 
 ## Codebase Patterns
 
+- 2026-10-27 — `get_findings` without `run_id` answers with the LATEST review of the PR, which is
+  not necessarily the run the model just started: another agent or a newer run may have finished
+  since. ALWAYS put `run_id` in any "page the rest with get_findings" hint. Also, `offset`/`limit`
+  page EACH review in `reviews[]` separately, not across them, so with `all_runs` a page can hold
+  up to `limit × runs` findings. (`src/tools/run-agent-on-pr.ts` `more`, `src/core/findings.ts` `shapeReviews`)
+
 ## Tool & Library Notes
 
 - 2026-10-24 — `@modelcontextprotocol/sdk` 1.32 validates tool args against the Zod shape itself and answers a bad call (e.g. `pr: 0`) with plain text `MCP error -32602: Input validation error: … at pr` — not our `{error}` JSON, and the handler never runs. Anything that parses tool output (harness, tests) must fall back to raw text instead of `JSON.parse` blindly. (`mcp-server/scripts/call.mjs`, `pretty()`)

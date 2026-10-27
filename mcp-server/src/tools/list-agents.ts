@@ -9,8 +9,8 @@ export function registerListAgents(server: McpServer, client: DevDigestClient): 
     {
       title: 'List DevDigest reviewer agents',
       description:
-        'List the reviewer agents configured in DevDigest (id, name, model, enabled). ' +
-        'Call this FIRST whenever you need an agent for run_agent_on_pr — pass an id from here, never a guessed one. ' +
+        'List the reviewer agents configured in DevDigest (id, name, description, model, enabled). ' +
+        'Call this FIRST whenever you need an agent for run_agent_on_pr — pick the reviewer by its description and pass its id, never a guessed one. ' +
         'Only DevDigest knows this configuration.',
       annotations: READ_ONLY,
     },

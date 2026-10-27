@@ -50,9 +50,9 @@ Claude Code у терміналі або будь-який клієнт з MCP. 
 
 | Tool | Аргументи | Відповідь | readOnly | idempotent | openWorld |
 |---|---|---|---|---|---|
-| `list_agents` | — | `{agents:[{id, name, enabled, model}]}` | ✅ | ✅ | ❌ |
+| `list_agents` | — | `{agents:[{id, name, description, enabled, model}]}` | ✅ | ✅ | ❌ |
 | `run_agent_on_pr` | `repo`, `pr`, `agent` | готово: `{run_id, agent, verdict, score, summary, counts, total, returned, findings[]}` (≤ 20, найважчі першими); не встигло за 120 с: `{status:"running", run_id, repo, pr, next}` | ❌ | ❌ | ✅ |
-| `get_findings` | `repo`, `pr`, `run_id?`, `response_format?`, `offset?`, `limit?` | `{run_id, agent, verdict, score, summary, counts, total, returned, offset, findings[]}` | ✅ | ✅ | ❌ |
+| `get_findings` | `repo`, `pr`, `run_id?`, `agent?`, `all_runs?`, `response_format?`, `offset?`, `limit?` | `{repo, pr, total_findings, reviews:[{run_id, agent, verdict, score, summary, counts, total, returned, offset, findings[]}]}`, новіші рев'ю першими | ✅ | ✅ | ❌ |
 | `get_conventions` | `repo` | `{repo, conventions:[{rule, category, status, file, confidence}]}`, ACCEPTED першими | ✅ | ✅ | ❌ |
 | `get_blast_radius` | `repo`, `pr` | `{repo, pr, summary, degraded, reason, changed_symbols:["name@file"], downstream:[{symbol, callers[{name,file,line}], endpoints_affected, crons_affected}]}` (той самий `GET /pulls/:id/blast`, що й блок в UI) | ✅ | ✅ | ❌ |
 
@@ -192,3 +192,16 @@ Tool Search у Claude Code лише відкладає схеми; він не �
 
 - **`get_blast_radius` більше не заглушка (2026-10-25).** Інструмент читає `GET /pulls/:id/blast`
   (`core/blast.ts`, обов'язкові `repo`/`pr`); деталі — [../../specs/blast-radius.md](../../specs/blast-radius.md).
+
+- **Зауваження рев'ю (2026-10-27).**
+  - `list_agents` віддає `description`: за ним агент-клієнт обирає рев'юера, не відкриваючи кожного.
+  - `get_findings` повертає `{total_findings, reviews[]}`, де знахідки вкладені в своє рев'ю, замість одного плаского списку з `total`.
+  - Нові `agent?` (через `resolveAgent`, фільтр за `agent_id`) і `all_runs?` (усі завершені рев'ю, новіші першими; без нього лише останнє).
+  - `run_id` разом з `all_runs` дає помилку. `run_id` чужого агента дає помилку з назвою власника.
+  - `offset`/`limit` діють на кожне рев'ю окремо.
+  - `run_agent_on_pr` лишається пласким (один прогін). Його підказка `more` тепер містить `run_id`, бо без нього `get_findings` відповідає останнім рев'ю, яке може бути іншим.
+
+  | Рішення | Вибір | Відхилена альтернатива (причина) |
+  |---|---|---|
+  | Paging при `all_runs` | `offset`/`limit` на кожне рев'ю | Глобальний offset по всіх рев'ю: зсув перетинає межі рев'ю, і модель губить, якому прогону належить знахідка |
+  | Фільтр за агентом | Параметр `agent` у `get_findings` | Тільки `all_runs` по всіх агентах: модель мусила б сама відсіювати `reviews[].agent` і тягнути зайві знахідки в контекст |

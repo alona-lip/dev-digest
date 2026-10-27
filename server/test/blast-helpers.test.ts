@@ -15,7 +15,6 @@ const base: BlastResult = {
     caller('x.ts', 'A', 1),
     caller('y.ts', 'B', 9),
     caller('z.ts', 'A', 5),
-    caller('lib/a.ts', 'A', 99), // declaration file: dropped
   ],
   impactedEndpoints: [],
   factsByFile: {
@@ -25,7 +24,7 @@ const base: BlastResult = {
 };
 
 describe('toBlastRadius', () => {
-  it('groups, orders callers by rank and groups by max rank, drops declaration file', () => {
+  it('groups, orders callers by rank and groups by max rank', () => {
     const r = toBlastRadius(base);
     expect(r.downstream.map((d) => d.symbol)).toEqual(['B', 'A']);
     expect(r.downstream[1]!.callers.map((c) => c.file)).toEqual(['z.ts', 'x.ts']);
@@ -42,6 +41,13 @@ describe('toBlastRadius', () => {
       expect(d.endpoints_affected).toEqual([]);
       expect(d.crons_affected).toEqual([]);
     }
+  });
+
+  it('passes every facade caller through, even one in the declaration file (the facade filters)', () => {
+    const r = toBlastRadius({ ...base, callers: [caller('lib/a.ts', 'A', 2)] });
+    expect(r.downstream).toEqual([
+      { symbol: 'A', callers: [{ name: 'fn_lib/a.ts', file: 'lib/a.ts', line: 1 }], endpoints_affected: [], crons_affected: [] },
+    ]);
   });
 
   it('keeps first-seen order on rank ties', () => {
