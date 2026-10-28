@@ -133,27 +133,27 @@ asks the user and resumes you with the answers.
 **Next:** once answered I write `<path>` as SPEC-NN.
 ```
 
-## EARS — local convention
+## EARS
 
-Triggers are written in Ukrainian — **КОЛИ, ПОКИ, ЯКЩО … ТОДІ, ДЕ** — and `(shall)` stays in
-brackets as the marker of a mandatory requirement. This is a course convention, not part of EARS.
+Specs are written in English. Triggers are the standard EARS keywords — **WHEN, WHILE, IF … THEN,
+WHERE** — and **shall** marks a mandatory requirement.
 
-1. **Ubiquitous** — always holds: «Система повинна (shall) журналювати кожну спробу автентифікації».
-2. **Event-driven** — «**КОЛИ** користувач надсилає форму входу, система повинна (shall) перевірити
-   облікові дані».
-3. **State-driven** — «**ПОКИ** триває синхронізація, система повинна (shall) показувати прогрес».
-4. **Unwanted behaviour** — «**ЯКЩО** перевірка тричі не вдалася за 60 секунд, **ТОДІ** система
-   повинна (shall) тимчасово заблокувати обліковий запис».
-5. **Optional feature** — «**ДЕ** ввімкнено MFA, система повинна (shall) вимагати TOTP-код після
-   пароля».
+1. **Ubiquitous** — always holds: "The system shall log every authentication attempt."
+2. **Event-driven** — "**WHEN** the user submits the login form, the system shall validate the
+   credentials."
+3. **State-driven** — "**WHILE** a sync is in progress, the system shall show its progress."
+4. **Unwanted behaviour** — "**IF** verification fails three times within 60 seconds, **THEN** the
+   system shall temporarily lock the account."
+5. **Optional feature** — "**WHERE** MFA is enabled, the system shall require a TOTP code after the
+   password."
 
 The skill is turning a vague verb into a concrete trigger and a testable response:
 
 | Vague | EARS |
 |---|---|
-| «Має працювати на великих репо» | КОЛИ репозиторій перевищує поріг індексації, система повинна (shall) будувати огляд лише з детермінованих фактів, не читаючи повний вміст файлів |
-| «Не падати, якщо модель недоступна» | ЯКЩО структурований виклик моделі завершився помилкою, ТОДІ система повинна (shall) показати детермінований каркас із причиною замість помилки |
-| «Підказати, з чого почати читати» | Система повинна (shall) впорядковувати reading path за рангом файлу в графі імпортів, а не за алфавітом чи датою |
+| "Must work on large repos" | WHEN the repository exceeds the indexing threshold, the system shall build the overview from deterministic facts only, without reading full file contents |
+| "Don't crash if the model is unavailable" | IF the structured model call fails, THEN the system shall show the deterministic skeleton with the reason instead of an error |
+| "Hint where to start reading" | The system shall order the reading path by the file's rank in the import graph, not alphabetically or by date |
 
 ## Spec ID, file name, location
 
@@ -168,45 +168,45 @@ The skill is turning a vague verb into a concrete trigger and a testable respons
 
 ## Template
 
-Prose in Ukrainian (like the neighbouring specs), identifiers and section headings as below. Drop a
+Prose in English (like the neighbouring specs), identifiers and section headings as below. Drop a
 section only when it is genuinely irrelevant — and say so in one line instead of leaving it empty.
 Keep the spec as short as the feature allows; if it grows past a few pages, check whether you mixed
 several features or slipped into the plan.
 
 ```
-# Spec: <назва фічі>
+# Spec: <feature name>
 Spec ID: SPEC-NN
 Status: draft | approved | implemented
-Supersedes: <посилання, якщо нова спека замінює попереднє рішення, або "none">
+Supersedes: <link, if this spec replaces an earlier decision, or "none">
 
-## Проблема й користувач
-<яку проблему вирішуємо, для кого, чому зараз>
+## Problem and user
+<what problem we solve, for whom, why now>
 
 ## Goals / Non-goals
 - Goal: …
-- Non-goal: … (явна межа — чого свідомо не робимо)
+- Non-goal: … (an explicit boundary — what we deliberately do not do)
 
 ## User stories
-- Як <роль>, я хочу <можливість>, щоб <результат>. → AC-1, AC-2
+- As a <role>, I want <capability>, so that <outcome>. → AC-1, AC-2
 
 ## Acceptance criteria (EARS)
-- AC-1: КОЛИ …, система повинна (shall) …   _(observable: <поведінка / тест / результат>)_
-- AC-2: ЯКЩО …, ТОДІ система повинна (shall) …   _(observable: …)_
+- AC-1: WHEN …, the system shall …   _(observable: <behaviour / test / result>)_
+- AC-2: IF …, THEN the system shall …   _(observable: …)_
 
 ## Edge cases
-- <вхід / стан / збій> → <очікувана поведінка> → AC-N | accepted: no handling
+- <input / state / failure> → <expected behaviour> → AC-N | accepted: no handling
 
 ## Non-functional requirements
-- Performance / Security / Accessibility / Observability — з конкретним порогом.
+- Performance / Security / Accessibility / Observability — each with a concrete threshold.
 
 ## Inputs and provenance
-| Вхід | Джерело |
+| Input | Source |
 |---|---|
-| <що> | [reused: <L03 intent / наявний результат>] · [deterministic: <repo-intel / код>] · [new: N LLM call] |
-<взаємодія модулів і контракт на межі (форма, не реалізація); Mermaid, якщо потік неочевидний>
+| <what> | [reused: <L03 intent / existing result>] · [deterministic: <repo-intel / code>] · [new: N LLM call] |
+<module interaction and the contract at each boundary (shape, not implementation); Mermaid if the flow is non-obvious>
 
 ## Untrusted inputs
-<сторонній текст (diff, PR body, зовнішній контент) — як дані, не команди; що обгортається `wrapUntrusted()`; або "none">
+<third-party text (diff, PR body, external content) — as data, not commands; what is wrapped with `wrapUntrusted()`; or "none">
 
 ## Open questions
 - [NEEDS CLARIFICATION: …]

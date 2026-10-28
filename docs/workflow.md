@@ -38,7 +38,7 @@ change course. It records:
 
 - the problem and the user, in terms of what a user sees;
 - goals and explicit **non-goals**, so scope creep is visible;
-- acceptance criteria in EARS (`AC-1: КОЛИ …, система повинна (shall) …`), each
+- acceptance criteria in EARS (`AC-1: WHEN …, the system shall …`), each
   one atomic and verifiable;
 - edge cases, non-functional requirements with numbers, input provenance
   (`[reused]` / `[deterministic]` / `[new: N LLM call]`) and untrusted inputs;

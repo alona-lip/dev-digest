@@ -114,8 +114,8 @@ persistence · Feedback · Edge cases), checks the live system through the read-
 tools (`list_agents`, `get_findings`, `get_conventions`, `get_blast_radius` — never
 `run_agent_on_pr`), and analyses the design for gaps, uncovered corner cases, communication between
 modules and UX improvements. Blocking questions and UX proposals go to the user; the rest becomes
-`[NEEDS CLARIFICATION]` instead of a guess. Acceptance criteria are EARS with the local Ukrainian
-triggers (КОЛИ / ПОКИ / ЯКЩО … ТОДІ / ДЕ + `(shall)`) and `AC-N` ids; inputs carry provenance tags
+`[NEEDS CLARIFICATION]` instead of a guess. Specs are written in English; acceptance criteria are EARS
+(WHEN / WHILE / IF … THEN / WHERE + `shall`) with `AC-N` ids; inputs carry provenance tags
 (`[reused: …]`, `[deterministic: …]`, `[new: N LLM call]`). Spec IDs are a global `SPEC-NN` counter.
 
 **Based on:**

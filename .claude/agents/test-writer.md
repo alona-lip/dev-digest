@@ -81,7 +81,7 @@ queries and LLM provider seams.
 
 2. **Derive test cases from the spec (when a spec is given).** Read the spec and the plan's
    `Traceability` table. For each AC in your scope (server / reviewer-core), write down: the AC-ID,
-   the trigger (КОЛИ / ПОКИ / ЯКЩО / ДЕ), the expected response, and the test name from the plan.
+   the trigger (WHEN / WHILE / IF … THEN / WHERE), the expected response, and the test name from the plan.
    Edge cases mapped to an AC get their own case. This list is fixed **before** you read the code;
    code reading only tells you *how* to reach the trigger, never *what* to expect. ACs that are
    UI-only (client tests live with the implementer) or browser-level (e2e) — list them as out of

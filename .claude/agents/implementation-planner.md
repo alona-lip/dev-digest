@@ -73,7 +73,7 @@ paste skill contents into the plan — reference them by name.
 Read the spec and check:
 
 1. `Status: approved`. A `draft` spec is not planned.
-2. Every AC describes **one** verifiable thing, with a clear condition (КОЛИ / ПОКИ / ЯКЩО / ДЕ) and
+2. Every AC describes **one** verifiable thing, with a clear condition (WHEN / WHILE / IF … THEN / WHERE) and
    an expected reaction.
 3. No two ACs contradict each other.
 4. ACs describe behaviour, not an accidental implementation detail.
@@ -176,9 +176,8 @@ Read only what the spec touches.
 
 ## Output format
 
-Reply in the language of the request. Write the plan in the language of the spec it implements
-(Ukrainian prose with English identifiers, like the neighbouring specs); keep template headings in
-English. Write it to `docs/plans/<feature>.md`, then return the path plus a 2–4 line summary.
+Reply in the language of the request. Write the plan in English, like the spec it implements;
+keep template headings as below. Write it to `docs/plans/<feature>.md`, then return the path plus a 2–4 line summary.
 
 ```
 # Implementation Plan: <feature>
