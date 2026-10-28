@@ -251,6 +251,24 @@ by hand in the same format.
   the fallback matches the exact `symbol@file` pair. Review asked to remove it. NEVER re-filter
   `BlastResult.callers` in a consumer. Map it as-is and fix the rule inside the facade.
   (`server/src/modules/repo-intel/service.ts` `getBlastRadius`, `server/src/modules/blast/helpers.ts` `toBlastRadius`)
+- 2026-10-28 — a service that needs the Drizzle executor type for a narrow `db` dep cannot import
+  `db/client` (`db-only-in-repositories` rejects even a type import from a service). Derive it
+  from the module's own repository instead: `type AttachmentDb = Parameters<typeof attachments.listPaths>[0]`.
+  ALWAYS take the type from the repo function's first parameter; NEVER import `db/client` outside a
+  repository. (`server/src/modules/project-context/service.ts:20`)
+- 2026-10-28 — when module A needs the result type of module B's container port, derive it off the
+  container type instead of importing B's facade: `type RunContext =
+  Awaited<ReturnType<Container['projectContext']['forRun']>>`. It is type-only, adds no module edge
+  for `no-cross-module-internals`, and cannot become a cycle when B later needs A. ALWAYS prefer this
+  for executor → module types reached through a lazy container getter.
+  (`server/src/modules/reviews/run-executor.ts:14`)
+- 2026-10-28 — a composite unique index whose FIRST column is the owner FK
+  (`agent_context_docs_agent_repo_path_uq` on `(agent_id, repo_id, path)`) already serves owner
+  lookups and the `ON DELETE cascade` scan, so a separate single-column owner index is pure write
+  overhead. That is why `0017_goofy_felicia_hardy.sql` drops `agent_context_docs_agent_idx` /
+  `skill_context_docs_skill_idx` that `0016` created (the SPEC-01 plan T3 asked for them). NEVER add an
+  FK index that is a left prefix of an existing composite index; if one already shipped, remove it with
+  a NEW migration, never by editing the applied one. (`server/src/db/schema/context.ts:154`)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
@@ -362,3 +380,8 @@ by hand in the same format.
   skill). Open: should skill examples avoid naming concrete modules, or should the rubric
   say "only report a caller you can cite from the diff / repo map"? (low confidence, n=3,
   one model) (`docs/skills-examples/api-contract/breaking-change.md`, `docs/skills-experiment.md`)
+- 2026-10-28 — `skills.it.test.ts` "a review puts ONLY enabled skills…" failed once with `trace`
+  undefined right after `waitForPrRuns`, then passed on the baseline and on every rerun. Suspected
+  race: the run reaches a terminal status before `saveRunTrace` has persisted the trace. If it recurs,
+  wait for the trace itself (poll the trace endpoint) rather than only the run status (low confidence).
+  (`server/test/skills.it.test.ts`)

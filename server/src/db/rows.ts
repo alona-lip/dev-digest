@@ -9,6 +9,8 @@ import * as t from './schema.js';
  * WITHOUT importing another module's data layer. Each owning repository
  * re-exports its row from here to keep its public type API unchanged.
  */
+export type AgentContextDocRow = typeof t.agentContextDocs.$inferSelect;
+export type SkillContextDocRow = typeof t.skillContextDocs.$inferSelect;
 export type AgentRow = typeof t.agents.$inferSelect;
 export type AgentVersionRow = typeof t.agentVersions.$inferSelect;
 export type FindingRow = typeof t.findings.$inferSelect;

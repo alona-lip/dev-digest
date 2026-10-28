@@ -30,6 +30,10 @@ const EnvSchema = z.object({
   // …) through the SSRF-guarded UrlFetcher. Default ON; EXTERNAL_FETCH_ENABLED=false
   // turns off URL references only — repo files and GitHub issues still resolve.
   EXTERNAL_FETCH_ENABLED: z.string().optional(),
+  // Project context: which clone .md files feed the project-context docs, and
+  // the comma-separated roots (relative to the clone) the scan starts from.
+  CONTEXT_GLOB: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('**/{specs,docs,insights}/**/*.md')),
+  CONTEXT_ROOTS: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('.')),
   API_PORT: z.coerce.number().int().default(3001),
   // The API has no auth (LocalNoAuthProvider), so it listens on loopback only
   // by default — `0.0.0.0` would let anyone on the LAN set keys and spend LLM
@@ -72,6 +76,10 @@ export type AppConfig = {
   repoIntelEnabled: boolean;
   /** Whether the Intent Layer may fetch external https:// references. Default true. */
   externalFetchEnabled: boolean;
+  /** picomatch glob (repo-relative POSIX paths) selecting project-context docs. */
+  contextGlob: string;
+  /** Scan roots inside the clone; default ['.']. */
+  contextRoots: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -92,5 +100,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
     externalFetchEnabled: parsed.EXTERNAL_FETCH_ENABLED !== 'false',
+    contextGlob: parsed.CONTEXT_GLOB,
+    contextRoots: parsed.CONTEXT_ROOTS.split(',').map((r) => r.trim()).filter(Boolean),
   };
 }

@@ -80,6 +80,9 @@ flowchart TB
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
     blast["blast<br/>/pulls/:id/blast · /pulls/:id/blast/history"]
   end
+  subgraph Context["Project context"]
+    projectContext["project-context<br/>/repos/:id/context · /repos/:id/context/(file|usage)<br/>/agents/:id/context · /skills/:id/context (GET, PUT)"]
+  end
   subgraph Platform["Platform"]
     settings["settings<br/>/settings · /providers"]
     workspace["workspace<br/>/workspace"]
@@ -101,6 +104,8 @@ flowchart TB
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `EXTERNAL_FETCH_ENABLED` | `true` | Intent Layer fetches https:// pages a PR body links to (SSRF-guarded); `false` → URL references skipped |
+| `CONTEXT_GLOB` | `**/{specs,docs,insights}/**/*.md` | picomatch glob (repo-relative) selecting project-context documents |
+| `CONTEXT_ROOTS` | `.` | comma-separated clone sub-directories the glob is applied under |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -108,6 +113,10 @@ flowchart TB
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
+
+Project-context `PUT /agents|skills/:id/context` returns 422 `validation_error` with
+`details: { rejected: string[] }` when any path is not in the repo's full match set (or is > 1 MB);
+nothing is saved. `GET /repos/:id/context/file` returns 413 `too_large` for files > 1 MB.
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data

@@ -113,6 +113,20 @@
       "when": 1792577611606,
       "tag": "0015_graceful_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793175204678,
+      "tag": "0016_mushy_grim_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793179350323,
+      "tag": "0017_goofy_felicia_hardy",
+      "breakpoints": true
     }
   ]
 }

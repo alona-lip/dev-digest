@@ -12,6 +12,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
+import { agents } from './agents';
+import { skills } from './skills';
+import { now } from './_shared';
 
 // ============================================================ Context & codebase
 
@@ -124,3 +127,54 @@ export const onboarding = pgTable('onboarding', {
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Project-context attachments (SPEC-01): a per-agent / per-skill list of repo
+ * file POINTERS. Deliberately no `content` column (AC-37) — file text is read
+ * from the repo at review time, so it never goes stale in the DB.
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    position: integer('position').notNull(),
+    createdAt: now(),
+  },
+  (t) => ({
+    uq: uniqueIndex('agent_context_docs_agent_repo_path_uq').on(t.agentId, t.repoId, t.path),
+    repoIdx: index('agent_context_docs_repo_idx').on(t.repoId),
+  }),
+);
+
+export const skillContextDocs = pgTable(
+  'skill_context_docs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    position: integer('position').notNull(),
+    createdAt: now(),
+  },
+  (t) => ({
+    uq: uniqueIndex('skill_context_docs_skill_repo_path_uq').on(t.skillId, t.repoId, t.path),
+    repoIdx: index('skill_context_docs_repo_idx').on(t.repoId),
+  }),
+);
