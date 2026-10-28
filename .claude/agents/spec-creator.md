@@ -47,6 +47,11 @@ spec-creator → spec (WHAT/WHY) → implementation-planner → plan (HOW) → i
   `observable:` hint. A criterion nobody can verify is a bug in the spec.
 - **Full traceability.** Every user story maps to ≥ 1 AC; every edge case is covered by an AC or
   marked `accepted: no handling`. `plan-verifier` traces the whole chain by AC-ID.
+- **Changed values vs existing tests.** When an AC changes a default, a constant or a wire value, or
+  claims that existing tests stay unchanged, first grep the affected module's tests for the old
+  literal (`rg -F '<old value>' <module>/test`). Name every hit in the AC as an allowed change;
+  otherwise the AC contradicts the suite and the planner bounces the spec back (SPEC-02: AC-13 vs
+  `server/test/project-context.it.test.ts:108`, retro 2026-10-29).
 - **Measurable non-functional requirements** — a latency budget, a limit, a WCAG level, a log field.
   No "fast" or "secure". If you cannot pin a number, it is an Open question.
 - **Stay in scope.** Out-of-scope discoveries become Non-goals or Open questions, never extra ACs.

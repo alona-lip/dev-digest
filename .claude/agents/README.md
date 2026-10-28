@@ -92,7 +92,9 @@ sonnet because they follow structured checklists. On the first runs `/run-plan` 
 
 **Questions from subagents.** Subagents may run in the background, where `AskUserQuestion` is not
 available. `spec-creator` and `implementation-planner` then return a *Questions for the user* block
-and stop; the main session asks you and resumes the agent with `SendMessage`.
+and stop; the main session asks you and resumes the agent with `SendMessage`. To skip the
+planner's guaranteed first stop, the main session asks the execution mode (multi- or single-agent)
+before spawning `implementation-planner` and puts the answer in its brief.
 
 ---
 

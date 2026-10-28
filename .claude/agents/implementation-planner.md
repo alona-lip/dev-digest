@@ -108,6 +108,9 @@ Ask the user how the plan should run:
   dependency and clarity; owned-path overlap no longer matters. Default for small or tightly coupled
   work.
 
+If the brief already states the execution mode (the main session asked the user before spawning
+you), record it and do not ask again; ask only the remaining implementation questions, or none.
+
 Ask Step 1's implementation questions in the same round. Use `AskUserQuestion` when available;
 **when it is not** (background subagent), return the *Questions for the user* block and stop — the
 main session asks and resumes you with the answers. Record the choice in `## Execution mode`.
