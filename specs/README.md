@@ -25,7 +25,8 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
   the Overview card with Tree / Graph views and Resync, and the real MCP `get_blast_radius`.
 - [project-context.md](./project-context.md) — SPEC-01 (approved) Project Context: read-only reader of
   repo `.md` docs, manual attach to agents/skills by path, untrusted `## Project context` block within
-  a 12k-token budget, per-doc trace (`specs_read`, status, tokens).
+  a 12k-token budget, per-doc trace (`specs_read`, status, tokens). AC-1 and AC-3 superseded by
+  [SPEC-02](../server/specs/project-context-insights.md) (`INSIGHTS.md` files as `insights` documents).
 
 ## Repo-wide checks
 

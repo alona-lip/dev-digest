@@ -104,7 +104,7 @@ flowchart TB
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `EXTERNAL_FETCH_ENABLED` | `true` | Intent Layer fetches https:// pages a PR body links to (SSRF-guarded); `false` → URL references skipped |
-| `CONTEXT_GLOB` | `**/{specs,docs,insights}/**/*.md` | picomatch glob (repo-relative) selecting project-context documents |
+| `CONTEXT_GLOB` | `**/{{specs,docs,insights}/**/*,INSIGHTS}.md` (`DEFAULT_CONTEXT_GLOB`) | picomatch glob (repo-relative) selecting project-context documents; also lists `INSIGHTS.md` files at any depth. Path names match case-insensitively, `.md` must be lowercase. An old `.env` value `**/{specs,docs,insights}/**/*.md` must be updated or blanked to get `INSIGHTS.md` (the server warns at start) |
 | `CONTEXT_ROOTS` | `.` | comma-separated clone sub-directories the glob is applied under |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |

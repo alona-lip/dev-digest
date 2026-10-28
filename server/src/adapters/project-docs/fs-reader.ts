@@ -3,11 +3,23 @@ import { isAbsolute, join, posix, resolve, sep } from 'node:path';
 import picomatch from 'picomatch';
 import type { DocRead, DocStat, DocsScope, ProjectDocsReader } from '@devdigest/shared';
 
-/** Directory names never descended into, at any depth. */
+/**
+ * Directory names never descended into, at any depth. Entries must be
+ * lowercase; they are compared case-insensitively (`Node_Modules`, `.GIT`).
+ */
 const EXCLUDED_DIRS = new Set(['node_modules', '.git']);
 
 /** fs error codes that mean "no such readable document" rather than an I/O failure. */
 const NOT_FOUND_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG', 'ELOOP']);
+
+/**
+ * Match predicate shared by scan and read: path names match case-insensitively
+ * (any pattern), while the `.md` extension must be lowercase.
+ */
+function docMatcher(glob: string): (rel: string) => boolean {
+  const m = picomatch(glob, { dot: true, nocase: true });
+  return (rel) => rel.endsWith('.md') && m(rel);
+}
 
 /**
  * Reads `.md` files from a repo clone for project context. Security boundary:
@@ -18,7 +30,7 @@ const NOT_FOUND_CODES = new Set(['ENOENT', 'ENOTDIR', 'ENAMETOOLONG', 'ELOOP']);
 export class FsProjectDocsReader implements ProjectDocsReader {
   async scan(clonePath: string, scope: DocsScope): Promise<DocStat[]> {
     const root = await realpath(clonePath);
-    const isMatch = picomatch(scope.glob, { dot: true });
+    const isMatch = docMatcher(scope.glob);
     const found = new Map<string, DocStat>();
 
     for (const rootRel of scope.roots) {
@@ -51,7 +63,7 @@ export class FsProjectDocsReader implements ProjectDocsReader {
     for (const e of entries) {
       const abs = join(dir, e.name);
       if (e.isDirectory()) {
-        if (EXCLUDED_DIRS.has(e.name)) continue;
+        if (EXCLUDED_DIRS.has(e.name.toLowerCase())) continue;
         await this.walk(root, abs, isMatch, out);
         continue;
       }
@@ -82,15 +94,15 @@ export class FsProjectDocsReader implements ProjectDocsReader {
     if (!path || path.includes('\0') || isAbsolute(path) || path.startsWith('/')) return notFound;
     const norm = posix.normalize(path.replace(/\\/g, '/'));
     const segs = norm.split('/');
-    if (segs.some((s) => s === '..' || EXCLUDED_DIRS.has(s))) return notFound;
-    if (!norm.endsWith('.md') || !picomatch(scope.glob, { dot: true })(norm)) return notFound;
+    if (segs.some((s) => s === '..' || EXCLUDED_DIRS.has(s.toLowerCase()))) return notFound;
+    if (!docMatcher(scope.glob)(norm)) return notFound;
 
     try {
       const root = await realpath(clonePath);
       const real = await realpath(resolve(root, norm));
       if (!real.startsWith(root + sep)) return notFound;
       // A symlinked dir may resolve into an excluded dir inside the clone.
-      if (real.slice(root.length + 1).split(sep).some((s) => EXCLUDED_DIRS.has(s))) return notFound;
+      if (real.slice(root.length + 1).split(sep).some((s) => EXCLUDED_DIRS.has(s.toLowerCase()))) return notFound;
       const st = await stat(real);
       if (!st.isFile()) return notFound;
       if (st.size > scope.maxBytes) return { kind: 'too_large', size_bytes: st.size };

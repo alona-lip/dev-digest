@@ -1,5 +1,5 @@
 import type { ContextAttachmentDoc, ContextDocType, ContextUsage, SpecBlock } from '@devdigest/shared';
-import { DEFAULT_DOC_TYPE, DOC_BUCKETS, CONTEXT_MAX_FILE_BYTES } from './constants.js';
+import { DEFAULT_DOC_TYPE, DOC_BUCKETS, CONTEXT_MAX_FILE_BYTES, INSIGHTS_FILE_NAME } from './constants.js';
 
 /** Pure helpers for project context (ring 1: no I/O, contracts only). */
 
@@ -9,11 +9,16 @@ function isBucket(seg: string): seg is (typeof DOC_BUCKETS)[number] {
   return (DOC_BUCKETS as readonly string[]).includes(seg);
 }
 
-/** Deepest *directory* segment in DOC_BUCKETS (the file name is ignored), else 'docs'. */
+/**
+ * 'insights' for an INSIGHTS.md file name (any case); otherwise the deepest
+ * *directory* segment in DOC_BUCKETS (case-insensitive), else 'docs'.
+ */
 export function docTypeOf(path: string): ContextDocType {
-  const dirs = path.split('/').slice(0, -1);
+  const parts = path.split('/');
+  if (parts[parts.length - 1]?.toLowerCase() === INSIGHTS_FILE_NAME) return 'insights';
+  const dirs = parts.slice(0, -1);
   for (let i = dirs.length - 1; i >= 0; i--) {
-    const seg = dirs[i];
+    const seg = dirs[i]?.toLowerCase();
     if (seg !== undefined && isBucket(seg)) return seg;
   }
   return DEFAULT_DOC_TYPE;

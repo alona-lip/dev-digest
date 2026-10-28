@@ -81,6 +81,13 @@ by hand in the same format.
   no log. ALWAYS log the failure and fail loudly (`ExternalServiceError`, 502); the global error
   handler does not log `AppError`s, so log before throwing.
   (`server/src/modules/blast/service.ts` `changedFiles`, `server/src/app.ts:170`)
+- 2026-10-28 — Project Context's `insights` group was always empty: the SPEC-01 default glob
+  `**/{specs,docs,insights}/**/*.md` matches only an `insights/` DIRECTORY, but this repo keeps insights
+  as `<module>/INSIGHTS.md` FILES, and `docTypeOf` looked at directories only. No test caught it because
+  the fixtures used a made-up `insights/c.md` and a local copy of the glob string, so they proved the
+  spec's assumption rather than the real layout. ALWAYS build matcher fixtures from the repo's real
+  layout (`<module>/INSIGHTS.md` × 5) and import `DEFAULT_CONTEXT_GLOB` from `platform/config.ts`; NEVER
+  copy the pattern into a test. (`server/test/project-docs-reader.test.ts`, `server/specs/project-context-insights.md`)
 
 ## Codebase Patterns
 
@@ -269,6 +276,14 @@ by hand in the same format.
   `skill_context_docs_skill_idx` that `0016` created (the SPEC-01 plan T3 asked for them). NEVER add an
   FK index that is a left prefix of an existing composite index; if one already shipped, remove it with
   a NEW migration, never by editing the applied one. (`server/src/db/schema/context.ts:154`)
+- 2026-10-28 — Project-context path matching is case-insensitive (SPEC-02), so every name check next
+  to the matcher must be too: `EXCLUDED_DIRS` is compared via `.toLowerCase()` in `walk`, in `read`'s
+  request segments and after `realpath`, otherwise `Node_Modules/…/Docs/x.md` or `.GIT/docs/x.md` get
+  listed on a case-sensitive FS (Linux). On macOS `fs.promises.realpath` returns the canonical case, so
+  a content request for `SPECS/a.md` serves the listed `specs/a.md` (200; 404 on Linux). That is an
+  accepted risk: attachments are still validated against exact scanned paths. A strict "canonical ==
+  requested" check would break symlinked docs, which SPEC-01 allows.
+  (`server/src/adapters/project-docs/fs-reader.ts`, `docs/plans/project-context-insights.md` Risks)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
@@ -320,6 +335,12 @@ by hand in the same format.
   `withRetry` wrap only the raw `octokit.graphql` call and map to `ExternalServiceError` after the loop.
   Guarded by `github-path-history.test.ts` "…without retrying it" (expects exactly 1 call).
   (`server/src/adapters/github/octokit.ts` `listPathPullRequests`, `server/src/platform/resilience.ts:35`)
+- 2026-10-28 — picomatch 4: an outer-brace union `{**/{specs,docs}/**/*.md,**/INSIGHTS.md}` silently
+  misses every ROOT-level path (`specs/x.md`, `INSIGHTS.md`). Nest the alternation instead:
+  `**/{{specs,docs,insights}/**/*,INSIGHTS}.md`. `nocase: true` also lowercases the extension, so
+  `INSIGHTS.MD` and `docs/y.MD` match. If only `.md` is allowed, add a separate case-sensitive
+  `endsWith('.md')`. dotenv passes the nested-brace string through unquoted and unchanged.
+  (`server/src/adapters/project-docs/fs-reader.ts` `docMatcher`, `server/src/platform/config.ts` `DEFAULT_CONTEXT_GLOB`)
 
 ## Recurring Errors & Fixes
 

@@ -3,6 +3,9 @@ import { symlink, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FsProjectDocsReader } from '../src/adapters/project-docs/fs-reader.js';
 import { cleanupClones, makeClone, writeFiles } from './helpers/project-context-fixtures.js';
+import { parse as parseEnv } from 'dotenv';
+import { readFileSync } from 'node:fs';
+import { DEFAULT_CONTEXT_GLOB, loadConfig } from '../src/platform/config.js';
 
 const GLOB = '**/{specs,docs,insights}/**/*.md';
 const MAX = 1_048_576;
@@ -161,5 +164,152 @@ describe('FsProjectDocsReader (temp-dir clone, real symlinks)', () => {
     await writeFile(f, 'a'.repeat(MAX));
     // contract: the limit is strictly "larger than"
     expect(await reader.read(clone, 'docs/edge.md', readScope)).toMatchObject({ kind: 'ok', size_bytes: MAX });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SPEC-02: built-in default over the real repo layout (INSIGHTS.md files).
+// macOS APFS is case-insensitive: names that differ only by case (`Docs/` vs
+// `docs/`, `INSIGHTS.md` vs `INSIGHTS.MD`) live in separate clones below.
+// ---------------------------------------------------------------------------
+describe('FsProjectDocsReader — SPEC-02 built-in default (real repo layout)', () => {
+  const reader = new FsProjectDocsReader();
+  // "unset" built explicitly, never by spreading process.env (server/.env leaks via dotenv/config)
+  const defaultGlob = loadConfig({ NODE_ENV: 'test', CONTEXT_GLOB: '' }).contextGlob;
+  const dscope = { glob: defaultGlob, roots: ['.'] };
+  const dread = { ...dscope, maxBytes: MAX };
+  const body = (files: string[]) => Object.fromEntries(files.map((f) => [f, `# ${f}`]));
+  const sorted = (xs: string[]) => [...xs].sort();
+  const scanPaths = async (clone: string, s = dscope) => (await reader.scan(clone, s)).map((d) => d.path);
+
+  /** listed <=> read().kind === 'ok' for every file of the fixture (AC-7). */
+  const listedIffReadable = async (clone: string, all: string[], s = dscope, r = dread) => {
+    const listed = new Set(await scanPaths(clone, s));
+    for (const p of all) {
+      const res = await reader.read(clone, p, r);
+      // contract: one matching rule — a path is readable exactly when the scan lists it
+      expect({ path: p, readable: res.kind === 'ok' }).toEqual({ path: p, readable: listed.has(p) });
+    }
+  };
+
+  const MODULES = ['server', 'client', 'reviewer-core', 'e2e', 'mcp-server'].map((m) => `${m}/INSIGHTS.md`);
+  // lowercase-directory fixture (AC-1, AC-2, AC-3, AC-14)
+  const LISTED_LOWER = [
+    'specs/x.md',
+    'docs/y.md',
+    'insights/c.md',
+    'e2e/docs/specs/z.md',
+    ...MODULES,
+    'INSIGHTS.md',
+    'a/b/insights.md',
+    'c/Insights.md',
+    '.devdigest/INSIGHTS.md',
+  ];
+  const NOT_LISTED_LOWER = [
+    'notes/random.md',
+    'README.md',
+    'server/AGENTS.md',
+    'notes/MY-INSIGHTS.md',
+    'notes/insights-old.md',
+    'insights.md.bak',
+  ];
+  // mixed-case-directory fixture: distinct file names so it also works on a case-insensitive FS
+  const LISTED_MIXED = ['Docs/y2.md', 'SPECS/x2.md', 'Insights/c2.md'];
+  // upper-case extension fixture: nothing here may be listed
+  const UPPER_EXT = ['INSIGHTS.MD', 'docs/z.MD'];
+
+  afterEach(cleanupClones);
+
+  it('SPEC-02 AC-1: default lists specs/docs/insights directories at any depth, case-insensitively', async () => {
+    const lower = await makeClone(body([...LISTED_LOWER, ...NOT_LISTED_LOWER]));
+    const mixed = await makeClone(body(LISTED_MIXED));
+    const found = await scanPaths(lower);
+    // contract: lowercase specs/docs/insights dirs at any depth are listed (superset of the SPEC-01 default)
+    for (const p of ['specs/x.md', 'docs/y.md', 'insights/c.md', 'e2e/docs/specs/z.md']) expect(found).toContain(p);
+    // contract: Docs/, SPECS/, Insights/ directory segments are matched ignoring case
+    expect(sorted(await scanPaths(mixed))).toEqual(sorted(LISTED_MIXED));
+  });
+
+  it('SPEC-02 AC-2/AC-14: default lists every <module>/INSIGHTS.md, root INSIGHTS.md and any-case file names', async () => {
+    const clone = await makeClone(body([...LISTED_LOWER, ...NOT_LISTED_LOWER]));
+    // AC-14 contract: the real built-in default (not a copy) must match <module>/INSIGHTS.md for all five modules
+    expect(defaultGlob).toBe(DEFAULT_CONTEXT_GLOB);
+    const found = await scanPaths(clone);
+    for (const p of [...MODULES, 'INSIGHTS.md', 'a/b/insights.md', 'c/Insights.md']) expect(found).toContain(p);
+  });
+
+  it('SPEC-02 AC-3: default lists nothing else, incl. upper-case .MD', async () => {
+    const clone = await makeClone(body([...LISTED_LOWER, ...NOT_LISTED_LOWER]));
+    const upper = await makeClone(body([...UPPER_EXT, ...NOT_LISTED_LOWER]));
+    // contract: exactly the AC-1/AC-2 files are listed, no other file
+    expect(sorted(await scanPaths(clone))).toEqual(sorted(LISTED_LOWER));
+    // contract: a non-lowercase extension (INSIGHTS.MD, docs/z.MD) is never a document
+    expect(await scanPaths(upper)).toEqual([]);
+  });
+
+  it('SPEC-02 AC-4: INSIGHTS.md under node_modules/.git is excluded, in a hidden dir is listed', async () => {
+    const clone = await makeClone(
+      body(['node_modules/p/INSIGHTS.md', '.git/INSIGHTS.md', '.devdigest/INSIGHTS.md', 'pkg/node_modules/q/INSIGHTS.md']),
+    );
+    // contract: only the hidden-directory INSIGHTS.md is listed; excluded dirs stay excluded
+    expect(await scanPaths(clone)).toEqual(['.devdigest/INSIGHTS.md']);
+    expect(await reader.read(clone, 'node_modules/p/INSIGHTS.md', dread)).toEqual({ kind: 'not_found' });
+    expect(await reader.read(clone, '.git/INSIGHTS.md', dread)).toMatchObject({ kind: 'not_found' });
+    expect(await reader.read(clone, '.devdigest/INSIGHTS.md', dread)).toMatchObject({ kind: 'ok' });
+  });
+
+  it('SPEC-02 AC-4: excluded directories are excluded regardless of case (scan and read)', async () => {
+    const clone = await makeClone(
+      body(['Node_Modules/pkg/Docs/README.md', '.GIT/docs/x.md', 'Node_Modules/pkg/INSIGHTS.md', 'docs/ok.md']),
+    );
+    // contract: Node_Modules/ and .GIT/ are excluded like node_modules/ and .git/
+    expect(await scanPaths(clone)).toEqual(['docs/ok.md']);
+    for (const glob of [defaultGlob, '**/*.md']) {
+      const s = { glob, roots: ['.'], maxBytes: MAX };
+      for (const p of ['Node_Modules/pkg/Docs/README.md', '.GIT/docs/x.md', 'Node_Modules/pkg/INSIGHTS.md']) {
+        expect(await reader.read(clone, p, s)).toEqual({ kind: 'not_found' });
+      }
+    }
+  });
+
+  it('SPEC-02 AC-7: read returns content for exactly the paths scan lists', async () => {
+    const lower = [...LISTED_LOWER, ...NOT_LISTED_LOWER];
+    const clones = [
+      { clone: await makeClone(body(lower)), all: lower },
+      { clone: await makeClone(body(LISTED_MIXED)), all: LISTED_MIXED },
+      { clone: await makeClone(body([...UPPER_EXT, 'notes/random.md'])), all: [...UPPER_EXT, 'notes/random.md'] },
+      {
+        clone: await makeClone(body(['node_modules/p/INSIGHTS.md', '.git/INSIGHTS.md'])),
+        all: ['node_modules/p/INSIGHTS.md', '.git/INSIGHTS.md'],
+      },
+    ];
+    for (const { clone, all } of clones) await listedIffReadable(clone, all);
+  });
+
+  it('SPEC-02 AC-10: an explicit glob replaces the default under the same case rule', async () => {
+    const files = ['SPECS/x.md', 'server/INSIGHTS.md', 'other/specs/y.MD', 'docs/d.md'];
+    const clone = await makeClone(body(files));
+    const specsOnly = { glob: '**/specs/**/*.md', roots: ['.'] };
+    // contract: custom glob matches path names ignoring case; INSIGHTS.md is not added implicitly; .MD is refused
+    expect(await scanPaths(clone, specsOnly)).toEqual(['SPECS/x.md']);
+    expect(await reader.read(clone, 'SPECS/x.md', { ...specsOnly, maxBytes: MAX })).toMatchObject({ kind: 'ok' });
+    expect(await reader.read(clone, 'server/INSIGHTS.md', { ...specsOnly, maxBytes: MAX })).toEqual({ kind: 'not_found' });
+    expect(await reader.read(clone, 'other/specs/y.MD', { ...specsOnly, maxBytes: MAX })).toEqual({ kind: 'not_found' });
+    // contract: a catch-all custom glob lists server/INSIGHTS.md
+    expect(await scanPaths(clone, { glob: '**/*.md', roots: ['.'] })).toContain('server/INSIGHTS.md');
+  });
+
+  it('SPEC-02 AC-16: CONTEXT_GLOB set to the .env.example value scans identically to unset', async () => {
+    const example = parseEnv(readFileSync(new URL('../.env.example', import.meta.url)));
+    const fromExample = loadConfig({ NODE_ENV: 'test', CONTEXT_GLOB: example.CONTEXT_GLOB }).contextGlob;
+    const lower = await makeClone(body([...LISTED_LOWER, ...NOT_LISTED_LOWER]));
+    const mixed = await makeClone(body(LISTED_MIXED));
+    // contract: an explicit default string behaves exactly like unset, incl. mixed-case dirs
+    for (const clone of [lower, mixed]) {
+      const unset = await reader.scan(clone, dscope);
+      const explicit = await reader.scan(clone, { glob: fromExample, roots: ['.'] });
+      expect(explicit).toEqual(unset);
+    }
+    expect(fromExample).toBe(defaultGlob);
   });
 });

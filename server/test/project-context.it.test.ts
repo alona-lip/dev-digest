@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { symlink, truncate, writeFile, rm } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { cleanupClones, insertRepo, makeClone, writeFiles } from './helpers/project-context-fixtures.js';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '../src/platform/config.js';
+import { DEFAULT_CONTEXT_GLOB, loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockEmbedder, MockGitClient, MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
@@ -14,7 +15,7 @@ const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
 if (!hasDocker) console.warn('[project-context] Docker not available — skipping integration tests.');
 
-const config = () => loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+const config = () => loadConfig({ ...process.env, NODE_ENV: 'test', CONTEXT_GLOB: '' } as NodeJS.ProcessEnv);
 
 type Json = Record<string, any>;
 
@@ -105,7 +106,7 @@ d('project context routes (Testcontainers pg + fixture clone)', () => {
       // contract: only glob matches, no excluded dirs, sorted by path
       expect(status).toBe(200);
       expect(body.status).toBe('ok');
-      expect(body.glob).toBe('**/{specs,docs,insights}/**/*.md');
+      expect(body.glob).toBe(DEFAULT_CONTEXT_GLOB);
       expect(body.docs.map((x: Json) => x.path)).toEqual([
         '.devdigest/specs/h.md',
         'docs/b.md',
@@ -521,6 +522,127 @@ d('project context routes (Testcontainers pg + fixture clone)', () => {
       expect(await sv()).toBe(skillV);
       expect(await agentVersionRows()).toHaveLength(avRows);
       expect(await skillVersionRows()).toHaveLength(svRows);
+    });
+  });
+
+  // ---------------------------------------------------------------- SPEC-02
+  describe('SPEC-02 — INSIGHTS.md documents', () => {
+    const MODULES = ['server', 'client', 'reviewer-core', 'e2e', 'mcp-server'];
+    const INSIGHTS_FIXTURE: Record<string, string> = {
+      ...Object.fromEntries(MODULES.map((m) => [`${m}/INSIGHTS.md`, `# ${m} insights`])),
+      'notes/random.md': '# random',
+      'node_modules/p/INSIGHTS.md': '# dep insights',
+      'Docs/y.md': '# mixed-case docs dir',
+      'SPECS/z.md': '# upper-case specs dir',
+      'notes/INSIGHTS.MD': '# upper-case extension',
+      'README.md': '# readme',
+    };
+    const LISTED = [
+      'Docs/y.md',
+      'SPECS/z.md',
+      ...MODULES.map((m) => `${m}/INSIGHTS.md`),
+    ].sort();
+    const ALL_PATHS = Object.keys(INSIGHTS_FIXTURE);
+
+    const envExampleGlob = () => {
+      const text = readFileSync(join(import.meta.dirname, '..', '.env.example'), 'utf8');
+      return text.split('\n').find((l) => l.startsWith('CONTEXT_GLOB='))!.slice('CONTEXT_GLOB='.length).trim();
+    };
+
+    it('SPEC-02 AC-12: glob is a single string equal to the built-in default when CONTEXT_GLOB is unset', async () => {
+      const { repo } = await repoWith(INSIGHTS_FIXTURE);
+      const { body } = await get(`/repos/${repo.id}/context`);
+      // contract: unset glob -> the response names the documented default (also the .env.example value)
+      expect(typeof body.glob).toBe('string');
+      expect(body.glob).toBe(DEFAULT_CONTEXT_GLOB);
+      expect(body.glob).toBe(envExampleGlob());
+    });
+
+    it('SPEC-02 AC-8: an INSIGHTS.md is served with its text; node_modules/p/INSIGHTS.md and ../INSIGHTS.md are 404', async () => {
+      const { repo } = await repoWith(INSIGHTS_FIXTURE);
+      const list = (await get(`/repos/${repo.id}/context`)).body;
+      // contract: server/INSIGHTS.md is listed and typed insights
+      expect(list.docs.find((x: Json) => x.path === 'server/INSIGHTS.md')).toMatchObject({ type: 'insights' });
+      const ok = await get(`/repos/${repo.id}/context/file?path=server/INSIGHTS.md`);
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ path: 'server/INSIGHTS.md', type: 'insights', content: '# server insights' });
+      for (const p of ['node_modules/p/INSIGHTS.md', '../INSIGHTS.md', '..%2FINSIGHTS.md']) {
+        // contract: excluded directory and traversal are "not found" with no content
+        const r = await get(`/repos/${repo.id}/context/file?path=${p}`);
+        expect(r.status, p).toBe(404);
+        expect(r.body.content, p).toBeUndefined();
+      }
+    });
+
+    it('SPEC-02 AC-9: saving server/INSIGHTS.md succeeds and is stored; notes/random.md is 422 with 0 rows', async () => {
+      const { repo } = await repoWith(INSIGHTS_FIXTURE);
+      const agent = await mkAgent();
+      const rows = () => db().select().from(t.agentContextDocs).where(eq(t.agentContextDocs.agentId, agent.id));
+      // contract: a path inside the rule is accepted and stored
+      const bad = await put(`/agents/${agent.id}/context`, { repo_id: repo.id, paths: ['notes/random.md'] });
+      expect(bad.status).toBe(422);
+      expect(await rows()).toHaveLength(0);
+      const good = await put(`/agents/${agent.id}/context`, { repo_id: repo.id, paths: ['server/INSIGHTS.md'] });
+      expect(good.status).toBe(200);
+      const stored = await rows();
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({ path: 'server/INSIGHTS.md', position: 0 });
+      // contract: mixing an out-of-rule path into a valid save rejects it and leaves the stored row unchanged
+      const mixed = await put(`/agents/${agent.id}/context`, {
+        repo_id: repo.id,
+        paths: ['server/INSIGHTS.md', 'notes/random.md'],
+      });
+      expect(mixed.status).toBe(422);
+      expect(await rows()).toHaveLength(1);
+    });
+
+    it('SPEC-02 AC-7: listed <=> content returned <=> attachment accepted for every fixture path', async () => {
+      const { repo } = await repoWith(INSIGHTS_FIXTURE);
+      const listed = new Set(
+        ((await get(`/repos/${repo.id}/context`)).body.docs as Json[]).map((x) => x.path as string),
+      );
+      // contract: the default rule lists exactly these (AC-1..AC-4 on this fixture)
+      expect([...listed].sort()).toEqual(LISTED);
+      const agent = await mkAgent();
+      for (const p of ALL_PATHS) {
+        const isListed = listed.has(p);
+        const content = await get(`/repos/${repo.id}/context/file?path=${encodeURIComponent(p)}`);
+        const attach = await put(`/agents/${agent.id}/context`, { repo_id: repo.id, paths: [p] });
+        // contract: one rule for list, content and attachment validation
+        expect(content.status === 200, `content ${p}`).toBe(isListed);
+        expect(attach.status === 200, `attach ${p}`).toBe(isListed);
+        if (!isListed) {
+          expect(content.status, p).toBe(404);
+          expect(attach.status, p).toBe(422);
+        }
+      }
+    });
+
+    it('SPEC-02 AC-16: CONTEXT_GLOB set to the default string returns the same docs as unset', async () => {
+      const { repo } = await repoWith(INSIGHTS_FIXTURE);
+      const explicit = await buildApp({
+        config: loadConfig({ ...process.env, NODE_ENV: 'test', CONTEXT_GLOB: DEFAULT_CONTEXT_GLOB } as NodeJS.ProcessEnv),
+        db: db(),
+        overrides: {
+          embedder: new MockEmbedder(),
+          git: new MockGitClient({}),
+          github: new MockGitHubClient(),
+          llm: { openai: new MockLLMProvider('openai', {}), openrouter: new MockLLMProvider('openai', {}) },
+        },
+      });
+      try {
+        const unset = (await get(`/repos/${repo.id}/context`)).body;
+        const set = (await explicit.inject({ method: 'GET', url: `/repos/${repo.id}/context` })).json() as Json;
+        // contract: explicit default string behaves identically to unset
+        expect(set.glob).toBe(unset.glob);
+        expect(set.docs).toEqual(unset.docs);
+        const paths = set.docs.map((x: Json) => x.path);
+        expect(paths).toContain('Docs/y.md');
+        expect(paths).toContain('SPECS/z.md');
+        expect(paths).toContain('server/INSIGHTS.md');
+      } finally {
+        await explicit.close();
+      }
     });
   });
 });

@@ -147,3 +147,33 @@ describe('toAttachmentDocs', () => {
     ]);
   });
 });
+
+describe('docTypeOf — SPEC-02', () => {
+  it('SPEC-02 AC-5: an INSIGHTS.md file name types insights at any depth', () => {
+    // contract: the file name (any case) wins over the directories above it
+    for (const p of ['server/INSIGHTS.md', 'INSIGHTS.md', 'a/b/insights.md', 'docs/INSIGHTS.md', 'specs/INSIGHTS.md']) {
+      expect(docTypeOf(p)).toBe('insights');
+    }
+  });
+
+  it('SPEC-02 AC-6: otherwise the deepest bucket segment, case-insensitive, default docs', () => {
+    // contract: non-INSIGHTS file names are typed by the deepest specs/docs/insights directory segment
+    expect(docTypeOf('e2e/docs/specs/x.md')).toBe('specs');
+    expect(docTypeOf('insights/c.md')).toBe('insights');
+    expect(docTypeOf('docs/insights/n.md')).toBe('insights');
+    expect(docTypeOf('a/insights/b/docs/c/d.md')).toBe('docs');
+    expect(docTypeOf('Docs/y.md')).toBe('docs');
+    expect(docTypeOf('a/Specs/b.md')).toBe('specs');
+    expect(docTypeOf('INSIGHTS/c.md')).toBe('insights');
+    // contract: no bucket segment -> docs
+    expect(docTypeOf('notes/random.md')).toBe('docs');
+    // contract: same file name under different buckets are two documents with two types
+    expect([docTypeOf('specs/x.md'), docTypeOf('docs/x.md')]).toEqual(['specs', 'docs']);
+  });
+
+  it('SPEC-02 AC-10: a path from a catch-all glob is typed by the same rule', () => {
+    // contract: typing is a pure function of the path, whatever pattern matched it
+    expect(docTypeOf('server/INSIGHTS.md')).toBe('insights');
+    expect(docTypeOf('README.md')).toBe('docs');
+  });
+});

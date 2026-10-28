@@ -1,10 +1,12 @@
 import { buildApp } from './app.js';
-import { loadConfig } from './platform/config.js';
+import { legacyContextGlobWarning, loadConfig } from './platform/config.js';
 
 /** Production/dev entrypoint. `pnpm dev` runs `tsx watch src/server.ts`. */
 async function main() {
   const config = loadConfig();
   const app = await buildApp({ config });
+  const globWarning = legacyContextGlobWarning(config.contextGlob);
+  if (globWarning) app.log.warn(globWarning);
 
   // Graceful shutdown: on SIGTERM/SIGINT close the server, which runs the
   // onClose hooks (drains in-flight requests/SSE, closes the postgres pool).

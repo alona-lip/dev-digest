@@ -2,6 +2,7 @@
 Spec ID: SPEC-01
 Status: approved
 Supersedes: none
+Superseded in part by: [SPEC-02](../server/specs/project-context-insights.md) — AC-1, AC-3
 
 ## Problem and user
 
