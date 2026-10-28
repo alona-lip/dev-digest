@@ -231,6 +231,10 @@ multi-agent (parallel) | single-agent (one pass) — <what the user chose and wh
   gate). Commands per module: `server`: `pnpm typecheck`, `pnpm test:unit`, `pnpm test:integration`,
   `pnpm arch:check`; `client`: `pnpm typecheck`, `pnpm lint`, `pnpm test`; `reviewer-core`:
   `npm run typecheck`, `npm test`; contracts: `./scripts/check-shared.sh`; e2e: the relevant flow.
+- Test tasks for `test-writer` are split so they can run in parallel: for `server`, one task for unit
+  files (`server/test/*.test.ts`, no Docker) and one for `*.it.test.ts`, each with its own AC subset
+  and disjoint test files; `reviewer-core` is its own task. One task for all server tests was the
+  critical path of the project-context run (824 s).
 
 ## Risks & mitigations
 - <risk> → <mitigation>

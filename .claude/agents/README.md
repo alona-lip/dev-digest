@@ -37,9 +37,9 @@ request + design sources
                  (spec check · multi- or single-agent? · every task → AC-N → test)
                  └─ /run-plan plan:docs/plans/<feature>.md
                       ├─ implementer ×N (sonnet)                   ≤ max-parallel at once
-                      ├─ architecture-reviewer (sonnet) → fix loop
+                      ├─ architecture-reviewer ‖ correctness reviewers (sonnet) → fix loop
                       ├─ test-writer (sonnet) — tests from ACs → red test = fix the CODE
-                      └─ plan-verifier (sonnet) — AC → task → test → commit, final gate
+                      └─ plan-verifier (sonnet) — runs the suites; AC → task → test → commit, final gate
                            └─ /pr-self-review (manual) → commit → /workflow-retro (manual) → docs/retros/ledger.md
                                 └─ [doc-writer]                    optional
 ```
@@ -49,7 +49,7 @@ request + design sources
 | `spec-creator` | feature request + verified facts | `spec.md` with EARS criteria | every AC is atomic, verifiable and does not contradict another |
 | `researcher` | the spec + code / MCP | `research.md` | claims point to real files, symbols or data |
 | `implementation-planner` | `spec.md` + research results | `plan.md` mapping tasks to ACs | plan review — by another model if needed |
-| `implementer` | one or more plan tasks | a code diff | tests and the architecture gate |
+| `implementer` | one or more plan tasks | a code diff | tests and the review gate (architecture + correctness) |
 | `test-writer` | `spec.md`, ACs first | a test per criterion | tests come from requirements, not from the finished code's behaviour |
 | `architecture-reviewer` | the diff + `docs/` + `AGENTS.md` | findings with references | the project's architectural invariants |
 | `plan-verifier` | spec, plan and finished implementation | a completeness report | every AC has an implementation and a check |

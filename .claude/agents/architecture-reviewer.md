@@ -68,6 +68,10 @@ Audit the files explicitly provided by the caller. If none are given, use `Glob`
 identify recently changed TypeScript/JavaScript files. Announce which files you are auditing at the
 top of your output.
 
+If the caller passed command output (`git diff --stat`, `pnpm arch:check`, `./scripts/check-shared.sh`,
+a diff of do-not-touch zones), treat it as verbatim evidence: cite it instead of re-deriving it by
+reading files, and do not report those checks as `cannot-verify`.
+
 ### Step 3 — Apply the DevDigest structural checks
 
 For each file in the set, check the following rules in order. Stop checking a rule for a file once
@@ -82,7 +86,7 @@ Check: does a file in an inner ring import from an outer one?
 - `service.ts` imports no Fastify / `routes.ts` and no `src/adapters/*` (adapters are reached through the container, typed by their port).
 - `routes.ts` imports no `db`, repository or adapter — it calls one service method.
 - A module imports another module only through `src/modules/<other>/index.ts` or `_shared/`, and never in a runtime cycle.  
-Method: `Grep` the file for imports; resolve each import to its ring by path pattern. You cannot run `pnpm arch:check` (no Bash) — recommend it in the verdict when imports changed.
+Method: `Grep` the file for imports; resolve each import to its ring by path pattern. You cannot run `pnpm arch:check` (no Bash): when the caller's brief includes its output (as `/run-plan` does), cite that output as evidence; otherwise recommend running it in the verdict when imports changed.
 
 #### RULE: business-logic-in-routes
 **Source:** `server/.dependency-cruiser.cjs` rule `routes-are-thin` and `server/AGENTS.md` — "Validation is schema-first via zod `params`/`body` on the route"  

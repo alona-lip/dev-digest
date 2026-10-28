@@ -3,9 +3,10 @@ name: run-plan
 description: >
   Runs an already-approved DevDigest Implementation Plan (docs/plans/<feature>.md) end-to-end:
   budget check → implementer agents per the plan's DAG (multi-agent capped by max-parallel, or
-  single-agent) → architecture-reviewer gate with a bounded fix loop → test-writer derives tests from
-  the spec's acceptance criteria → bounded code-fix loop for red AC tests → plan-verifier as the
-  final read-only gate (AC → task → test → commit). Starts FROM a plan — spec-creator and
+  single-agent) → review gate (architecture-reviewer + per-module correctness reviewers) with a
+  bounded fix loop → test-writer derives tests from the spec's acceptance criteria → bounded code-fix
+  loop for red AC tests → plan-verifier as the final read-only gate (AC → task → test → commit),
+  running the suites itself. Starts FROM a plan — spec-creator and
   implementation-planner run separately beforehand. Never pushes or merges.
   TRIGGER when: "run the plan", "/run-plan", "execute the plan", "implement this plan",
   "implement docs/plans/<x>.md", "run-plan plan:<path>".
@@ -29,10 +30,10 @@ than `max-parallel` at once.
 plan:<path>
  └─ Step 0  budget check + read plan & spec
      └─ Step 1  implementer ×N        (DAG; ≤ max-parallel at once | single-agent)
-         └─ Step 2  architecture-reviewer → fix loop (crit/high, ≤ max-fix)
-             └─ Step 3  test-writer       (tests from ACs, spec first, then code)
+         └─ Step 2  architecture-reviewer ‖ correctness reviewers → fix loop (≤ max-fix)
+             └─ Step 3  test-writer       (tests from ACs, spec first, then code; unit ‖ integration)
                  └─ Step 4  red AC tests → implementer fixes CODE (≤ max-fix)
-                     └─ Step 5  plan-verifier  (AC → task → test → commit; final gate)
+                     └─ Step 5  plan-verifier  (runs the suites; AC → task → test → commit; final gate)
                          └─ report + "run /pr-self-review, then /workflow-retro" (manual)
 ```
 
@@ -82,7 +83,8 @@ itself works.
    `[NEEDS CLARIFICATION]`.
 3. Print the budget line and wait for nothing — just make it visible:
    `6 tasks · multi-agent · 3 phases · max-parallel 2 · max-fix 2 · e2e smoke · models: implementer
-   sonnet, architecture-reviewer sonnet, test-writer sonnet, plan-verifier sonnet`.
+   sonnet, architecture-reviewer sonnet, correctness reviewers sonnet, test-writer sonnet,
+   plan-verifier sonnet`.
    If any agent the run uses is on an expensive model (`opus`), say so in that line.
 
 ## Step 1 — Implement
@@ -101,17 +103,41 @@ sharper brief or surface it to the user — never continue past a red task other
 
 After the last task: run the e2e level (`e2e:` arg) if the plan touched `e2e/` or the UI.
 
-## Step 2 — Architecture gate + fix loop
+## Step 2 — Review gate (architecture + correctness) + fix loop
 
-Compute the changed-file set (`git diff --name-only origin/main` plus `git status --short` for
-untracked files). Spawn `architecture-reviewer` on it. Backlog = findings with severity
-**critical** or **high** (medium/low → report only).
+**Why two reviewers.** `architecture-reviewer` checks structure only — runtime bugs are out of its
+scope by design. Without a correctness pass, bugs such as an unmapped `ENOTDIR` turning into a 500 or
+two concurrent saves racing surface only in `/pr-self-review`, after the run, and cost a second
+fix + re-review round (project-context retro, 2026-10-28).
+
+1. **Changed-file set** — `git diff --name-only origin/main` plus `git status --short` for untracked
+   files.
+2. **Evidence block** — `architecture-reviewer` has no Bash, so run the deterministic checks yourself
+   and keep their output short (verdict lines, not full logs):
+   - `git diff --stat origin/main`
+   - `cd server && pnpm arch:check` (when `server/` changed)
+   - `./scripts/check-shared.sh` (when any `vendor/shared` changed)
+   - `git diff --stat origin/main -- client/src/vendor/ui server/src/db/migrations` (do-not-touch zones)
+3. **Spawn the reviewers** in one message, ≤ `max-parallel` at once (all read-only):
+   - `architecture-reviewer` on the changed-file set, with the evidence block in the brief: *"These
+     command outputs are evidence you may cite; do not report them as cannot-verify."*
+   - one **correctness reviewer** per touched module (`server`, `client`, `reviewer-core`) — a
+     `general-purpose` agent with `model: sonnet`, brief from
+     `.claude/skills/pr-self-review/references/reviewer-prompt.md` (Reviewer section) with
+     `Skill: typescript-expert` (`client`: `react-best-practices`), that module's changed files, and
+     this focus: *"Runtime correctness only — error mapping (which errno / status reaches the caller),
+     races between concurrent writes or optimistic updates, missing edge cases at boundaries
+     (empty, too large, symlink, not-text), and tests that assert the wrong element. No structure or
+     style findings."* Severity per `pr-self-review/references/severity.md`.
+4. **Backlog** = architecture findings with severity **critical** or **high**, plus correctness
+   findings with severity **CRITICAL** or **WARNING** that state a mechanism (medium/low and
+   SUGGESTION → report only).
 
 Loop `i = 1 … max-fix` while the backlog is non-empty:
 1. Group findings by file into non-overlapping fix tasks.
 2. Dispatch `implementer`(s), ≤ `max-parallel` at once: *"Fix exactly these findings in these files,
    stay in scope, self-verify."* — with each finding's text, `file:line` and recommendation.
-3. Re-run `architecture-reviewer` on the touched files only.
+3. Re-run only the reviewer(s) that reported the findings, on the touched files only.
 4. Empty → gate PASS. Same findings as last iteration → stop, flag as stuck.
 
 Cap reached with findings left → stop the run here and report them; do **not** write tests on a
@@ -120,7 +146,11 @@ structure that is still going to change.
 ## Step 3 — Tests from acceptance criteria
 
 Skip if `tests:off`. Spawn `test-writer` (one per module — `server`, `reviewer-core` — in parallel
-when both are touched, ≤ `max-parallel`). Brief:
+when both are touched, ≤ `max-parallel`). **Split `server` in two** when its ACs need both unit and
+integration tests: one `test-writer` for unit files (`server/test/*.test.ts`, no Docker) and one for
+`*.it.test.ts`, each with its own AC subset and disjoint test files. One writer for both was the run's
+critical path (824 s in the project-context retro). If the plan already has separate unit and
+integration test tasks, follow them. Brief:
 
 - the **spec path and its AC-IDs first**, the plan's `Traceability` table, then the changed-file set;
 - *"Derive the test cases from the ACs before reading the implementation. Name every test with its
@@ -143,8 +173,10 @@ Loop `i = 1 … max-fix` while the backlog is non-empty:
 
 ## Step 5 — plan-verifier (final, read-only)
 
-Spawn `plan-verifier` with the spec path, the plan path and the changed-file set. It returns the
-matrix AC → task → test → commit and a PASS / FAIL / REVIEW gate.
+Spawn `plan-verifier` with the spec path, the plan path, the changed-file set and the module test
+commands from the plan's `Testing strategy`. Brief: *"Run these suites yourself and quote the
+results; do not take pass counts from this brief."* — never pass your own test totals as facts. It
+returns the matrix AC → task → test → commit and a PASS / FAIL / REVIEW gate.
 
 - `missing` / `partial` ACs: if the Step 4 budget has iterations left, dispatch an `implementer` (and,
   for a missing test, `test-writer`) for those ACs, then re-run `plan-verifier` for them only.
@@ -161,8 +193,10 @@ matrix AC → task → test → commit and a PASS / FAIL / REVIEW gate.
 - **Implemented:** <N> tasks (T1…Tn) — closes AC-…
 - **Self-verify:** module suites + typecheck + arch:check green | failing (<detail>)
 
-### Architecture gate
-- architecture-reviewer: PASS | FAIL — crit <n> / high <n> · fix iterations <i>/<max-fix>
+### Review gate
+- architecture-reviewer: PASS | FAIL — crit <n> / high <n>
+- correctness (<modules>): PASS | FAIL — CRITICAL <n> / WARNING <n>
+- fix iterations <i>/<max-fix>
 
 ### Tests from ACs
 - test-writer: <n> tests for <m> ACs · red AC tests fixed in code: <list> · iterations <i>/<max-fix>
@@ -175,7 +209,8 @@ matrix AC → task → test → commit and a PASS / FAIL / REVIEW gate.
 - <stuck findings, ambiguous ACs, unverified ACs — or "none">
 
 ### Next steps (manual)
-1. `/pr-self-review` on the uncommitted diff — BLOCK means not done.
+1. `/pr-self-review` on the uncommitted diff — BLOCK means not done. If its fixes change code,
+   re-run `plan-verifier` only for the ACs whose files changed, not the whole matrix.
 2. Commit, then `/workflow-retro label:<feature> deep` → one row in `docs/retros/ledger.md`.
 ```
 

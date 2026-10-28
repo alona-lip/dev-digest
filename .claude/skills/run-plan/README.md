@@ -21,10 +21,10 @@ Ported from the course branch `lesson-5-lab/sdd-finish` and changed for this rep
 /run-plan plan:docs/plans/<feature>.md [mode:multi|single] [max-parallel:N] [max-fix:N] [e2e:off|smoke|full] [tests:off]
   └─ budget check, read plan + spec header
        └─ implementer ×N           (DAG, ≤ max-parallel at once | single-agent)
-            └─ architecture-reviewer → implementer fixes crit/high (≤ max-fix)
-                 └─ test-writer      (tests from AC-N, spec first, then code)
+            └─ architecture-reviewer ‖ correctness reviewers → implementer fixes (≤ max-fix)
+                 └─ test-writer      (tests from AC-N, spec first, then code; server unit ‖ integration)
                       └─ red AC test → implementer fixes CODE, never the test (≤ max-fix)
-                           └─ plan-verifier   (AC → task → test → commit, final gate)
+                           └─ plan-verifier   (runs the suites; AC → task → test → commit, final gate)
                                 └─ report → you run /pr-self-review, commit, /workflow-retro
 ```
 
@@ -33,10 +33,11 @@ Ported from the course branch `lesson-5-lab/sdd-finish` and changed for this rep
 | Step | Agent | Model | Role |
 |------|-------|-------|------|
 | 1 | `implementer` ×N | sonnet | One task each; owned paths never overlap; self-verifies |
-| 2 | `architecture-reviewer` | sonnet | Structural contracts (read-only) |
-| 2, 4 | `implementer` ×N | sonnet | Fix crit/high findings; fix code behind red AC tests |
-| 3 | `test-writer` | sonnet | Tests derived from the spec's ACs (server, reviewer-core) |
-| 5 | `plan-verifier` | sonnet | AC → task → test → commit matrix, final gate (read-only) |
+| 2 | `architecture-reviewer` | sonnet | Structural contracts (read-only); gets `arch:check` / `check-shared` output from the orchestrator |
+| 2 | `general-purpose` ×module | sonnet | Correctness reviewer: error mapping, races, boundary edge cases (read-only) |
+| 2, 4 | `implementer` ×N | sonnet | Fix review findings; fix code behind red AC tests |
+| 3 | `test-writer` | sonnet | Tests derived from the spec's ACs (server unit, server integration, reviewer-core) |
+| 5 | `plan-verifier` | sonnet | Runs the suites itself; AC → task → test → commit matrix, final gate (read-only) |
 
 ## Inputs
 
@@ -61,6 +62,6 @@ Ported from the course branch `lesson-5-lab/sdd-finish` and changed for this rep
 
 ```
 run-plan/
-├── SKILL.md     ← orchestrator: budget check → implement → arch gate → AC tests → verify
+├── SKILL.md     ← orchestrator: budget check → implement → review gate → AC tests → verify
 └── README.md    ← this file
 ```

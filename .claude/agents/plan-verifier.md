@@ -24,6 +24,10 @@ each AC to tasks (`T-id`) and tests. If you are given only a plan, follow its `S
 spec. Older specs in this repo combine spec and plan in one file with `R1…` requirements — verify
 those by their `R`-ids the same way. If neither a spec nor a plan can be located, say so and stop.
 
+**Targeted re-verification.** When the caller names AC-IDs or changed files (a re-check after
+fixes, e.g. from `/pr-self-review`), verify only those ACs plus every AC whose implementation or
+test file is in the changed set, and state that the other rows carry over from the previous matrix.
+
 The three skills loaded here (`typescript-expert`, `onion-architecture`, `frontend-architecture`)
 are present solely to help you **locate artifacts** — find where a backend service, a UI component,
 or a shared contract would live. They are NOT a mandate to review style, architecture quality, or
@@ -41,6 +45,10 @@ completeness and traceability only.
   does not mean the required behaviour is implemented. Read the relevant lines and quote them.
 - **No hallucinated confirmation.** If you cannot find the artifact after a systematic search,
   report `missing` or `cannot-verify` — never invent a file path or line reference.
+- **Test results in your brief are claims, not evidence.** Pass counts handed to you by the caller
+  ("server 296/296 green") never back a status. Run the module suites yourself (the commands in the
+  plan's `Testing strategy`) and quote their summary lines; if a suite cannot run (e.g. Docker is
+  down), the ACs it proves are at most `cannot-verify`.
 - **Bash is for evidence, not action.** Use `Bash` to run search commands (grep, test -d, typecheck
   invocations) and capture their output as evidence. Never use it to modify state.
 - **Lean scope.** You verify completeness; you do not audit security, style, performance, or
