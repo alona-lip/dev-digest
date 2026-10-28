@@ -326,3 +326,31 @@ export interface UrlFetchResult {
 export interface UrlFetcher {
   fetch(url: string, opts: UrlFetchOptions): Promise<UrlFetchResult>;
 }
+
+// ---------- Project docs reader (clone .md files for project context) ----------
+export interface DocsScope {
+  glob: string;
+  roots: string[];
+}
+export interface DocStat {
+  path: string;
+  size_bytes: number;
+  mtime_ms: number;
+}
+export type DocRead =
+  | { kind: 'ok'; text: string; size_bytes: number }
+  /** Missing, excluded, no glob match, or realpath outside the clone. */
+  | { kind: 'not_found' }
+  | { kind: 'too_large'; size_bytes: number }
+  /** Not valid UTF-8. */
+  | { kind: 'not_text' };
+
+export interface ProjectDocsReader {
+  /** Full match set, sorted by path (byte order), stat only — no content read. */
+  scan(clonePath: string, scope: DocsScope): Promise<DocStat[]>;
+  read(
+    clonePath: string,
+    path: string,
+    scope: DocsScope & { maxBytes: number },
+  ): Promise<DocRead>;
+}
