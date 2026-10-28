@@ -20,6 +20,10 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
   const t = useTranslations("runs");
   const stats = trace.stats;
   const skillBlocks = trace.prompt_assembly.skill_blocks ?? [];
+  // spec_blocks absent = a trace from before per-document blocks (legacy `specs` string).
+  const specBlocks = trace.prompt_assembly.spec_blocks;
+  const attachedSpecs = (specBlocks ?? []).filter((b) => b.status === "attached");
+  const skippedSpecs = (specBlocks ?? []).filter((b) => b.status !== "attached");
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -48,6 +52,14 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
                   </span>
                 ))
               )}
+              {skippedSpecs.map((b) => (
+                <span key={`skipped-${b.path}`} style={s.spec}>
+                  <span className="mono">{b.path}</span>{" "}
+                  <Badge color="var(--warn)">
+                    {t(`trace.config.specStatus.${b.status as "missing" | "over_budget"}`)}
+                  </Badge>
+                </span>
+              ))}
             </div>
           </Row>
         </div>
@@ -107,7 +119,28 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.prompt_assembly.repo_map != null && (
           <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
         )}
-        {trace.prompt_assembly.specs != null && (
+        {specBlocks != null && specBlocks.length > 0 && (
+          <>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "6px 0 2px" }} data-testid="project-context-summary">
+              <strong>{t("trace.prompt.projectContextTitle")}</strong>
+              {" — "}
+              {t("trace.prompt.projectContextSummary", {
+                count: attachedSpecs.length,
+                tokens: attachedSpecs.reduce((n, b) => n + (b.tokens ?? 0), 0),
+              })}
+            </div>
+            {attachedSpecs.map((b) => (
+              <PromptBlock
+                key={b.path}
+                label={b.path}
+                text={b.text ?? ""}
+                color={PROMPT_COLORS.specs}
+                tokens={b.tokens ?? undefined}
+              />
+            ))}
+          </>
+        )}
+        {specBlocks == null && trace.prompt_assembly.specs != null && (
           <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
         )}
         {trace.prompt_assembly.callers != null && (

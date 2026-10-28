@@ -34,7 +34,11 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specStatus": {
+        "missing": "missing",
+        "over_budget": "over budget"
+      }
     },
     "stat": {
       "duration": "DURATION",
@@ -56,6 +60,8 @@
       "search": "Search in this block…",
       "noMatches": "No matches for “{q}”.",
       "skillBlock": "Skill: {name} · v{version}",
+      "projectContextTitle": "Project context — attached specs (untrusted)",
+      "projectContextSummary": "{count, plural, one {# doc} other {# docs}} · ≈{tokens} tokens",
       "addedTokens": "+{count} tokens",
       "skillsSummary": "{count, plural, one {# skill} other {# skills}} attached — +{tokens} tokens in the system prompt"
     },

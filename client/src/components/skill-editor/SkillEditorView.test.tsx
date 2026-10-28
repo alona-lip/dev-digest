@@ -8,10 +8,12 @@ import { ToastProvider } from "@/lib/toast";
 
 const rescan = vi.fn();
 let SKILL: Skill;
+let TAB = "tab=preview";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams("tab=preview"),
+  useSearchParams: () => new URLSearchParams(TAB),
 }));
+vi.mock("./_components/ContextTab", () => ({ ContextTab: ({ skillId }: { skillId: string }) => <div>context-tab:{skillId}</div> }));
 vi.mock("@/lib/hooks/skills", () => ({
   useSkill: () => ({ data: SKILL, isLoading: false, isError: false, refetch: vi.fn() }),
   useRescanSkill: () => ({ mutate: rescan, isPending: false }),
@@ -22,6 +24,7 @@ import { SkillEditorView } from "./SkillEditorView";
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  TAB = "tab=preview";
 });
 
 const CLEAN: Skill = {
@@ -87,5 +90,13 @@ describe("SkillEditorView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Re-scan" }));
     expect(rescan).toHaveBeenCalledWith("s1", expect.anything());
     expect(await screen.findByText("Prompt injection found — the skill is blocked.")).toBeInTheDocument();
+  });
+
+  it("AC-34: /skills/:id?tab=context renders the Context tab", () => {
+    SKILL = CLEAN;
+    TAB = "tab=context";
+    renderView();
+    expect(screen.getByRole("button", { name: "Context" })).toBeInTheDocument();
+    expect(screen.getByText("context-tab:s1")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunTrace } from "@devdigest/shared";
@@ -134,5 +134,77 @@ describe("Run Trace drawer — Intent Layer in the prompt assembly", () => {
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
     await openPromptAssembly();
     expect(screen.queryByText("PR intent & scope — Intent Layer (dynamic)")).not.toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — project context (spec_blocks)", () => {
+  const openPromptAssembly = () => userEvent.click(screen.getByText("Prompt assembly"));
+  const base = { type: "specs" as const, origin: { kind: "agent" as const } };
+  const specTrace = (): RunTrace => ({
+    ...TRACE,
+    specs_read: ["docs/a.md", "docs/empty.md"],
+    prompt_assembly: {
+      ...TRACE.prompt_assembly,
+      skills: null,
+      specs: null,
+      spec_blocks: [
+        { ...base, path: "docs/a.md", status: "attached", tokens: 120, text: "Invariant: A must hold." },
+        { ...base, path: "docs/empty.md", status: "attached", tokens: 0, text: "" },
+        { ...base, path: "docs/gone.md", status: "missing", tokens: null, text: null },
+        { ...base, path: "docs/huge.md", status: "over_budget", tokens: null, text: null },
+      ],
+    },
+  });
+
+  it("AC-50: shows the untrusted section with a docs/tokens summary from spec_blocks", async () => {
+    traceOverride = specTrace();
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    const summary = screen.getByTestId("project-context-summary");
+    expect(summary).toHaveTextContent("Project context — attached specs (untrusted)");
+    expect(summary).toHaveTextContent("2 docs · ≈120 tokens");
+    expect(screen.queryByText("Project context (dynamic)")).not.toBeInTheDocument();
+  });
+
+  it("AC-51: expanding a document shows its text verbatim with copy and token count", async () => {
+    const user = userEvent.setup();
+    traceOverride = specTrace();
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.getByText("+120 tokens")).toBeInTheDocument();
+    expect(screen.getByText("+0 tokens")).toBeInTheDocument();
+    // The spec block is the row that carries the "+120 tokens" badge.
+    const block = screen.getByText("+120 tokens").parentElement!.parentElement!;
+    expect(within(block).getByText("docs/a.md")).toBeInTheDocument();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await user.click(within(block).getByText("docs/a.md"));
+    expect(within(block).getByText("Invariant: A must hold.")).toBeInTheDocument();
+    await user.click(within(block).getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith("Invariant: A must hold.");
+  });
+
+  it("AC-52: Specs read lists added paths and skipped docs with a text status badge", () => {
+    traceOverride = specTrace();
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    expect(screen.getByText("docs/gone.md")).toBeInTheDocument();
+    expect(screen.getByText("missing")).toBeInTheDocument();
+    expect(screen.getByText("over budget")).toBeInTheDocument();
+  });
+
+  it("AC-53: an old trace (specs string, no spec_blocks) renders as before; empty spec_blocks renders nothing", async () => {
+    traceOverride = { ...TRACE, prompt_assembly: { ...TRACE.prompt_assembly, specs: "old ctx" } };
+    const first = renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.getByText("Project context (dynamic)")).toBeInTheDocument();
+    expect(screen.queryByTestId("project-context-summary")).not.toBeInTheDocument();
+    first.unmount();
+
+    traceOverride = { ...TRACE, prompt_assembly: { ...TRACE.prompt_assembly, specs: null, spec_blocks: [] } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    await openPromptAssembly();
+    expect(screen.queryByTestId("project-context-summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Project context (dynamic)")).not.toBeInTheDocument();
   });
 });
