@@ -23,6 +23,9 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
 - [blast-radius.md](./blast-radius.md) — Blast Radius: `GET /pulls/:id/blast` over the
   repo-intel index (no LLM), the facade fixes (per-symbol cap, honest `degraded`/`reason`),
   the Overview card with Tree / Graph views and Resync, and the real MCP `get_blast_radius`.
+- [project-context.md](./project-context.md) — SPEC-01 (approved) Project Context: read-only reader of
+  repo `.md` docs, manual attach to agents/skills by path, untrusted `## Project context` block within
+  a 12k-token budget, per-doc trace (`specs_read`, status, tokens).
 
 ## Repo-wide checks
 
