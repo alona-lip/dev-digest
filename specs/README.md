@@ -27,6 +27,9 @@ that package's `specs/` instead: [client](../client/specs/README.md) ·
   repo `.md` docs, manual attach to agents/skills by path, untrusted `## Project context` block within
   a 12k-token budget, per-doc trace (`specs_read`, status, tokens). AC-1 and AC-3 superseded by
   [SPEC-02](../server/specs/project-context-insights.md) (`INSIGHTS.md` files as `insights` documents).
+- [pr-brief.md](./pr-brief.md) — SPEC-03 (approved) PR Brief: one cached `risk_brief` call over stored intent,
+  blast map, diff stats (no hunk bodies) and attached docs → summary, Risk areas, Review focus; paths and
+  lines validated server-side, SHA-based Outdated flag, Review focus → Files changed at `file:line`.
 
 ## Repo-wide checks
 
