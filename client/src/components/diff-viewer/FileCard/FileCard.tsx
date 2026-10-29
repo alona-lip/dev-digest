@@ -30,11 +30,45 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  forceOpen = false,
+  highlightLine = null,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** This file is the deep-link target: open it, scroll to it, focus its header. */
+  forceOpen?: boolean;
+  /** Index (into the parsed lines) of the line to highlight and scroll to. */
+  highlightLine?: number | null;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
+  // Derive-during-render: when forceOpen turns on, open the card once.
+  const [wasForced, setWasForced] = React.useState(false);
+  if (forceOpen !== wasForced) {
+    setWasForced(forceOpen);
+    if (forceOpen) setOpen(true);
+  }
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const headerRef = React.useRef<HTMLDivElement>(null);
+
+  // External DOM sync: scroll the card, then the line, and move focus to the header.
+  React.useEffect(() => {
+    if (!forceOpen) return;
+    cardRef.current?.scrollIntoView({ block: "start" });
+    if (highlightLine !== null) {
+      cardRef.current
+        ?.querySelector<HTMLElement>('[data-highlighted="true"]')
+        ?.scrollIntoView({ block: "center" });
+    }
+    headerRef.current?.focus({ preventScroll: true });
+  }, [forceOpen, highlightLine]);
+
+  const toggle = () => setOpen((o) => !o);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   // Group this file's comments into threads, then split into ones we can anchor
@@ -53,8 +87,21 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
     : 0;
 
   return (
-    <div style={s.fileCard}>
-      <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
+    <div ref={cardRef} style={s.fileCard}>
+      <div
+        ref={headerRef}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+        style={s.fileHeader}
+      >
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
         <span className="mono" style={s.filePath}>
@@ -85,6 +132,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                highlighted={i === highlightLine}
               />
             ))
           )}

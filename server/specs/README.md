@@ -36,3 +36,6 @@ criteria, and what's explicitly out of scope.
 - [seed-skill-bindings.md](./seed-skill-bindings.md) — `db:seed` creates the
   `docs/skills-examples` skills and binds them (enabled, in order) to Test
   Quality / API Contract Reviewer, linking only agents that have no links yet.
+- [project-context-insights.md](./project-context-insights.md) — SPEC-02 (approved) Project Context
+  fix: module `INSIGHTS.md` files (any depth, name case-insensitive) match the default glob and are typed
+  `insights` by file name; supersedes SPEC-01 AC-1, AC-3.

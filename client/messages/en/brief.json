@@ -10,12 +10,65 @@
   "noRisks": "No notable risks flagged.",
   "noHistory": "No prior PRs overlap these files.",
   "overlap": "{count} overlap",
-  "unavailable": "Brief not available yet.",
-  "unavailableHint": "Run a review or open the PR to compute it.",
   "why": {
     "title": "git-why",
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
-  }
+  },
+  "generate": "Generate brief",
+  "refresh": "Refresh",
+  "refreshAria": "Regenerate the PR brief",
+  "outdated": "Outdated — the PR has new commits",
+  "riskAreas": "Risk areas",
+  "reviewFocus": {
+    "title": "Review focus — read these first",
+    "count": "{count} files to read first"
+  },
+  "noFocus": "No specific files to prioritise.",
+  "fileNotInDiff": "File not in this PR's diff",
+  "missing": {
+    "prefix": "Generated without:",
+    "input": {
+      "intent": "intent",
+      "blast": "blast radius",
+      "linked_issue": "linked issue",
+      "specs": "specs"
+    },
+    "reason": {
+      "not_computed": "not computed yet",
+      "flag_off": "feature turned off",
+      "index_failed": "index failed",
+      "index_partial": "index incomplete",
+      "repo_too_large": "repo too large",
+      "no_data": "no data",
+      "error": "error",
+      "no_github_token": "no GitHub token",
+      "fetch_failed": "fetch failed",
+      "not_cloned": "repo not cloned",
+      "unreadable": "unreadable"
+    }
+  },
+  "riskKind": {
+    "security": "Security",
+    "dependency": "Dependency",
+    "performance": "Performance",
+    "breaking_change": "Breaking change",
+    "data": "Data",
+    "config": "Config",
+    "other": "Other"
+  },
+  "severity": {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low"
+  },
+  "riskRowAria": "{severity} risk: {title}",
+  "expandRisk": "Show details",
+  "collapseRisk": "Hide details",
+  "focusItemAria": "Open {location}",
+  "intentPendingHint": "Intent is still being computed; the brief will be generated without it.",
+  "generateError": "Couldn't generate the PR brief",
+  "emptyTitle": "No brief yet",
+  "emptyHint": "Generate a brief to see risks and where to start reviewing."
 }

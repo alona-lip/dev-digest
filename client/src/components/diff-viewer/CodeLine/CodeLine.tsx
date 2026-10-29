@@ -3,6 +3,7 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
 import { s, lineRowFor, lineSignFor } from "../styles";
@@ -14,12 +15,16 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  highlighted = false,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  /** Deep-link target line: marked with an attribute and a visible label. */
+  highlighted?: boolean;
 }) {
+  const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
 
@@ -37,7 +42,8 @@ export function CodeLine({
 
   return (
     <div
-      style={cs.rowWrap}
+      style={highlighted ? { ...cs.rowWrap, ...s.lineTargetWrap } : cs.rowWrap}
+      {...(highlighted ? { "data-highlighted": "true", "aria-current": "location" as const } : {})}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -62,6 +68,7 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {highlighted && <span style={s.lineTargetBadge}>{t("diffViewer.targetLine")}</span>}
       </div>
 
       {commenting &&

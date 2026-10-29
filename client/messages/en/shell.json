@@ -33,6 +33,7 @@
   "diffViewer": {
     "noDiffText": "No diff text available (binary or unfetched patch).",
     "noChangedFiles": "No changed files.",
+    "targetLine": "Linked line",
     "commentPlaceholder": "Leave a comment… (⌘/Ctrl+Enter to post)",
     "post": "Comment",
     "posting": "Posting…",

@@ -61,6 +61,13 @@ by hand in the same format.
   the overlay and closes the modal. Add `--exact` whenever one visible label is contained in
   another. (`e2e/specs/08-skills.flow.json`)
 
+- 2026-10-29 — `wait --text` matches the rendered `innerText`, so CSS `text-transform` applies:
+  `SectionLabel` is `uppercase`, and `10-pr-brief` failed in CI at `wait --text "Risk areas"`
+  although the i18n string is exactly that. Client unit tests (RTL reads `textContent`) stayed green.
+  When a flow asserts a heading, check the rendering component's style, not just
+  `client/messages/en/*.json`, and write the text as displayed (`RISK AREAS`, like `SKILLS LAB` in
+  08/09). (`client/src/vendor/ui/primitives/SectionLabel.tsx:22`, `e2e/specs/10-pr-brief.flow.json:12`)
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

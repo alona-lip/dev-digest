@@ -14,3 +14,6 @@ export {
   type IntentPort,
   type RunIntent,
 } from './service.js';
+
+// Reference parsing the brief reuses (one PR-body parser, not two).
+export { issueText, parseReferences, type PrSelf } from './helpers.js';

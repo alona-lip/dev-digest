@@ -22,10 +22,11 @@ lockfile, and its own `AGENTS.md`.
   `<module>/INSIGHTS.md` (written by the `engineering-insights` skill).
 - Need to run the project from scratch → read [README.md](README.md) (Quick
   start section) or just run `./scripts/dev.sh`.
-- Delegating to a subagent (researcher, planner, implementer, test-writer,
-  architecture-reviewer, plan-verifier, doc-writer) → read
-  [.claude/agents/README.md](.claude/agents/README.md): what each one may
-  touch and the planner → implementers → `/pr-self-review` workflow.
+- Delegating to a subagent (spec-creator, researcher, implementation-planner,
+  implementer, test-writer, architecture-reviewer, plan-verifier, doc-writer) →
+  read [.claude/agents/README.md](.claude/agents/README.md): what each one may
+  write (hook-enforced) and the SDD pipeline spec-creator →
+  implementation-planner → `/run-plan` → `/pr-self-review` → `/workflow-retro`.
 
 ## Session protocol
 
@@ -35,8 +36,14 @@ Full description, with a worked example → [docs/workflow.md](docs/workflow.md)
 
 - Before non-trivial work in a module, read its `INSIGHTS.md`; treat entries as
   high-confidence unless the code contradicts them.
-- Planning phase: write `<module>/specs/<feature>.md` BEFORE the code, and
-  record the rejected alternative with its reason, not just the choice.
+- Planning phase, BEFORE the code: the spec (WHAT/WHY, EARS `AC-N`) in
+  `<module>/specs/<feature>.md` (`specs/` across modules) by `spec-creator`,
+  then the plan (HOW, every task → `AC-N`) in `docs/plans/<feature>.md` by
+  `implementation-planner`, which records the rejected alternative with its
+  reason, not just the choice. Plan only an `approved` spec with no open
+  `[NEEDS CLARIFICATION]`.
+- After a full multi-agent run → the user runs `/workflow-retro` (manual);
+  its trend row goes to `docs/retros/ledger.md`.
 - Before reporting a task as done, if it changed code under `client/`,
   `server/`, `reviewer-core/` or `mcp-server/` → ask the user to run
   `/pr-self-review` on the uncommitted diff (a second pass by the skills of each
@@ -85,7 +92,10 @@ Repo-wide. Module-specific additions live in each `<module>/AGENTS.md`.
   `pnpm db:generate`.
 - **e2e flows** — `e2e/specs/NN-name.flow.json`, numbered in run order.
 - **Docs** — `<module>/specs/<feature>.md` for a feature spec written before
-  the code, `<module>/docs/<topic>.md` for explanation after it.
+  the code (`Spec ID: SPEC-NN`, a global counter; e2e specs live in
+  `e2e/docs/specs/`), `docs/plans/<feature>.md` for its implementation plan
+  (same `<feature>` slug; `<feature>.research.md` for research notes),
+  `<module>/docs/<topic>.md` for explanation after it.
 
 ## Do-not-touch (global)
 

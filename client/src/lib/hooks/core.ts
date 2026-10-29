@@ -1,5 +1,5 @@
 /* hooks/core.ts — typed React Query hooks over the F1 API (contracts):
-   settings, secrets, repos, pulls, and project context. Scaffolding screens use
+   settings, secrets, repos and pulls. Scaffolding screens use
    these; feature-domain hooks live in the sibling files (agents/reviews/trace/…)
    and are re-exported alongside these from hooks/index.ts. */
 "use client";
@@ -15,8 +15,6 @@ import type {
   Repo,
   PrMeta,
   PrDetail,
-  SpecFile,
-  IndexStatus,
 } from "../types";
 
 /** Query keys for this domain — private: components use the hooks below. */
@@ -28,7 +26,6 @@ const keys = {
   repos: ["repos"] as const,
   pulls: (repoId: string | null | undefined) => ["pulls", repoId] as const,
   pull: (prId: string | number | null | undefined) => ["pull", prId] as const,
-  context: (repoId: string | null | undefined) => ["context", repoId] as const,
 };
 
 // ---- Settings (F1: GET/PUT /settings, POST /settings/test-connection) ----
@@ -133,22 +130,5 @@ export function usePullDetail(prId: string | number | null | undefined) {
     queryKey: keys.pull(prId),
     queryFn: () => api.get<PrDetail>(`/pulls/${prId}`),
     enabled: prId != null,
-  });
-}
-
-// ---- Project Context (A3 contract; safe to call once API exposes it) ----
-export function useContextFiles(repoId: string | null | undefined) {
-  return useQuery({
-    queryKey: keys.context(repoId),
-    queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
-    enabled: !!repoId,
-  });
-}
-
-export function useReindexContext() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (repoId: string) => api.post<IndexStatus>(`/repos/${repoId}/context/reindex`),
-    onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: keys.context(repoId) }),
   });
 }

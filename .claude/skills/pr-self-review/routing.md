@@ -36,4 +36,4 @@ checks run when any file in their trigger list changed.
 
 ## Excluded skills (not review skills)
 
-`mermaid-diagram`, `engineering-insights`, `pr-self-review`
+`mermaid-diagram`, `engineering-insights`, `pr-self-review`, `run-plan`, `workflow-retro`

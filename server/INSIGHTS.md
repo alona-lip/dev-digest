@@ -81,6 +81,38 @@ by hand in the same format.
   no log. ALWAYS log the failure and fail loudly (`ExternalServiceError`, 502); the global error
   handler does not log `AppError`s, so log before throwing.
   (`server/src/modules/blast/service.ts` `changedFiles`, `server/src/app.ts:170`)
+- 2026-10-28 — Project Context's `insights` group was always empty: the SPEC-01 default glob
+  `**/{specs,docs,insights}/**/*.md` matches only an `insights/` DIRECTORY, but this repo keeps insights
+  as `<module>/INSIGHTS.md` FILES, and `docTypeOf` looked at directories only. No test caught it because
+  the fixtures used a made-up `insights/c.md` and a local copy of the glob string, so they proved the
+  spec's assumption rather than the real layout. ALWAYS build matcher fixtures from the repo's real
+  layout (`<module>/INSIGHTS.md` × 5) and import `DEFAULT_CONTEXT_GLOB` from `platform/config.ts`; NEVER
+  copy the pattern into a test. (`server/test/project-docs-reader.test.ts`, `server/specs/project-context-insights.md`)
+- 2026-10-29 — `FsProjectDocsReader.read` maps only ENOENT / ENOTDIR / ENAMETOOLONG / ELOOP to "missing" and
+  RETHROWS everything else (EACCES on a chmod-000 doc, EIO). The first `forBrief` loop awaited it bare, so
+  one unreadable attached doc rejected the whole call, and the brief lost every document (`missing_inputs:
+  specs`) although the others were readable. ALWAYS wrap the per-document read in try/catch → record it as
+  unreadable + log path and errno, and continue. Only setup failures (tenancy, attachment query) propagate.
+  (`server/src/modules/project-context/service.ts` `forBrief`, `server/src/adapters/project-docs/fs-reader.ts`)
+- 2026-10-29 — `loadDiff`'s persisted-patch fallback (`diffFromPrFiles`) silently SKIPS `pr_files` rows whose
+  `patch` is null (binary, pure rename, oversized), and because the list is still non-empty no GitHub
+  fallback runs. A consumer that needs the full changed-file list (the brief's valid-path set) loses those
+  files. Merge back ONLY patchless rows; NEVER merge every missing `pr_files` row, because a row WITH a patch
+  that the git diff lacks is stale after a force-push and would become a valid path for a file no longer in
+  the PR. (`server/src/modules/reviews/diff-loader.ts:32`, `server/src/modules/brief/helpers.ts` `withPatchlessFiles`)
+- 2026-10-29 — resolving `deps.llm(provider)` INSIDE the try that maps provider failures to
+  `ExternalServiceError` turned a missing API key (`ConfigError`, 500 `config_error`, thrown by
+  `container.buildLlm`) into a 502 "model call failed, try again", so the user retried and never learned the
+  key was missing. ALWAYS resolve the model choice and the LLM before that try; wrap only `completeStructured`.
+  (`server/src/modules/brief/service.ts` `generate`)
+- 2026-10-29 — every real "Generate brief" call (OpenAI `gpt-4.1`, the `risk_brief` default) failed with
+  502 while all 400+ tests were green: `BriefModelOutput` used `z.string().min(1)` / `z.number().min(1)`, which
+  `zodResponseFormat` emits as `minLength` / `minimum`. The OpenAI adapter sends that schema with
+  `strict: true`, and strict mode rejects such keywords with a 400 before generating. `MockLLMProvider` never sends a
+  schema, so only a real call catches it. In any zod schema passed to `completeStructured`, NEVER use
+  `.min/.max/.length/.regex/.email`; express the rule with `.refine()`, which validates in `parseWithRepair`
+  (the re-prompt loop still enforces it) and emits no keyword. Guarded by the `brief-contracts.test.ts`
+  "no keywords strict mode rejects" case. (`server/src/vendor/shared/contracts/brief.ts`, `server/src/adapters/llm/openai.ts:105`)
 
 ## Codebase Patterns
 
@@ -251,6 +283,37 @@ by hand in the same format.
   the fallback matches the exact `symbol@file` pair. Review asked to remove it. NEVER re-filter
   `BlastResult.callers` in a consumer. Map it as-is and fix the rule inside the facade.
   (`server/src/modules/repo-intel/service.ts` `getBlastRadius`, `server/src/modules/blast/helpers.ts` `toBlastRadius`)
+- 2026-10-28 — a service that needs the Drizzle executor type for a narrow `db` dep cannot import
+  `db/client` (`db-only-in-repositories` rejects even a type import from a service). Derive it
+  from the module's own repository instead: `type AttachmentDb = Parameters<typeof attachments.listPaths>[0]`.
+  ALWAYS take the type from the repo function's first parameter; NEVER import `db/client` outside a
+  repository. (`server/src/modules/project-context/service.ts:20`)
+- 2026-10-28 — when module A needs the result type of module B's container port, derive it off the
+  container type instead of importing B's facade: `type RunContext =
+  Awaited<ReturnType<Container['projectContext']['forRun']>>`. It is type-only, adds no module edge
+  for `no-cross-module-internals`, and cannot become a cycle when B later needs A. ALWAYS prefer this
+  for executor → module types reached through a lazy container getter.
+  (`server/src/modules/reviews/run-executor.ts:14`)
+- 2026-10-28 — a composite unique index whose FIRST column is the owner FK
+  (`agent_context_docs_agent_repo_path_uq` on `(agent_id, repo_id, path)`) already serves owner
+  lookups and the `ON DELETE cascade` scan, so a separate single-column owner index is pure write
+  overhead. That is why `0017_goofy_felicia_hardy.sql` drops `agent_context_docs_agent_idx` /
+  `skill_context_docs_skill_idx` that `0016` created (the SPEC-01 plan T3 asked for them). NEVER add an
+  FK index that is a left prefix of an existing composite index; if one already shipped, remove it with
+  a NEW migration, never by editing the applied one. (`server/src/db/schema/context.ts:154`)
+- 2026-10-28 — Project-context path matching is case-insensitive (SPEC-02), so every name check next
+  to the matcher must be too: `EXCLUDED_DIRS` is compared via `.toLowerCase()` in `walk`, in `read`'s
+  request segments and after `realpath`, otherwise `Node_Modules/…/Docs/x.md` or `.GIT/docs/x.md` get
+  listed on a case-sensitive FS (Linux). On macOS `fs.promises.realpath` returns the canonical case, so
+  a content request for `SPECS/a.md` serves the listed `specs/a.md` (200; 404 on Linux). That is an
+  accepted risk: attachments are still validated against exact scanned paths. A strict "canonical ==
+  requested" check would break symlinked docs, which SPEC-01 allows.
+  (`server/src/adapters/project-docs/fs-reader.ts`, `docs/plans/project-context-insights.md` Risks)
+- 2026-10-29 — The PR Brief rate limit (10/min) is on `POST /pulls/:id/brief` ONLY, on purpose: AC-26 limits
+  "generate requests", and the GET is a free cached read that every Overview open makes, so limiting it would
+  return 429 on normal page opens. Keep GET unlimited; the AC-26 test builds its own app with a non-test
+  `NODE_ENV`, because `@fastify/rate-limit` is not registered under test. (`server/src/modules/brief/routes.ts`,
+  `server/test/brief.it.test.ts` AC-26, `server/src/app.ts:112`)
 
 ## Tool & Library Notes
 - 2026-10-12 — the installed dependency-cruiser (17.4.3) has no `--baseline`
@@ -302,6 +365,13 @@ by hand in the same format.
   `withRetry` wrap only the raw `octokit.graphql` call and map to `ExternalServiceError` after the loop.
   Guarded by `github-path-history.test.ts` "…without retrying it" (expects exactly 1 call).
   (`server/src/adapters/github/octokit.ts` `listPathPullRequests`, `server/src/platform/resilience.ts:35`)
+- 2026-10-28 — picomatch 4: an outer-brace union `{**/{specs,docs}/**/*.md,**/INSIGHTS.md}` silently
+  misses every ROOT-level path (`specs/x.md`, `INSIGHTS.md`). Nest the alternation instead:
+  `**/{{specs,docs,insights}/**/*,INSIGHTS}.md`. `nocase: true` also lowercases the extension, so
+  `INSIGHTS.MD` and `docs/y.MD` match. If only `.md` is allowed, add a separate case-sensitive
+  `endsWith('.md')`. dotenv passes the nested-brace string through unquoted and unchanged.
+  (`server/src/adapters/project-docs/fs-reader.ts` `docMatcher`, `server/src/platform/config.ts` `DEFAULT_CONTEXT_GLOB`)
+- 2026-10-29 — to assert on a pino log line in an `.it.test.ts` there is no stream hook in `buildApp`; build a dedicated app with `LOG_LEVEL: 'warn'` (the test config defaults to `silent` = no logger) and spy on BOTH `fs.write` (pino's async sonic-boom path, the one that actually fires) and `fs.writeSync`, via the default import `import fs from 'node:fs'`. Spying only on `writeSync`/`process.stdout.write` captures nothing. (`server/test/helpers/brief-fixtures.ts` `captureLogLines`)
 
 ## Recurring Errors & Fixes
 
@@ -362,3 +432,14 @@ by hand in the same format.
   skill). Open: should skill examples avoid naming concrete modules, or should the rubric
   say "only report a caller you can cite from the diff / repo map"? (low confidence, n=3,
   one model) (`docs/skills-examples/api-contract/breaking-change.md`, `docs/skills-experiment.md`)
+- 2026-10-28 — `skills.it.test.ts` "a review puts ONLY enabled skills…" failed once with `trace`
+  undefined right after `waitForPrRuns`, then passed on the baseline and on every rerun. Suspected
+  race: the run reaches a terminal status before `saveRunTrace` has persisted the trace. If it recurs,
+  wait for the trace itself (poll the trace endpoint) rather than only the run status (low confidence).
+  (`server/test/skills.it.test.ts`)
+- 2026-10-29 — the trace race above recurred in OTHER tests of the same file: "an agent with no skills has no
+  Skills section and no skill_blocks" (and one more, lines ~472 and ~522) failed with `trace.prompt_assembly`
+  undefined in a full parallel `pnpm test:integration` (2/140), passed alone (22/22) and in the next full run
+  (140/140). The diff in that run (PR Brief) touched no run/trace code. More evidence for "poll the trace, not
+  only the run status" (low confidence). To re-run one file: `pnpm test:integration -- <name>` does NOT filter
+  (the script is `vitest run .it.test`); use `npx vitest run test/<file>.it.test.ts`. (`server/test/skills.it.test.ts`)

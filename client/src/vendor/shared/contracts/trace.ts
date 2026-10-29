@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SpecBlock } from './project-context.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -53,6 +54,8 @@ export const PromptAssembly = z.object({
     .nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
+  /** Per-document project-context entries (SPEC-01); absent on older traces. */
+  spec_blocks: z.array(SpecBlock).nullish(),
   /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
   /** Repo skeleton / map (T3); null when absent. Enables per-slot token

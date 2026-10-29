@@ -14,9 +14,11 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Deep-link target (from the URL) forwarded to the viewer. */
+  target?: { file: string; line: number | null } | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, target }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -63,7 +65,7 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
       >
         {t("detail.diff.title", { count: filesCount })}
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} />
+      <DiffViewer files={files} commenting={commenting} target={target ?? undefined} />
     </section>
   );
 }

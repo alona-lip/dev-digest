@@ -16,6 +16,7 @@ export function VerdictBanner({
   findingsCount,
   blockers,
   agentName,
+  action,
 }: {
   verdict: Verdict;
   summary: string | null;
@@ -23,6 +24,8 @@ export function VerdictBanner({
   findingsCount: number;
   blockers: number;
   agentName?: string | null;
+  /** Optional top-right slot (e.g. the PR Brief's refresh button). */
+  action?: React.ReactNode;
 }) {
   const t = useTranslations("prReview");
   const m = VERDICT_META[verdict] ?? VERDICT_META.comment;
@@ -47,10 +50,15 @@ export function VerdictBanner({
         </div>
         {summary && <p style={s.summary}>{summary}</p>}
       </div>
-      {score != null && (
-        <div style={s.scoreCol}>
-          <CircularScore score={score} size={52} stroke={5} />
-          <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
+      {(action || score != null) && (
+        <div style={s.rightCol} data-testid="verdict-banner-actions">
+          {action}
+          {score != null && (
+            <div style={s.scoreCol}>
+              <CircularScore score={score} size={52} stroke={5} />
+              <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

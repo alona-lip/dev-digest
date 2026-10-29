@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
+import { BriefRecord } from '@devdigest/shared';
 import { parseSkillMarkdown, scanSkillBody, toScanColumns } from '../modules/skills/helpers.js';
 import { INITIAL_VERSION_NOTE } from '../modules/skills/constants.js';
 import { SkillRepository } from '../modules/skills/repository/skill.repo.js';
@@ -19,6 +20,96 @@ import {
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
 const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+
+/**
+ * Seeded diff of src/middleware/ratelimit.ts for PR #482: one hunk, 84 added lines
+ * (matches its pr_files `additions`), so the demo brief's review focus points inside it.
+ */
+const RATELIMIT_PATCH = `@@ -0,0 +1,84 @@
++import type { FastifyReply, FastifyRequest } from 'fastify';
++import { RateLimitError } from '../platform/errors.js';
++
++/**
++ * Token-bucket rate limiter for the public API.
++ * One bucket per client key; refilled lazily on each request.
++ */
++export interface RateLimitOptions {
++  capacity: number;
++  refillPerSecond: number;
++}
++
++const clientKey = (req: FastifyRequest): string =>
++  String(req.headers['x-forwarded-for'] ?? req.ip);
++const trustProxyHeader = true;
++const FALLBACK_KEY = 'anonymous';
++
++export function resolveClientKey(req: FastifyRequest): string {
++  const raw = trustProxyHeader ? clientKey(req) : req.ip;
++  return raw.split(',')[0]?.trim() || FALLBACK_KEY;
++}
++
++interface Bucket {
++  tokens: number;
++  updatedAt: number;
++}
++
++const buckets = new Map<string, Bucket>();
++const WINDOW_SECONDS = 3600;
++const MAX_BUCKETS = 10_000;
++
++function refill(bucket: Bucket, opts: RateLimitOptions, now: number): void {
++  const elapsed = (now - bucket.updatedAt) / 1000;
++  bucket.tokens = Math.min(opts.capacity, bucket.tokens + elapsed * opts.refillPerSecond);
++  bucket.updatedAt = now;
++}
++
++function evictIfFull(): void {
++  if (buckets.size < MAX_BUCKETS) return;
++  const oldest = buckets.keys().next().value;
++  if (oldest !== undefined) buckets.delete(oldest);
++}
++
++export function tryConsume(key: string, opts: RateLimitOptions, now = Date.now()): boolean {
++  let bucket = buckets.get(key);
++  if (!bucket) {
++    evictIfFull();
++    bucket = { tokens: opts.capacity, updatedAt: now };
++    buckets.set(key, bucket);
++  }
++  refill(bucket, opts, now);
++  if (bucket.tokens < 1) return false;
++  bucket.tokens -= 1;
++  return true;
++}
++
++export function retryAfterSeconds(key: string, opts: RateLimitOptions): number {
++  const bucket = buckets.get(key);
++  if (!bucket) return 0;
++  const missing = 1 - bucket.tokens;
++  return Math.max(1, Math.ceil(missing / opts.refillPerSecond));
++}
++
++export function rateLimit(opts: RateLimitOptions) {
++  return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
++    const key = resolveClientKey(req);
++    if (tryConsume(key, opts)) {
++      reply.header('x-ratelimit-limit', String(opts.capacity));
++      return;
++    }
++    const retryAfter = retryAfterSeconds(key, opts);
++    reply.header('retry-after', String(retryAfter));
++    throw new RateLimitError(\`Too many requests, retry in \${retryAfter}s\`);
++  };
++}
++
++export function resetBuckets(): void {
++  buckets.clear();
++}
++
++export const PUBLIC_API_LIMIT: RateLimitOptions = {
++  capacity: WINDOW_SECONDS / 36,
++  refillPerSecond: 1,
++};`;
 
 /**
  * The example skills live as plain files, so the docs and the seed share one copy.
@@ -158,7 +249,13 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
 
     // pr_files (subset)
     await db.insert(t.prFiles).values([
-      { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
+      {
+        prId: pr!.id,
+        path: 'src/middleware/ratelimit.ts',
+        additions: 84,
+        deletions: 0,
+        patch: RATELIMIT_PATCH,
+      },
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
       { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
       { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
@@ -226,6 +323,75 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.62,
       },
     ]);
+
+    // A generated PR brief fixture (SPEC-03) so the Overview shows one before the first
+    // "Generate brief" click. head_sha equals the PR's head_sha, so it is not stale; the
+    // model is 'seed/fixture' because no model produced this text. Focus lines sit inside
+    // the seeded ratelimit.ts hunk (1-84).
+    await db.insert(t.prBrief).values({
+      prId: pr!.id,
+      json: BriefRecord.parse({
+        pr_id: pr!.id,
+        head_sha: 'a1b2c3d4e5f6',
+        generated_at: new Date().toISOString(),
+        model: 'seed/fixture',
+        summary:
+          'Adds a token-bucket rate limiter in front of the public API endpoints, with per-client buckets and a new limit setting in the config. The main review questions are how the client key is derived and whether in-process state is enough.',
+        risks: [
+          {
+            kind: 'security',
+            title: 'Client key can be spoofed through x-forwarded-for',
+            explanation:
+              'The limiter keys buckets on the x-forwarded-for header whenever it is present, so a client can rotate the header value to get a fresh bucket on every request and bypass the limit.',
+            severity: 'high',
+            file_refs: ['src/middleware/ratelimit.ts:12-18'],
+          },
+          {
+            kind: 'config',
+            title: 'New limit settings live in the shared config',
+            explanation:
+              'The limiter capacity and refill rate are read from src/config.ts; a wrong value there changes throttling for every public endpoint at once.',
+            severity: 'medium',
+            file_refs: ['src/config.ts'],
+          },
+          {
+            kind: 'performance',
+            title: 'Per-client buckets are held in process memory',
+            explanation:
+              'Buckets are kept in an in-memory map with a size cap, so memory use grows with distinct clients and limits are not shared between server instances.',
+            severity: 'low',
+            file_refs: ['src/middleware/ratelimit.ts'],
+          },
+        ],
+        review_focus: [
+          {
+            file: 'src/middleware/ratelimit.ts',
+            line: 18,
+            reason: 'Check how the client key is resolved and whether the forwarded header can be trusted here.',
+          },
+          {
+            file: 'src/middleware/ratelimit.ts',
+            line: 25,
+            reason: 'Bucket state is per process; confirm that is acceptable if the API runs on more than one instance.',
+          },
+          {
+            file: 'src/middleware/ratelimit.ts',
+            line: 44,
+            reason: 'Verify the refill and consume logic: tokens must never exceed capacity or go negative.',
+          },
+          {
+            file: 'src/middleware/ratelimit.ts',
+            line: 73,
+            reason: 'Confirm the rejected request gets the right error and a correct retry-after value.',
+          },
+        ],
+        missing_inputs: [],
+        trimmed_inputs: [],
+        dropped: { risks: 0, review_focus: 0 },
+        input_tokens: 0,
+        cost_usd: null,
+      }),
+    });
   }
 
   // ---- built-in agents (the starter presets) ----

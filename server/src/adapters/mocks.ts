@@ -35,6 +35,10 @@ import type {
   UrlFetcher,
   UrlFetchOptions,
   UrlFetchResult,
+  ProjectDocsReader,
+  DocsScope,
+  DocStat,
+  DocRead,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from '@devdigest/shared';
 import { ValidationError } from '../platform/errors.js';
@@ -369,5 +373,40 @@ export class MockUrlFetcher implements UrlFetcher {
     if (!r) throw new ValidationError('The URL returned HTTP 404');
     const bytes = typeof r.body === 'string' ? new TextEncoder().encode(r.body) : r.body;
     return { bytes, finalUrl: r.finalUrl ?? url, contentType: r.contentType ?? 'text/plain; charset=utf-8' };
+  }
+}
+
+/**
+ * In-memory ProjectDocsReader. `files` maps repo-relative POSIX path -> content
+ * (string = UTF-8, Uint8Array = raw bytes, e.g. invalid UTF-8 for `not_text`).
+ * Ignores clonePath; applies no glob (tests seed exactly what they want seen).
+ */
+export class MockProjectDocsReader implements ProjectDocsReader {
+  constructor(public files: Record<string, string | Uint8Array> = {}) {}
+
+  private bytes(path: string): Uint8Array | undefined {
+    const v = this.files[path];
+    return v === undefined ? undefined : typeof v === 'string' ? new TextEncoder().encode(v) : v;
+  }
+
+  async scan(_clonePath: string, _scope: DocsScope): Promise<DocStat[]> {
+    return Object.keys(this.files)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      .map((path) => ({ path, size_bytes: this.bytes(path)!.byteLength, mtime_ms: 0 }));
+  }
+
+  async read(
+    _clonePath: string,
+    path: string,
+    scope: DocsScope & { maxBytes: number },
+  ): Promise<DocRead> {
+    const b = this.bytes(path);
+    if (!b) return { kind: 'not_found' };
+    if (b.byteLength > scope.maxBytes) return { kind: 'too_large', size_bytes: b.byteLength };
+    try {
+      return { kind: 'ok', text: new TextDecoder('utf-8', { fatal: true }).decode(b), size_bytes: b.byteLength };
+    } catch {
+      return { kind: 'not_text' };
+    }
   }
 }

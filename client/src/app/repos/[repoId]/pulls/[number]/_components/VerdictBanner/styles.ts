@@ -35,6 +35,13 @@ export const s = {
     color: "var(--text-secondary)",
     marginTop: 8,
   } satisfies CSSProperties,
+  rightCol: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 10,
+    flexShrink: 0,
+  } satisfies CSSProperties,
   scoreCol: {
     display: "flex",
     flexDirection: "column",

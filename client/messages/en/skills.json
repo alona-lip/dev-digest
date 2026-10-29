@@ -109,7 +109,14 @@
     "preview": "Preview",
     "evals": "Evals",
     "stats": "Stats",
-    "versions": "Versions"
+    "versions": "Versions",
+    "context": "Context"
+  },
+  "contextTab": {
+    "title": "Project context to use · {count} attached",
+    "hint": "Any agent using this skill inherits these documents.",
+    "serializesAs": "Serializes as",
+    "serializesEmpty": "No documents attached."
   },
   "editor": {
     "configTitle": "Configuration",

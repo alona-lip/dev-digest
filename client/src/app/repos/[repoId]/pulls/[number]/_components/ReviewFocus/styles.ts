@@ -1,0 +1,53 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  section: { display: "flex", flexDirection: "column", width: "100%" } satisfies CSSProperties,
+  badge: {
+    fontSize: 11.5,
+    fontWeight: 700,
+    padding: "1px 8px",
+    borderRadius: 999,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  empty: { margin: 0, fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  list: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  } satisfies CSSProperties,
+  item: {
+    width: "100%",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    gap: "2px 8px",
+    textAlign: "left",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+    padding: "8px 12px",
+    cursor: "pointer",
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
+  } satisfies CSSProperties,
+  location: {
+    fontFamily: "var(--font-mono, monospace)",
+    fontSize: 12,
+    color: "var(--accent)",
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
+  } satisfies CSSProperties,
+  reason: {
+    flex: "1 1 240px",
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
+  } satisfies CSSProperties,
+  notice: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

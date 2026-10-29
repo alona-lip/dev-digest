@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { Agent, AgentSkillLink, SkillListItem } from "@devdigest/shared";
 import messages from "@messages/en/agents.json";
 import skillMessages from "@messages/en/skills.json";
+import contextMessages from "@messages/en/context.json";
 import { ToastProvider } from "@/lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
@@ -39,6 +40,13 @@ vi.mock("@/lib/hooks/skills", () => ({
   useSetAgentSkills: () => ({ mutate: vi.fn() }),
 }));
 
+vi.mock("@/lib/repo-context", () => ({ useActiveRepo: () => ({ repoId: null }) }));
+vi.mock("@/lib/hooks/project-context", () => ({
+  useContextDocs: () => ({ isLoading: false, isError: false, data: undefined, refetch: vi.fn() }),
+  useAttachments: () => ({ isLoading: false, isError: false, data: undefined, refetch: vi.fn() }),
+  useSaveAttachments: () => ({ mutate: vi.fn() }),
+}));
+
 import { AgentEditor } from "./AgentEditor";
 
 afterEach(cleanup);
@@ -60,7 +68,7 @@ const AGENT: Agent = {
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages, skills: skillMessages }}>
+    <NextIntlClientProvider locale="en" messages={{ agents: messages, skills: skillMessages, context: contextMessages }}>
       <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -99,5 +107,16 @@ describe("Agent Editor — tabs", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={onTab} />);
     await userEvent.click(screen.getByRole("button", { name: "Skills" }));
     expect(onTab).toHaveBeenCalledWith("skills");
+  });
+});
+
+describe("Agent Editor — Context tab", () => {
+  it("AC-21: offers a Context tab and tab=context shows the picker instead of the Config form", async () => {
+    const onTab = vi.fn();
+    renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={onTab} />);
+    expect(screen.getByText("Select a repository in the sidebar to attach documents.")).toBeInTheDocument();
+    expect(screen.queryByText("Save agent")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Context" }));
+    expect(onTab).toHaveBeenCalledWith("context");
   });
 });

@@ -9,6 +9,7 @@ import type {
   CodeParser,
   Tokenizer,
   UrlFetcher,
+  ProjectDocsReader,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -23,6 +24,7 @@ import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { SafeUrlFetcher } from '../adapters/http/safe-fetch.js';
+import { FsProjectDocsReader } from '../adapters/project-docs/fs-reader.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
@@ -35,6 +37,8 @@ import { RepoRepository } from '../modules/repos/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { createBlastService, type BlastPort, type BlastService } from '../modules/blast/index.js';
+import { createProjectContextService, type ProjectContextPort } from '../modules/project-context/index.js';
+import { createBriefService, type BriefPort, type BriefService } from '../modules/brief/index.js';
 import { createIntentService, type IntentPort, type IntentService } from '../modules/intent/index.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
@@ -75,8 +79,13 @@ export interface ContainerOverrides {
   urlFetcher?: UrlFetcher;
   /** Intent Layer — tests of the review run inject a fake (no classifier LLM call). */
   intent?: IntentPort;
+  /** Clone .md reader for project context — tests inject an in-memory mock. */
+  projectDocs?: ProjectDocsReader;
+  projectContext?: ProjectContextPort;
   /** Blast radius — tests inject a fake (no repo-intel index needed). */
   blast?: BlastPort;
+  /** PR brief — tests of routes inject a fake (no model call). */
+  brief?: BriefPort;
 }
 
 export class Container {
@@ -108,6 +117,9 @@ export class Container {
   private _urlFetcher?: UrlFetcher;
   private _intent?: IntentService;
   private _blast?: BlastService;
+  private _brief?: BriefService;
+  private _projectContext?: ProjectContextPort;
+  private _projectDocs?: ProjectDocsReader;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -180,6 +192,13 @@ export class Container {
     return this._tokenizer;
   }
 
+  /** Reads project-context .md files from a repo clone (traversal/symlink-guarded). */
+  get projectDocs(): ProjectDocsReader {
+    if (this.overrides.projectDocs) return this.overrides.projectDocs;
+    this._projectDocs ??= new FsProjectDocsReader();
+    return this._projectDocs;
+  }
+
   /** SSRF-guarded https fetch for user-supplied URLs (skill import). */
   get urlFetcher(): UrlFetcher {
     if (this.overrides.urlFetcher) return this.overrides.urlFetcher;
@@ -196,10 +215,22 @@ export class Container {
     return (this._intent ??= createIntentService(this));
   }
 
+  /** PR brief service — composes intent (stored), blast and project-context, so it lives at the root. */
+  get brief(): BriefPort {
+    if (this.overrides.brief) return this.overrides.brief;
+    return (this._brief ??= createBriefService(this));
+  }
+
   /** Blast radius service — reads the repo-intel index through the facade. */
   get blast(): BlastPort {
     if (this.overrides.blast) return this.overrides.blast;
     return (this._blast ??= createBlastService(this));
+  }
+
+  /** Project context service (attachable repo docs). Lazy: it reads agentsRepo/reposRepo off this container. */
+  get projectContext(): ProjectContextPort {
+    if (this.overrides.projectContext) return this.overrides.projectContext;
+    return (this._projectContext ??= createProjectContextService(this));
   }
 
   /** AST parser (ast-grep) for repo-intel: symbols, references, imports, invocation heads. */

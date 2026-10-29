@@ -1,4 +1,4 @@
-import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
+import type { BriefResponse, ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
 import { countBlockers } from "../../helpers";
 
 export interface LatestBrief {
@@ -23,4 +23,21 @@ export function pickLatestBrief(
     blockers: countBlockers(review.findings),
     run: runs?.find((r) => r.run_id === review.run_id) ?? null,
   };
+}
+
+export interface MissingEntry {
+  input: string;
+  reason: string;
+}
+
+/** Upper-cases the first letter ("intent" -> "Intent") for the "Generated without:" note. */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export type ReadyBrief = Extract<BriefResponse, { status: "ready" }>;
+
+/** The `ready` arm of a brief response, or null for `none` / not loaded. */
+export function pickReady(data: BriefResponse | undefined): ReadyBrief | null {
+  return data?.status === "ready" ? data : null;
 }

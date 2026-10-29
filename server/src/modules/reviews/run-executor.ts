@@ -10,6 +10,9 @@ import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { scanSkillBody } from '../skills/index.js';
 
+/** Run-time project context, derived off the container so reviews never imports project-context files. */
+type RunContext = Awaited<ReturnType<Container['projectContext']['forRun']>>;
+
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
   constructor() {
@@ -156,6 +159,9 @@ export class ReviewRunExecutor {
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
+    // Declared above the try so the failure/cancel path can still write what was assembled.
+    let projectCtx: RunContext | undefined;
+
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
@@ -213,6 +219,16 @@ export class ReviewRunExecutor {
         for (const b of skillBlocks) runLog.info(`Skill "${b.name}" v${b.version} (+${b.tokens} tokens)`);
       }
 
+      // Attached project docs (specs). Empty set → empty arrays, nothing logged.
+      projectCtx = await this.container.projectContext.forRun({
+        workspaceId,
+        repo,
+        agentId: agent.id,
+        skills: activeSkills.map(({ id, name }) => ({ id, name })),
+        runLog,
+      });
+      const ctx = projectCtx;
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -232,6 +248,8 @@ export class ReviewRunExecutor {
         ...(repoMap ? { repoMap } : {}),
         // Agent skills — config, not data: rendered into the system message.
         ...(activeSkills.length > 0 ? { skills: activeSkills } : {}),
+        // Project context specs — omitted entirely when none attached (user message unchanged).
+        ...(ctx.promptSpecs.length > 0 ? { specs: ctx.promptSpecs } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -310,7 +328,7 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: { ...outcome.assembly, skill_blocks: skillBlocks },
+        prompt_assembly: { ...outcome.assembly, skill_blocks: skillBlocks, specs: null, spec_blocks: ctx.specBlocks },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -319,7 +337,7 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: ctx.specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -348,7 +366,7 @@ export class ReviewRunExecutor {
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, projectCtx))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -483,6 +501,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    projectCtx?: RunContext,
   ): RunTrace {
     return {
       config: {
@@ -494,11 +513,16 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: { system: agent.systemPrompt, skills: null,
+        memory: null,
+        specs: null,
+        user: '',
+        ...(projectCtx ? { spec_blocks: projectCtx.specBlocks } : {}),
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],
-      specs_read: [],
+      specs_read: projectCtx ? projectCtx.specsRead : [],
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

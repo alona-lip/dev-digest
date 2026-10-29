@@ -1,24 +1,71 @@
 {
   "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
   "resync": "Resync",
   "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
   "loadError": "Couldn’t load specs",
   "kb": "{kb}kb",
   "empty": {
     "title": "No spec files yet",
     "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
+  "picker": {
+    "filterPlaceholder": "Filter documents…",
+    "attachedCount": "{attached} of {total} attached",
+    "selectDocument": "Attach {path}",
+    "preview": "Preview",
+    "previewOf": "Preview {path}",
+    "previewLoading": "Loading document…",
+    "previewError": "Couldn’t load the document",
+    "previewClose": "Close preview",
+    "type": {
+      "specs": "specs",
+      "docs": "docs",
+      "insights": "insights"
+    },
+    "status": {
+      "missing": "missing"
+    },
+    "missingHint": "This file is no longer in the repository. Uncheck it to detach.",
+    "tooLarge": "Too large (over 1 MB) — can’t be attached",
+    "viaSkill": "via {name}",
+    "inheritedHint": "Inherited from a skill — detach it in that skill.",
+    "moveUp": "Move {path} up",
+    "moveDown": "Move {path} down",
+    "orderHint": "Attached documents are added to the prompt in this order. Reordering is off while a filter is set.",
+    "saveError": "Couldn’t save the attachments. The previous list was restored.",
+    "noRepo": "Select a repository in the sidebar to attach documents.",
+    "notCloned": "This repository isn’t cloned yet, so its documents can’t be listed.",
+    "loadError": "Couldn’t load the documents",
+    "empty": "No matching documents in this repository.",
+    "noMatches": "No documents match the filter.",
+    "tokensTotal": "≈ {count} tokens",
+    "budgetWarning": "Over the {budget}-token budget — these documents will be skipped: {names}"
   },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "page": {
+    "crumbWorkspace": "Workspace",
+    "crumbContext": "Project Context",
+    "heading": "Project Context",
+    "usedBy": "Used by {agents, plural, one {# agent} other {# agents}} · {skills, plural, one {# skill} other {# skills}}",
+    "refresh": "Refresh",
+    "loadError": "Couldn’t load the documents",
+    "notCloned": {
+      "title": "Repository not cloned yet",
+      "body": "This repository isn’t cloned locally, so its documents can’t be listed. Clone it first, then refresh."
+    },
+    "empty": {
+      "title": "No documents found",
+      "body": "No files match the glob {glob} in this repository."
+    },
+    "summary": "{count, plural, one {# document} other {# documents}} · ≈ {tokens} tokens · refreshed {time}",
+    "truncated": "Only the first 500 documents are listed.",
+    "filterPlaceholder": "Filter by path…",
+    "noMatches": "No documents match the filter.",
+    "type": {
+      "specs": "specs",
+      "docs": "docs",
+      "insights": "insights"
+    },
+    "selectPrompt": "Select a document to preview it.",
+    "previewError": "Couldn’t load the document"
   }
 }

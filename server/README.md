@@ -71,6 +71,7 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/recompute"]
+    brief["brief<br/>/pulls/:id/brief (GET, POST)"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (GET, PUT)"]
@@ -80,12 +81,26 @@ flowchart TB
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
     blast["blast<br/>/pulls/:id/blast · /pulls/:id/blast/history"]
   end
+  subgraph Context["Project context"]
+    projectContext["project-context<br/>/repos/:id/context · /repos/:id/context/(file|usage)<br/>/agents/:id/context · /skills/:id/context (GET, PUT)"]
+  end
   subgraph Platform["Platform"]
     settings["settings<br/>/settings · /providers"]
     workspace["workspace<br/>/workspace"]
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+### PR brief (`brief`)
+
+- `GET /pulls/:id/brief` → `BriefResponse`: `{status:'none'}` or
+  `{status:'ready', stale, current_head_sha, brief}` (`stale` = stored `head_sha` differs from the PR's
+  current head). Reads only; never calls a model or GitHub. An unparsable stored row is `none` (logged).
+- `POST /pulls/:id/brief` → `{status:'ready', stale:false, …}`. One structured call on the `risk_brief`
+  feature model; concurrent calls for a PR share one generation. Rate limit 10/min.
+- Errors: `404` unknown PR · `422` `no_changed_files` / `brief_input_too_large` (no model call) ·
+  `429` rate limit · `502` changed files unknown (no local diff, GitHub failed) or model failed / invalid
+  output (nothing stored, previous brief kept).
 
 ## Environment
 
@@ -101,6 +116,8 @@ flowchart TB
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `EXTERNAL_FETCH_ENABLED` | `true` | Intent Layer fetches https:// pages a PR body links to (SSRF-guarded); `false` → URL references skipped |
+| `CONTEXT_GLOB` | `**/{{specs,docs,insights}/**/*,INSIGHTS}.md` (`DEFAULT_CONTEXT_GLOB`) | picomatch glob (repo-relative) selecting project-context documents; also lists `INSIGHTS.md` files at any depth. Path names match case-insensitively, `.md` must be lowercase. An old `.env` value `**/{specs,docs,insights}/**/*.md` must be updated or blanked to get `INSIGHTS.md` (the server warns at start) |
+| `CONTEXT_ROOTS` | `.` | comma-separated clone sub-directories the glob is applied under |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -108,6 +125,10 @@ flowchart TB
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
+
+Project-context `PUT /agents|skills/:id/context` returns 422 `validation_error` with
+`details: { rejected: string[] }` when any path is not in the repo's full match set (or is > 1 MB);
+nothing is saved. `GET /repos/:id/context/file` returns 413 `too_large` for files > 1 MB.
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data

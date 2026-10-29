@@ -1,0 +1,23 @@
+{
+  "name": "PR detail brief renders the seeded brief and a focus item deep-links into the diff",
+  "description": "From PR #482, the Overview shows the seeded PR brief (summary, Risk areas, Review focus), the brief survives a reload (persisted, read only; AC-50), and clicking the review-focus item src/middleware/ratelimit.ts:25 switches to the diff tab and highlights the targeted line (AC-57, AC-58). Read-only seeded data: no Generate click, no model call. Assumes a freshly-seeded DB (see e2e/README.md); the seeded summary text lives in server/src/db/seed.ts.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "PR row has rendered" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter in front of the public API endpoints"], "label": "seeded brief summary renders" },
+    { "cmd": ["wait", "--text", "RISK AREAS"], "label": "Risk areas section renders (SectionLabel is text-transform: uppercase)" },
+    { "cmd": ["wait", "--text", "REVIEW FOCUS — READ THESE FIRST"], "label": "Review focus section renders (SectionLabel is text-transform: uppercase)" },
+    { "cmd": ["reload"], "label": "reload the PR detail page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles after reload" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter in front of the public API endpoints"], "label": "brief summary is still there after reload (persisted)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open src/middleware/ratelimit.ts:25", "--exact"], "label": "click the review-focus item for ratelimit.ts:25" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
+    { "cmd": ["wait", "--url", "file="], "label": "target file is carried in the URL" },
+    { "cmd": ["wait", "--text", "Linked line"], "label": "the Linked line badge renders" },
+    { "cmd": ["wait", "[data-highlighted=\"true\"]"], "label": "the targeted line row is highlighted" }
+  ]
+}

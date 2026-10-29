@@ -1,5 +1,5 @@
 /* SkillEditorView — right pane of /skills/:id. Header (name, type, version,
-   Re-scan) + tabs Config · Preview · Evals · Stats · Versions (tab in ?tab=).
+   Re-scan) + tabs Config · Preview · Evals · Stats · Versions · Context (tab in ?tab=).
    A skill blocked by the prompt-injection scan gets the red banner and badge.
    Creating a skill is the Add skill modal in the list pane, not a route. */
 "use client";
@@ -13,6 +13,7 @@ import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { ApiError } from "@/lib/api";
 import { useRescanSkill, useSkill } from "@/lib/hooks/skills";
 import { useToast } from "@/lib/toast";
+import { ContextTab } from "./_components/ContextTab";
 import { ConfigTab } from "./_components/ConfigTab";
 import { EvalsTab } from "./_components/EvalsTab";
 import { PreviewTab } from "./_components/PreviewTab";
@@ -109,6 +110,7 @@ export function SkillEditorView({ id }: { id: string }) {
         {tab === "evals" && <EvalsTab />}
         {tab === "stats" && <StatsTab skillId={skill.id} />}
         {tab === "versions" && <VersionsTab skill={skill} />}
+        {tab === "context" && <ContextTab skillId={skill.id} />}
       </div>
     </>
   );

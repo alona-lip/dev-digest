@@ -116,7 +116,7 @@
     "**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,pdf}",
     "server/clones/**", "**/node_modules/**", "server/src/db/migrations/meta/**"
   ],
-  "excluded": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "excluded": ["mermaid-diagram", "engineering-insights", "pr-self-review", "run-plan", "workflow-retro"],
   "caps": { "typescript-expert": "WARNING" },
   "focus": {
     "react-testing-library": "For a non-test file: is the behaviour this diff changes covered by the colocated <Name>.test.tsx (changed or still valid)? A missing or now-stale test is a WARNING, never CRITICAL. For a test file: apply the skill's rules to the test itself.",

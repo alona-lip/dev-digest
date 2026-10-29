@@ -12,6 +12,17 @@ import { join, isAbsolute, resolve } from 'node:path';
  * that reads process.env directly (see adapters/secrets/local.ts). Listing them
  * here would be dead config that never reaches AppConfig.
  */
+/** Built-in project-context glob: spec/doc/insight directories at any depth plus any INSIGHTS.md. */
+export const DEFAULT_CONTEXT_GLOB = '**/{{specs,docs,insights}/**/*,INSIGHTS}.md';
+/** The SPEC-01 default; a `.env` still carrying it never lists INSIGHTS.md files. */
+export const LEGACY_CONTEXT_GLOB = '**/{specs,docs,insights}/**/*.md';
+
+/** Startup warning when CONTEXT_GLOB is still the legacy default, else null. */
+export function legacyContextGlobWarning(glob: string): string | null {
+  if (glob !== LEGACY_CONTEXT_GLOB) return null;
+  return `CONTEXT_GLOB is the old default "${LEGACY_CONTEXT_GLOB}", which never lists INSIGHTS.md files. Update it to "${DEFAULT_CONTEXT_GLOB}" or blank CONTEXT_GLOB in server/.env.`;
+}
+
 const EnvSchema = z.object({
   DATABASE_URL: z
     .string()
@@ -30,6 +41,10 @@ const EnvSchema = z.object({
   // …) through the SSRF-guarded UrlFetcher. Default ON; EXTERNAL_FETCH_ENABLED=false
   // turns off URL references only — repo files and GitHub issues still resolve.
   EXTERNAL_FETCH_ENABLED: z.string().optional(),
+  // Project context: which clone .md files feed the project-context docs, and
+  // the comma-separated roots (relative to the clone) the scan starts from.
+  CONTEXT_GLOB: z.preprocess((v) => (v === '' ? undefined : v), z.string().default(DEFAULT_CONTEXT_GLOB)),
+  CONTEXT_ROOTS: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('.')),
   API_PORT: z.coerce.number().int().default(3001),
   // The API has no auth (LocalNoAuthProvider), so it listens on loopback only
   // by default — `0.0.0.0` would let anyone on the LAN set keys and spend LLM
@@ -72,6 +87,13 @@ export type AppConfig = {
   repoIntelEnabled: boolean;
   /** Whether the Intent Layer may fetch external https:// references. Default true. */
   externalFetchEnabled: boolean;
+  /**
+   * picomatch glob (repo-relative POSIX paths) selecting project-context docs.
+   * Path names match case-insensitively; the `.md` extension must be lowercase.
+   */
+  contextGlob: string;
+  /** Scan roots inside the clone; default ['.']. */
+  contextRoots: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -92,5 +114,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
     externalFetchEnabled: parsed.EXTERNAL_FETCH_ENABLED !== 'false',
+    contextGlob: parsed.CONTEXT_GLOB,
+    contextRoots: parsed.CONTEXT_ROOTS.split(',').map((r) => r.trim()).filter(Boolean),
   };
 }
