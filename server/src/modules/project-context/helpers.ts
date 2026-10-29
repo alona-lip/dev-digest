@@ -128,3 +128,34 @@ export function toAttachmentDocs(
     };
   });
 }
+
+export interface BriefDocAgent {
+  id: string;
+  createdAt: Date | string;
+  agentPaths: readonly string[];
+  skills: readonly { id: string; name: string; paths: readonly string[] }[];
+}
+
+const toMs = (d: Date | string): number => (d instanceof Date ? d.getTime() : Date.parse(d));
+
+/**
+ * Documents input for the PR brief: agents ordered by creation time then id,
+ * each agent's effective set (SPEC-01 AC-40 order), first occurrence of a path wins.
+ */
+export function unionBriefDocs(agents: readonly BriefDocAgent[]): string[] {
+  const ordered = [...agents].sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const a of ordered) {
+    const set = buildEffectiveSet(
+      a.agentPaths,
+      a.skills.map((s) => ({ skill_id: s.id, name: s.name, paths: s.paths })),
+    );
+    for (const { path } of set) {
+      if (seen.has(path)) continue;
+      seen.add(path);
+      out.push(path);
+    }
+  }
+  return out;
+}

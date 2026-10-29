@@ -64,6 +64,18 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  lineTargetWrap: {
+    outline: "2px solid var(--accent-text)",
+    outlineOffset: -2,
+  } satisfies CSSProperties,
+  lineTargetBadge: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--accent-text)",
+    background: "var(--accent-bg)",
+    padding: "0 8px",
+    flexShrink: 0,
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */

@@ -13,7 +13,7 @@ import type { PromptSpec } from '@devdigest/reviewer-core';
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { CONTEXT_LIST_LIMIT, CONTEXT_MAX_FILE_BYTES, PROJECT_CONTEXT_TOKEN_BUDGET } from './constants.js';
-import { applyBudget, buildEffectiveSet, countUsage, docTypeOf, toAttachmentDocs, toListPage } from './helpers.js';
+import { applyBudget, buildEffectiveSet, countUsage, docTypeOf, toAttachmentDocs, toListPage, unionBriefDocs } from './helpers.js';
 import * as attachments from './repository/attachment.repo.js';
 import type { AttachmentKind } from './repository/attachment.repo.js';
 
@@ -27,6 +27,8 @@ export interface ProjectContextDeps {
   /** Skills currently enabled for an agent (used by the read endpoints; runs pass their own list). */
   activeSkills(agentId: string): Promise<{ id: string; name: string }[]>;
   /** The executor the attachment repository takes (typed via the repo, not `db/client`). */
+  /** Enabled agents of a workspace (any order; the pure union helper sorts). */
+  enabledAgents(workspaceId: string): Promise<{ id: string; createdAt: Date | string }[]>;
   db: AttachmentDb;
   scope: DocsScope;
 }
@@ -53,10 +55,18 @@ export interface RunContext {
   tokens: number;
 }
 
+export interface BriefDocs {
+  docs: { path: string; text: string; tokens: number }[];
+  /** Number of distinct attached paths found across enabled agents (readable or not). */
+  attached: number;
+  notCloned: boolean;
+  unreadable: { path: string; reason: string }[];
+}
+
 /** What the container exposes and what routes / the executor call. */
 export type ProjectContextPort = Pick<
   ProjectContextService,
-  'listDocs' | 'readDoc' | 'usage' | 'getAttachments' | 'replaceAttachments' | 'forRun'
+  'listDocs' | 'readDoc' | 'usage' | 'getAttachments' | 'replaceAttachments' | 'forRun' | 'forBrief'
 >;
 
 const OVER_1MB = '> 1 MB';
@@ -330,6 +340,62 @@ export class ProjectContextService {
 
     return { promptSpecs, specBlocks, specsRead: promptSpecs.map((p) => p.path), tokens };
   }
+
+  /**
+   * Documents for the PR brief: union over the workspace's enabled agents (+ their active skills).
+   * Applies no token budget (the brief budgets itself); unreadable items are skipped and logged.
+   */
+  async forBrief(workspaceId: string, repoId: string, log?: ProjectContextLog): Promise<BriefDocs> {
+    const repo = await this.loadRepo(workspaceId, repoId);
+    const agents = await this.deps.enabledAgents(workspaceId);
+    const perAgent = await Promise.all(
+      agents.map(async (a) => {
+        const skills = await this.deps.activeSkills(a.id);
+        const snap = await attachments.listForRun(
+          this.deps.db,
+          a.id,
+          skills.map((s) => s.id),
+          repoId,
+        );
+        return {
+          id: a.id,
+          createdAt: a.createdAt,
+          agentPaths: snap.agentPaths,
+          skills: skills.map((s) => ({ id: s.id, name: s.name, paths: snap.skillPaths.get(s.id) ?? [] })),
+        };
+      }),
+    );
+    const paths = unionBriefDocs(perAgent);
+    const result: BriefDocs = { docs: [], attached: paths.length, notCloned: false, unreadable: [] };
+    if (paths.length === 0) return result;
+    const clonePath = repo.clonePath;
+    if (!clonePath) {
+      result.notCloned = true;
+      log?.info(`Brief documents skipped: repository not cloned (${paths.length} attached)`);
+      return result;
+    }
+    for (const path of paths) {
+      let r: Awaited<ReturnType<typeof this.deps.docs.read>>;
+      try {
+        r = await this.deps.docs.read(clonePath, path, this.readScope());
+      } catch (err) {
+        // One unreadable document (EACCES, EIO, ...) must not discard the others (AC-16).
+        // Log the path and error code only, never file content.
+        const code = (err as NodeJS.ErrnoException | undefined)?.code ?? 'unknown error';
+        result.unreadable.push({ path, reason: 'unreadable' });
+        log?.info(`Brief document "${path}" skipped: unreadable (${code})`);
+        continue;
+      }
+      if (r.kind === 'ok') {
+        result.docs.push({ path, text: r.text, tokens: r.text === '' ? 0 : this.deps.tokenizer.count(r.text) });
+        continue;
+      }
+      const reason = r.kind === 'too_large' ? OVER_1MB : r.kind === 'not_text' ? 'not valid UTF-8' : 'file not found';
+      result.unreadable.push({ path, reason });
+      log?.info(`Brief document "${path}" skipped: ${reason}`);
+    }
+    return result;
+  }
 }
 
 export function createProjectContextService(container: Container): ProjectContextService {
@@ -339,6 +405,7 @@ export function createProjectContextService(container: Container): ProjectContex
     tokenizer: container.tokenizer,
     activeSkills: async (agentId) =>
       (await container.agentsRepo.activeSkillsForRun(agentId)).map(({ id, name }) => ({ id, name })),
+    enabledAgents: (workspaceId) => container.agentsRepo.listEnabled(workspaceId),
     db: container.db,
     scope: { glob: container.config.contextGlob, roots: container.config.contextRoots },
   });

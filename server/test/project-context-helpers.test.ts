@@ -6,6 +6,7 @@ import {
   docTypeOf,
   toAttachmentDocs,
   toListPage,
+  unionBriefDocs,
 } from '../src/modules/project-context/helpers.js';
 
 describe('docTypeOf', () => {
@@ -175,5 +176,50 @@ describe('docTypeOf — SPEC-02', () => {
     // contract: typing is a pure function of the path, whatever pattern matched it
     expect(docTypeOf('server/INSIGHTS.md')).toBe('insights');
     expect(docTypeOf('README.md')).toBe('docs');
+  });
+});
+
+describe('unionBriefDocs (SPEC-03 AC-15)', () => {
+  const agent = (
+    id: string,
+    createdAt: string,
+    agentPaths: string[],
+    skills: { id: string; name: string; paths: string[] }[] = [],
+  ) => ({ id, createdAt: new Date(createdAt), agentPaths, skills });
+
+  it('AC-15: two agents sharing a path keep its first occurrence, in agent creation order', () => {
+    // contract: agents are ordered by creation time (input order is irrelevant)
+    const older = agent('a-old', '2026-01-01T00:00:00Z', ['specs/shared.md', 'docs/old.md']);
+    const newer = agent('a-new', '2026-02-01T00:00:00Z', ['docs/new.md', 'specs/shared.md']);
+    // contract: a repeated path appears once, at its first position
+    expect(unionBriefDocs([newer, older])).toEqual(['specs/shared.md', 'docs/old.md', 'docs/new.md']);
+  });
+
+  it('AC-15: agents created at the same instant are tie-broken by id', () => {
+    // contract: equal createdAt -> ascending id
+    const b = agent('b', '2026-01-01T00:00:00Z', ['docs/b.md']);
+    const a = agent('a', '2026-01-01T00:00:00Z', ['docs/a.md']);
+    expect(unionBriefDocs([b, a])).toEqual(['docs/a.md', 'docs/b.md']);
+  });
+
+  it('AC-15: within an agent, own paths come first, then each skill paths (SPEC-01 AC-40 order); a path repeated across agent and skill is kept once', () => {
+    const a = agent('a', '2026-01-01T00:00:00Z', ['docs/own.md'], [
+      { id: 's1', name: 'one', paths: ['docs/skill1.md', 'docs/own.md'] },
+      { id: 's2', name: 'two', paths: ['docs/skill2.md'] },
+    ]);
+    expect(unionBriefDocs([a])).toEqual(['docs/own.md', 'docs/skill1.md', 'docs/skill2.md']);
+  });
+
+  it('AC-15: skill paths of an earlier agent win over the same path attached directly to a later agent', () => {
+    const first = agent('a1', '2026-01-01T00:00:00Z', [], [{ id: 's', name: 's', paths: ['docs/x.md'] }]);
+    const second = agent('a2', '2026-01-02T00:00:00Z', ['docs/y.md', 'docs/x.md']);
+    expect(unionBriefDocs([first, second])).toEqual(['docs/x.md', 'docs/y.md']);
+  });
+
+  it('AC-15: no agents -> no documents; ISO string createdAt values sort like dates', () => {
+    expect(unionBriefDocs([])).toEqual([]);
+    const late = { id: 'z', createdAt: '2026-03-01T00:00:00Z', agentPaths: ['docs/late.md'], skills: [] };
+    const early = { id: 'a', createdAt: '2026-01-01T00:00:00Z', agentPaths: ['docs/early.md'], skills: [] };
+    expect(unionBriefDocs([late, early])).toEqual(['docs/early.md', 'docs/late.md']);
   });
 });

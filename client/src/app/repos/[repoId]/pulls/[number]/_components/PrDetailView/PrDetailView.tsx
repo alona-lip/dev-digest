@@ -30,6 +30,7 @@ import { ApiError } from "@/lib/api";
 import { githubPrUrl } from "@/lib/github-urls";
 import { parseSeverityParam } from "@/components/severity";
 import type { FindingRecord, Severity } from "@devdigest/shared";
+import { parseDiffTarget, diffTargetQuery } from "../../helpers";
 
 export interface PrDetailViewProps {
   repoId: string;
@@ -75,7 +76,18 @@ export function PrDetailView({ repoId, number }: PrDetailViewProps) {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const base = `/repos/${repoId}/pulls/${number}`;
+  // Switching tabs by hand drops any deep-link target so a stale one can't re-scroll.
+  const setTab = (t: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", t);
+    sp.delete("file");
+    sp.delete("line");
+    router.replace(`${base}?${sp.toString()}`);
+  };
+  // One replace: Diff tab + file + line (Overview lists call this for files in the diff).
+  const openFile = (file: string, line: number | null) =>
+    router.replace(`${base}?${diffTargetQuery(new URLSearchParams(search.toString()), file, line)}`);
   const setSeverity = (s: Severity | null) => setParam("severity", s);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
@@ -152,6 +164,8 @@ export function PrDetailView({ repoId, number }: PrDetailViewProps) {
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             prBody={pr.body}
+            renderedFiles={pr.files.map((f) => f.path)}
+            onOpenFile={openFile}
           />
         )}
 
@@ -183,6 +197,7 @@ export function PrDetailView({ repoId, number }: PrDetailViewProps) {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            target={parseDiffTarget(search)}
           />
         )}
       </div>

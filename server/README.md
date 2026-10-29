@@ -71,6 +71,7 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/recompute"]
+    brief["brief<br/>/pulls/:id/brief (GET, POST)"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (GET, PUT)"]
@@ -89,6 +90,17 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+### PR brief (`brief`)
+
+- `GET /pulls/:id/brief` → `BriefResponse`: `{status:'none'}` or
+  `{status:'ready', stale, current_head_sha, brief}` (`stale` = stored `head_sha` differs from the PR's
+  current head). Reads only; never calls a model or GitHub. An unparsable stored row is `none` (logged).
+- `POST /pulls/:id/brief` → `{status:'ready', stale:false, …}`. One structured call on the `risk_brief`
+  feature model; concurrent calls for a PR share one generation. Rate limit 10/min.
+- Errors: `404` unknown PR · `422` `no_changed_files` / `brief_input_too_large` (no model call) ·
+  `429` rate limit · `502` changed files unknown (no local diff, GitHub failed) or model failed / invalid
+  output (nothing stored, previous brief kept).
 
 ## Environment
 

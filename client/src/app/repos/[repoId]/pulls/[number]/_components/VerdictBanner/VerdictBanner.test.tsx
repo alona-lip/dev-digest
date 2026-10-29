@@ -30,4 +30,19 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  it("renders the optional action slot next to the score", () => {
+    renderWithIntl(
+      <VerdictBanner
+        verdict="comment"
+        summary="s"
+        score={80}
+        findingsCount={0}
+        blockers={0}
+        action={<button type="button">Refresh</button>}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+  });
 });

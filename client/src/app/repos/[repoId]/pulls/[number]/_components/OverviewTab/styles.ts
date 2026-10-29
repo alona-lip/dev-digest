@@ -7,6 +7,7 @@ export const s = {
     gap: 24,
     alignItems: "stretch",
   } satisfies CSSProperties,
+  column: { display: "flex", flexDirection: "column", gap: 24, minWidth: 0 } satisfies CSSProperties,
   descriptionBox: {
     border: "1px solid var(--border)",
     borderRadius: 8,

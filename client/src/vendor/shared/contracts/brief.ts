@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 /**
  * PR Brief building blocks: Intent, Blast radius, Risks, PR History,
- * Smart Diff. Composed into PrBrief.
+ * Smart Diff. Composed into PrBrief. Also holds the generated-brief contracts
+ * (SPEC-03): RiskKind, ReviewFocusItem, BriefModelOutput, BriefRecord,
+ * BriefResponse.
  */
 
 // ---- Intent ----
@@ -59,8 +61,13 @@ export type PrBlastRadius = z.infer<typeof PrBlastRadius>;
 export const RiskSeverity = z.enum(['high', 'medium', 'low']);
 export type RiskSeverity = z.infer<typeof RiskSeverity>;
 
+export const RiskKind = z.enum([
+  'security', 'dependency', 'performance', 'breaking_change', 'data', 'config', 'other',
+]);
+export type RiskKind = z.infer<typeof RiskKind>;
+
 export const Risk = z.object({
-  kind: z.string(),
+  kind: RiskKind,
   title: z.string(),
   explanation: z.string(),
   severity: RiskSeverity,
@@ -72,6 +79,65 @@ export const Risks = z.object({
   risks: z.array(Risk),
 });
 export type Risks = z.infer<typeof Risks>;
+
+// ---- Generated PR Brief (SPEC-03) ----
+// Sent to OpenAI strict json_schema: no .transform()/.default(), and no length/range
+// checks (.min/.max) — strict mode rejects the keywords they emit (minLength, …).
+// Use .refine(), which validates at parse time without emitting a keyword.
+const NonBlank = z.string().refine((s) => s.trim().length > 0, { message: 'must not be blank' });
+
+export const ReviewFocusItem = z.object({
+  file: NonBlank,
+  line: z.number().int().refine((n) => n >= 1, { message: 'line must be >= 1' }),
+  reason: NonBlank,
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+export const BriefModelOutput = z.object({
+  summary: NonBlank,
+  risks: z.array(Risk),
+  review_focus: z.array(ReviewFocusItem),
+});
+export type BriefModelOutput = z.infer<typeof BriefModelOutput>;
+
+export const BriefMissingInput = z.object({
+  input: z.enum(['intent', 'blast', 'linked_issue', 'specs']),
+  reason: z.string(),
+});
+export type BriefMissingInput = z.infer<typeof BriefMissingInput>;
+
+export const BriefTrimmedInput = z.enum(['specs', 'linked_issue', 'description']);
+export type BriefTrimmedInput = z.infer<typeof BriefTrimmedInput>;
+
+export const BriefRecord = z.object({
+  pr_id: z.string(),
+  head_sha: z.string(),
+  generated_at: z.string(),
+  model: z.string(),
+  summary: z.string(),
+  risks: z.array(Risk),
+  review_focus: z.array(ReviewFocusItem),
+  missing_inputs: z.array(BriefMissingInput),
+  trimmed_inputs: z.array(BriefTrimmedInput),
+  dropped: z.object({
+    risks: z.number().int(),
+    review_focus: z.number().int(),
+  }),
+  input_tokens: z.number().int(),
+  cost_usd: z.number().nullable(),
+});
+export type BriefRecord = z.infer<typeof BriefRecord>;
+
+export const BriefResponse = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('none') }),
+  z.object({
+    status: z.literal('ready'),
+    stale: z.boolean(),
+    current_head_sha: z.string(),
+    brief: BriefRecord,
+  }),
+]);
+export type BriefResponse = z.infer<typeof BriefResponse>;
 
 // ---- PR History ----
 export const PrHistoryItem = z.object({
