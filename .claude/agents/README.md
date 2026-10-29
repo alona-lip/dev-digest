@@ -84,8 +84,8 @@ closed (no `jq` → blocked). The rule is also in each prompt; the hook is what 
 Before a long workflow, check the budget on the usage dashboard — limits depend on the plan and the
 model, so there is no universal number. Expensive models are kept only where judgement dominates
 (`spec-creator`, `implementation-planner` on opus); the read-only reviewers moved from opus to
-sonnet because they follow structured checklists. On the first runs `/run-plan` keeps
-`max-parallel:2`, `max-fix:2` and `e2e:smoke`, but never switches off typecheck, unit tests or
+sonnet because they follow structured checklists. `/run-plan` keeps
+`max-parallel:3` (reviewers and fixers ≤ 2), `max-fix:2` and `e2e:smoke`, but never switches off typecheck, unit tests or
 `pnpm arch:check` — without them you cannot see whether the pipeline itself works. After a full run,
 `/workflow-retro deep` (nested agents included) turns the numbers into actions and logs a row in
 [`docs/retros/ledger.md`](../../docs/retros/ledger.md).

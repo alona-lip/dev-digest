@@ -50,15 +50,17 @@ red AC test means fixing code, not the test (Step 4).
 | `plan:<path>` | Approved Implementation Plan. **Required.** | — |
 | free-text prose | Notes / constraints for this run ("skip phase 3 for now") | — |
 | `mode:multi` / `mode:single` | Override the plan's Execution mode | read from the plan |
-| `max-parallel:<n>` | Max agents running at once (implementers, fixers) | `2` |
+| `max-parallel:<n>` | Max plan-task agents running at once: implementers (Step 1) and test-writers (Step 3). Reviewers and fixers (Steps 2, 4) stay at ≤ 2 | `3` |
 | `max-fix:<n>` | Cap for **each** fix loop (Step 2 and Step 4 separately) | `2` |
 | `e2e:off\|smoke\|full` | `off` — skip; `smoke` — `cd e2e && npm run typecheck` + `JSON.parse` of changed `*.flow.json`, no browser; `full` — `cd e2e && npm test` against a running `./scripts/dev.sh` with seeded-only data | `smoke` |
 | `tests:off` | Skip Step 3–4 (explicit opt-out only; Step 5 will then report ACs without tests) | on |
 
 No `plan:` → ask for it and stop. State your interpretation of the args in one line before starting.
 
-**Limits for first runs.** The defaults are deliberately low: two agents at a time, two fix
-iterations, no browser e2e. Raise them only after a `/workflow-retro` shows the pipeline works and
+**Limits.** The defaults are deliberately conservative: three plan-task agents at a time (two for
+reviewers and fixers), two fix iterations, no browser e2e. `max-parallel` was raised from 2 to 3 after
+the pr-brief retro (2026-10-29): with 2, ready tasks queued (the seed task waited 11 min) and
+parallelism stalled at 1.58x. Raise further only after a `/workflow-retro` shows the pipeline works and
 the budget allows — check usage on the dashboard, not a universal number. Typecheck, unit tests
 and `pnpm arch:check` are **never** switched off: without them you cannot see whether the pipeline
 itself works.
@@ -82,7 +84,7 @@ itself works.
 2. Read the spec header and AC list (not the whole spec): `Status`, Spec ID, AC-IDs, open
    `[NEEDS CLARIFICATION]`.
 3. Print the budget line and wait for nothing — just make it visible:
-   `6 tasks · multi-agent · 3 phases · max-parallel 2 · max-fix 2 · e2e smoke · models: implementer
+   `6 tasks · multi-agent · 3 phases · max-parallel 3 · max-fix 2 · e2e smoke · models: implementer
    sonnet, architecture-reviewer sonnet, correctness reviewers sonnet, test-writer sonnet,
    plan-verifier sonnet`.
    If any agent the run uses is on an expensive model (`opus`), say so in that line.
@@ -118,7 +120,7 @@ fix + re-review round (project-context retro, 2026-10-28).
    - `cd server && pnpm arch:check` (when `server/` changed)
    - `./scripts/check-shared.sh` (when any `vendor/shared` changed)
    - `git diff --stat origin/main -- client/src/vendor/ui server/src/db/migrations` (do-not-touch zones)
-3. **Spawn the reviewers** in one message, ≤ `max-parallel` at once (all read-only):
+3. **Spawn the reviewers** in one message, ≤ 2 at once (all read-only):
    - `architecture-reviewer` on the changed-file set, with the evidence block in the brief: *"These
      command outputs are evidence you may cite; do not report them as cannot-verify."*
    - one **correctness reviewer** per touched module (`server`, `client`, `reviewer-core`) — a
@@ -135,7 +137,7 @@ fix + re-review round (project-context retro, 2026-10-28).
 
 Loop `i = 1 … max-fix` while the backlog is non-empty:
 1. Group findings by file into non-overlapping fix tasks.
-2. Dispatch `implementer`(s), ≤ `max-parallel` at once: *"Fix exactly these findings in these files,
+2. Dispatch `implementer`(s), ≤ 2 at once: *"Fix exactly these findings in these files,
    stay in scope, self-verify."* — with each finding's text, `file:line` and recommendation.
 3. Re-run only the reviewer(s) that reported the findings, on the touched files only.
 4. Empty → gate PASS. Same findings as last iteration → stop, flag as stuck.
@@ -149,8 +151,10 @@ Skip if `tests:off`. Spawn `test-writer` (one per module — `server`, `reviewer
 when both are touched, ≤ `max-parallel`). **Split `server` in two** when its ACs need both unit and
 integration tests: one `test-writer` for unit files (`server/test/*.test.ts`, no Docker) and one for
 `*.it.test.ts`, each with its own AC subset and disjoint test files. One writer for both was the run's
-critical path (824 s in the project-context retro). If the plan already has separate unit and
-integration test tasks, follow them. Brief:
+critical path (824 s in the project-context retro). **Split further, per test file,** when one writer
+would own more than ~25 ACs: output volume, not Docker, is the bottleneck. In the pr-brief retro the
+unit-only writer (30 ACs, 4 files, 104k output tokens) alone took 1136 s. If the plan already has
+separate test tasks, follow them; run all of them at once, ≤ `max-parallel`. Brief:
 
 - the **spec path and its AC-IDs first**, the plan's `Traceability` table, then the changed-file set;
 - *"Derive the test cases from the ACs before reading the implementation. Name every test with its

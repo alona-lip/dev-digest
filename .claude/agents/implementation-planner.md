@@ -238,6 +238,11 @@ multi-agent (parallel) | single-agent (one pass) — <what the user chose and wh
   files (`server/test/*.test.ts`, no Docker) and one for `*.it.test.ts`, each with its own AC subset
   and disjoint test files; `reviewer-core` is its own task. One task for all server tests was the
   critical path of the project-context run (824 s).
+- A test task that would own more than ~25 ACs is split further, **per test file** (e.g. `T11a`
+  contracts + helpers, `T11b` service), each with its own AC subset, disjoint files and no
+  `Depends-on` between them, so `/run-plan` runs them at once. Output volume is the bottleneck, not
+  Docker: in the pr-brief run the unit-only task (30 ACs, 4 files, 104k output tokens) alone took
+  1136 s, the critical path.
 
 ## Risks & mitigations
 - <risk> → <mitigation>

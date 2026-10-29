@@ -10,7 +10,7 @@ Ported from the course branch `lesson-5-lab/sdd-finish` and changed for this rep
   loop) → **plan-verifier last**. The reference ran no test-writer and reviewed in parallel with
   verification; here tests are written once, after the architecture gate, so structural fixes do not
   rewrite them — and `test-writer` reads the spec before the code so tests don't copy its bugs.
-- **Limits for first runs:** `max-parallel:2`, `max-fix:2` per loop, `e2e:smoke` — while typecheck,
+- **Limits:** `max-parallel:3` for implementers and test-writers (reviewers and fixers ≤ 2), `max-fix:2` per loop, `e2e:smoke` — while typecheck,
   unit tests and `pnpm arch:check` always stay on.
 - **Gate on the spec:** the plan's spec must be `Status: approved` with no open `[NEEDS CLARIFICATION]`.
 
@@ -46,7 +46,7 @@ Ported from the course branch `lesson-5-lab/sdd-finish` and changed for this rep
 | `plan:<path>` | Approved Implementation Plan. **Required.** | — |
 | free-text | Notes / constraints for this run | — |
 | `mode:multi` / `mode:single` | Override the plan's Execution mode | from the plan |
-| `max-parallel:<n>` | Agents running at once | `2` |
+| `max-parallel:<n>` | Implementers / test-writers at once (reviewers, fixers ≤ 2) | `3` |
 | `max-fix:<n>` | Cap per fix loop (architecture, AC tests) | `2` |
 | `e2e:off\|smoke\|full` | `smoke` = e2e typecheck + flow JSON parse, no browser | `smoke` |
 | `tests:off` | Skip test-writer (explicit opt-out) | on |
